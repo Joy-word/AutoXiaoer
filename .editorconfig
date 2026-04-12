@@ -1,0 +1,120 @@
+# EditorConfig for AutoGLM Phone Agent
+# https://editorconfig.org
+
+root = true
+
+# Default settings for all files
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+# Kotlin files
+[*.{kt,kts}]
+indent_style = space
+indent_size = 4
+max_line_length = 120
+
+# ktlint 1.8.0 - 务实配置
+# 使用 intellij_idea 风格（更接近 Android Studio 默认行为）
+ktlint_code_style = intellij_idea
+
+# ===== 显式启用的重要规则 =====
+# 导入规则
+ktlint_standard_no-wildcard-imports = enabled
+ktlint_standard_import-ordering = enabled
+ktlint_standard_no-unused-imports = disabled  # 官方已弃用，误报多
+
+# 尾逗号（多行时强制）
+ktlint_standard_trailing-comma-on-call-site = enabled
+ktlint_standard_trailing-comma-on-declaration-site = enabled
+
+# 空行和间距
+ktlint_standard_blank-line-before-declaration = enabled
+ktlint_standard_spacing-between-declarations-with-annotations = enabled
+ktlint_standard_spacing-between-declarations-with-comments = enabled
+
+# 函数和参数格式
+ktlint_standard_function-signature = enabled
+ktlint_standard_argument-list-wrapping = enabled
+ktlint_standard_parameter-list-wrapping = enabled
+
+# 表达式换行
+ktlint_standard_multiline-expression-wrapping = enabled
+ktlint_standard_binary-expression-wrapping = enabled
+
+# 代码质量
+ktlint_standard_no-empty-class-body = enabled
+ktlint_standard_no-semi = enabled
+ktlint_standard_no-trailing-spaces = enabled
+ktlint_standard_no-multi-spaces = enabled
+ktlint_standard_final-newline = enabled
+
+# 命名规则
+ktlint_standard_class-naming = enabled
+ktlint_standard_function-naming = enabled
+ktlint_standard_property-naming = enabled
+ktlint_standard_package-name = enabled
+ktlint_standard_backing-property-naming = enabled
+
+# 1.8.0 新增/升级的规则
+ktlint_standard_kdoc = enabled
+ktlint_standard_blank-line-between-when-conditions = enabled
+ktlint_standard_when-entry-bracing = enabled
+ktlint_standard_square-brackets-spacing = enabled
+ktlint_standard_mixed-condition-operators = enabled
+ktlint_standard_then-spacing = enabled
+
+# ===== 保持默认（不显式配置）的规则 =====
+# 以下规则使用 ktlint 默认值，无需显式配置：
+# - annotation, indent, max-line-length, wrapping 等基础规则
+# - 各种 spacing 规则（colon, comma, curly, dot 等）
+
+# ===== 禁用的规则 =====
+# chain-method-continuation: 只在 ktlint_official 下运行，过于严格
+ktlint_standard_chain-method-continuation = disabled
+# no-blank-line-in-list: 只在 ktlint_official 下运行，过于严格
+ktlint_standard_no-blank-line-in-list = disabled
+# if-else-bracing: 只在 ktlint_official 下运行，强制所有分支加大括号
+ktlint_standard_if-else-bracing = disabled
+# function-expression-body: 自动将 return 改为 =，可能改变代码风格
+ktlint_standard_function-expression-body = disabled
+
+# 测试文件配置
+[*Test.kt]
+# 允许测试文件中 block 内的 KDoc（用于属性测试文档）
+ktlint_standard_kdoc = disabled
+
+[*PropertyTest.kt]
+# 属性测试文件也禁用 kdoc 规则
+ktlint_standard_kdoc = disabled
+
+# Gradle files
+[*.gradle.kts]
+indent_style = space
+indent_size = 4
+
+# XML files (Android layouts, etc.)
+[*.xml]
+indent_style = space
+indent_size = 4
+
+# JSON files
+[*.json]
+indent_style = space
+indent_size = 2
+
+# YAML files
+[*.{yml,yaml}]
+indent_style = space
+indent_size = 2
+
+# Markdown files
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# Properties files
+[*.properties]
+charset = utf-8

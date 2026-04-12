@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- API 27+ specific: add windowLightNavigationBar WITHOUT redefining Base.Theme.AutoGLM
+         Extending Theme.AutoGLM here preserves all color customizations from values/themes.xml -->
+    <style name="Theme.AutoGLM" parent="Base.Theme.AutoGLM">
+        <!-- windowLightNavigationBar requires API 27 -->
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

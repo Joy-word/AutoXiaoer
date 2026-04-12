@@ -1,0 +1,65 @@
+# Built application files
+*.apk
+*.ap_
+*.aab
+
+# Files for the ART/Dalvik VM
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+build/
+app/build/
+
+# Gradle files
+.gradle/
+local.properties
+
+# IntelliJ IDEA / Android Studio
+*.iml
+.idea/
+
+# Kotlin
+.kotlin/
+
+# Native
+.externalNativeBuild/
+.cxx/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# AI tools
+.claude/
+.kiro/
+.agent/
+.shared/
+.github/
+
+# External projects
+Open-AutoGLM/
+
+# Captures (Android profiler)
+/captures/
+
+# Keystore files - NEVER commit these!
+*.keystore
+*.jks
+keystore_base64.txt
+
+# Logcat dumps
+logcat*
+
+# AutoGLM logs
+autoglm_logs_*/
+
+# Dev profiles config
+dev_profiles.json

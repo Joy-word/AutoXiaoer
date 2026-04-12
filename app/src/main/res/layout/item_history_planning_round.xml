@@ -1,0 +1,189 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="12dp"
+    app:cardBackgroundColor="@color/surface_elevated"
+    app:cardCornerRadius="16dp"
+    app:cardElevation="0dp"
+    app:strokeColor="@color/step_llm_agent_badge"
+    app:strokeWidth="1dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Header row: round badge + label + action type chip -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <!-- Round number badge -->
+            <TextView
+                android:id="@+id/roundNumber"
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:background="@drawable/step_number_background"
+                android:gravity="center"
+                android:textColor="@color/on_primary"
+                android:textSize="12sp"
+                android:fontFamily="sans-serif-medium" />
+
+            <!-- "LLM 规划" label -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:text="LLM 规划"
+                android:textColor="@color/step_llm_agent_badge"
+                android:textSize="13sp"
+                android:fontFamily="sans-serif-medium" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <!-- Action type chip -->
+            <TextView
+                android:id="@+id/actionTypeChip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="3dp"
+                android:paddingBottom="3dp"
+                android:textSize="11sp"
+                android:textColor="@color/on_primary"
+                android:background="@drawable/step_number_background" />
+
+        </LinearLayout>
+
+        <!-- Thinking section (collapsible) -->
+        <LinearLayout
+            android:id="@+id/thinkingSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <!-- Thinking toggle button -->
+            <LinearLayout
+                android:id="@+id/thinkingToggle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:background="?attr/selectableItemBackground"
+                android:paddingBottom="4dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/history_thinking_label"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <ImageView
+                    android:id="@+id/thinkingToggleIcon"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_expand_more"
+                    app:tint="@color/text_secondary" />
+
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/thinkingText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/thinking_background"
+                android:padding="10dp"
+                android:textColor="@color/step_llm_agent_thinking"
+                android:textSize="13sp"
+                android:lineSpacingMultiplier="1.2"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
+        <!-- Sub-task description (for execute_subtask) -->
+        <LinearLayout
+            android:id="@+id/subTaskSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="子任务"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/subTaskDescription"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/thinking_background"
+                android:padding="10dp"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:lineSpacingMultiplier="1.2" />
+
+        </LinearLayout>
+
+        <!-- Message (for finish / request_user / schedule operations) -->
+        <TextView
+            android:id="@+id/messageText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:textColor="@color/text_secondary"
+            android:textSize="13sp"
+            android:lineSpacingMultiplier="1.2"
+            android:visibility="gone" />
+
+        <!-- Observation result (after sub-task execution) -->
+        <LinearLayout
+            android:id="@+id/observationSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="执行观察"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/observationText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/thinking_background"
+                android:padding="10dp"
+                android:textColor="@color/text_primary"
+                android:textSize="12sp"
+                android:lineSpacingMultiplier="1.2" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>

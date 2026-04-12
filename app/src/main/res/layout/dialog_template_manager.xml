@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:minHeight="200dp"
+    android:maxHeight="520dp">
+
+    <!-- Template List -->
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvTemplates"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:padding="16dp"
+        android:clipToPadding="false" />
+
+    <!-- Empty State -->
+    <LinearLayout
+        android:id="@+id/layoutTemplateEmpty"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:gravity="center"
+        android:padding="32dp"
+        android:visibility="gone">
+
+        <ImageView
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@drawable/ic_list"
+            app:tint="@color/icon_secondary"
+            android:alpha="0.5"
+            android:contentDescription="@null"
+            android:layout_marginBottom="12dp" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_no_templates"
+            android:textColor="@color/text_secondary"
+            android:textSize="15sp" />
+
+    </LinearLayout>
+
+    <!-- Add Template Button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnAddTemplate"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="8dp"
+        android:text="@string/settings_add_template"
+        app:backgroundTint="@color/surface_variant"
+        android:textColor="@color/primary"
+        app:cornerRadius="12dp"
+        app:icon="@drawable/ic_plus"
+        app:iconGravity="textStart"
+        app:iconPadding="8dp"
+        app:iconTint="@color/primary" />
+
+
+
+</LinearLayout>

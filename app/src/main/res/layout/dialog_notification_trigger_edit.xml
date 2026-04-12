@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <!-- App Selector -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilAppSelector"
+        style="@style/Widget.App.TextInputLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/notification_trigger_select_app"
+        app:endIconMode="dropdown_menu">
+
+        <com.google.android.material.textfield.MaterialAutoCompleteTextView
+            android:id="@+id/actvAppSelector"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:imeOptions="actionNext"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Task Prompt Input -->
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/tilTaskPrompt"
+        style="@style/Widget.App.TextInputLayout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:hint="@string/notification_trigger_task_prompt_hint">
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/etTaskPrompt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textMultiLine|textCapSentences"
+            android:minLines="3"
+            android:maxLines="6"
+            android:gravity="top"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp" />
+
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <!-- Helper text -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:text="@string/notification_trigger_prompt_helper"
+        android:textColor="@color/text_hint"
+        android:textSize="12sp" />
+
+</LinearLayout>
