@@ -313,18 +313,24 @@ class LLMAgent(
                                 val appContext = this@LLMAgent.context
                                 val resultMessage = if (appContext != null) {
                                     try {
-                                        val taskManager = ScheduledTaskManager.getInstance(appContext)
-                                        val newTask = ScheduledTask(
-                                            id = taskManager.generateTaskId(),
-                                            taskDescription = params.taskDescription,
-                                            taskBackground = params.taskBackground,
-                                            scheduledTimeMillis = params.scheduledTimeMillis,
-                                            repeatType = params.repeatType,
-                                        )
-                                        taskManager.saveTask(newTask)
-                                        Logger.i(TAG, "Scheduled task created by LLM: id=${newTask.id}, desc=${params.taskDescription.take(50)}")
-                                        val timeStr = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault()).format(java.util.Date(params.scheduledTimeMillis))
-                                        "日程已记录成功（id: ${newTask.id}）：「${params.taskDescription}」，执行时间：$timeStr，重复类型：${params.repeatType.name}"
+                                        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+                                        val timeStr = fmt.format(java.util.Date(params.scheduledTimeMillis))
+                                        if (params.scheduledTimeMillis <= System.currentTimeMillis()) {
+                                            Logger.w(TAG, "Scheduled task time is in the past: $timeStr")
+                                            "日程记录失败：指定时间「$timeStr」已是过去时刻，无法设置。请重新指定一个未来的时间（当前时间：${fmt.format(java.util.Date(System.currentTimeMillis()))}）。"
+                                        } else {
+                                            val taskManager = ScheduledTaskManager.getInstance(appContext)
+                                            val newTask = ScheduledTask(
+                                                id = taskManager.generateTaskId(),
+                                                taskDescription = params.taskDescription,
+                                                taskBackground = params.taskBackground,
+                                                scheduledTimeMillis = params.scheduledTimeMillis,
+                                                repeatType = params.repeatType,
+                                            )
+                                            taskManager.saveTask(newTask)
+                                            Logger.i(TAG, "Scheduled task created by LLM: id=${newTask.id}, desc=${params.taskDescription.take(50)}")
+                                            "日程已记录成功（id: ${newTask.id}）：「${params.taskDescription}」，执行时间：$timeStr，重复类型：${params.repeatType.name}"
+                                        }
                                     } catch (e: Exception) {
                                         Logger.e(TAG, "Failed to create scheduled task", e)
                                         "日程记录失败：${e.message}"
@@ -518,6 +524,7 @@ class LLMAgent(
 
     private fun buildInitialMessage(taskDescription: String, triggerContext: TriggerContext?): String {
         val sb = StringBuilder()
+        sb.appendLine(LLMAgentPrompts.getCurrentDateTimePrefix(config.language))
         sb.appendLine("【用户任务】$taskDescription")
 
         if (triggerContext != null) {

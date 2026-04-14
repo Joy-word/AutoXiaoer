@@ -20,6 +20,7 @@ object LLMAgentPrompts {
 
     private const val DATE_PLACEHOLDER = "{date}"
     private const val TIME_PLACEHOLDER = "{time}"
+    private const val DATE_EXAMPLE_PLACEHOLDER = "{date_example}"
 
     fun setCustomChinesePrompt(prompt: String?) {
         customChinesePrompt = prompt
@@ -37,6 +38,7 @@ object LLMAgentPrompts {
         return template
             .replace(DATE_PLACEHOLDER, getCurrentDate("zh"))
             .replace(TIME_PLACEHOLDER, getCurrentTime())
+            .replace(DATE_EXAMPLE_PLACEHOLDER, getExampleFutureDate())
     }
 
     /**
@@ -47,6 +49,7 @@ object LLMAgentPrompts {
         return template
             .replace(DATE_PLACEHOLDER, getCurrentDate("en"))
             .replace(TIME_PLACEHOLDER, getCurrentTime())
+            .replace(DATE_EXAMPLE_PLACEHOLDER, getExampleFutureDate())
     }
 
     /**
@@ -83,6 +86,13 @@ object LLMAgentPrompts {
     private fun getCurrentTime(): String {
         val fmt = SimpleDateFormat("HH:mm", Locale.getDefault())
         return fmt.format(Calendar.getInstance().time)
+    }
+
+    /** Returns tomorrow's date in yyyy-MM-dd format, used as a concrete example in prompts. */
+    private fun getExampleFutureDate(): String {
+        val cal = Calendar.getInstance()
+        cal.add(Calendar.DAY_OF_MONTH, 1)
+        return SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(cal.time)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -143,7 +153,7 @@ object LLMAgentPrompts {
   "type": "schedule_task",
   "taskDescription": "到时间后需要执行的任务描述",
   "taskBackground": "给未来的自己的备忘：为什么安排这件事、有什么注意事项（可省略）",
-  "scheduledTime": "2026-04-02 09:00",
+  "scheduledTime": "{date_example} 09:00",
   "repeatType": "ONCE"
 }
 </action>
@@ -164,7 +174,7 @@ object LLMAgentPrompts {
   "taskId": "scheduled_1700000000000",
   "taskDescription": "新的任务描述（可省略，不填则保持原值）",
   "taskBackground": "新的备忘（可省略）",
-  "scheduledTime": "2026-04-02 09:00",
+  "scheduledTime": "{date_example} 09:00",
   "repeatType": "DAILY",
   "isEnabled": true
 }
@@ -209,7 +219,7 @@ object LLMAgentPrompts {
 ### schedule_task（新增日程）
 - `taskDescription`：到时间后要执行的任务描述
 - `taskBackground`（可选）：给未来的自己留的备忘，解释当时为什么安排这件事、有哪些注意事项。写给自己看，不是汇报给用户
-- `scheduledTime`：执行时间，格式为 `yyyy-MM-dd HH:mm`（当前时间 {time}，今天是 {date}，请据此填写目标时间，例如 "2026-04-02 09:00"）
+- `scheduledTime`：执行时间，格式为 `yyyy-MM-dd HH:mm`（当前时间 {time}，今天是 {date}，请据此填写目标时间，例如 "{date_example} 09:00"）
 - `repeatType`：重复类型，必须是以下之一：
   - `ONCE`：只执行一次
   - `DAILY`：每天同一时间执行
@@ -275,7 +285,7 @@ Or when you want to add a scheduled task to your own agenda:
   "type": "schedule_task",
   "taskDescription": "Description of the task to run at the scheduled time",
   "taskBackground": "A memo to your future self: why you scheduled this and any relevant notes (optional)",
-  "scheduledTime": "2026-04-02 09:00",
+  "scheduledTime": "{date_example} 09:00",
   "repeatType": "ONCE"
 }
 </action>
@@ -296,7 +306,7 @@ Or when you want to update a scheduled task:
   "taskId": "scheduled_1700000000000",
   "taskDescription": "Updated description (optional, omit to keep original)",
   "taskBackground": "Updated memo (optional)",
-  "scheduledTime": "2026-04-02 09:00",
+  "scheduledTime": "{date_example} 09:00",
   "repeatType": "DAILY",
   "isEnabled": true
 }
@@ -341,7 +351,7 @@ Your agenda is your own planning — independent of user-delegated tasks. You ca
 ### schedule_task (Add to agenda)
 - `taskDescription`: description of the task to execute at the scheduled time
 - `taskBackground` (optional): a memo to your future self — why you scheduled this, and any notes or caveats. Written for yourself, not as a report to the user.
-- `scheduledTime`: target execution time in `yyyy-MM-dd HH:mm` format (current time is {time}, today is {date}; e.g. "2026-04-02 09:00")
+- `scheduledTime`: target execution time in `yyyy-MM-dd HH:mm` format (current time is {time}, today is {date}; e.g. "{date_example} 09:00")
 - `repeatType`: one of the following:
   - `ONCE`: run only once
   - `DAILY`: run every day at the same time
