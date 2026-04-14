@@ -153,6 +153,9 @@ dependencies {
     // Apache Commons Compress for tar.bz2 extraction
     implementation("org.apache.commons:commons-compress:1.28.0")
 
+    // ZXing core for QR code generation (ClawBot login)
+    implementation("com.google.zxing:core:3.5.3")
+
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.kotest.runner.junit5)

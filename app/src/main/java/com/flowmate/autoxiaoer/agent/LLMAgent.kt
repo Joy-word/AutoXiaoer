@@ -1,6 +1,7 @@
 ﻿package com.flowmate.autoxiaoer.agent
 
 import android.content.Context
+import com.flowmate.autoxiaoer.clawbot.ClawBotManager
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
 import com.flowmate.autoxiaoer.history.HistoryManager
 import com.flowmate.autoxiaoer.history.LLMPlanningRound
@@ -244,6 +245,22 @@ class LLMAgent(
                                         message = msg,
                                     ),
                                 )
+
+                                // If triggered from ClawBot, reply directly to the user via iLink.
+                                if (triggerContext?.triggerType == TriggerType.CLAWBOT) {
+                                    val fromUserId = triggerContext.clawBotFromUserId
+                                    val contextToken = triggerContext.clawBotContextToken
+                                    val appCtx = this@LLMAgent.context
+                                    if (appCtx != null && !fromUserId.isNullOrBlank() && !contextToken.isNullOrBlank()) {
+                                        try {
+                                            val sent = ClawBotManager.sendMessage(appCtx, fromUserId, contextToken, msg)
+                                            Logger.i(TAG, "ClawBot request_user reply sent=$sent")
+                                        } catch (e: Exception) {
+                                            Logger.e(TAG, "Failed to send ClawBot request_user reply", e)
+                                        }
+                                    }
+                                }
+
                                 val result = LLMTaskResult(success = false, message = msg, planningRounds = round)
                                 historyManager?.completeTask(false, msg)
                                 listener?.onTaskFinished(result)
@@ -540,6 +557,12 @@ class LLMAgent(
                 }
                 TriggerType.VOICE -> sb.appendLine("【触发来源】语音指令触发")
                 TriggerType.MANUAL -> { /* No extra context needed for manual triggers */ }
+                TriggerType.CLAWBOT -> {
+                    sb.appendLine("【触发来源】ClawBot 微信消息")
+                    if (!triggerContext.clawBotFromUserId.isNullOrBlank()) {
+                        sb.appendLine("【发送方】${triggerContext.clawBotFromUserId}")
+                    }
+                }
             }
         }
 

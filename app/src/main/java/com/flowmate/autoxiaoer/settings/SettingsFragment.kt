@@ -1,7 +1,10 @@
 package com.flowmate.autoxiaoer.settings
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
@@ -36,6 +39,9 @@ import com.flowmate.autoxiaoer.ui.MainViewModel
 import com.flowmate.autoxiaoer.ui.PermissionStates
 import com.flowmate.autoxiaoer.util.LogFileManager
 import com.flowmate.autoxiaoer.util.Logger
+import com.flowmate.autoxiaoer.clawbot.ClawBotManager
+import com.flowmate.autoxiaoer.clawbot.ClawBotPollingService
+import com.flowmate.autoxiaoer.clawbot.ClawBotQrLoginDialog
 import com.flowmate.autoxiaoer.util.applyPrimaryButtonColors
 import com.flowmate.autoxiaoer.util.showWithPrimaryButtons
 import kotlinx.coroutines.launch
@@ -68,6 +74,19 @@ class SettingsFragment : Fragment() {
     private lateinit var permissionKeyboard: View
     private lateinit var permissionBattery: View
 
+    // ClawBot views
+    private lateinit var clawBotStatusText: TextView
+    private lateinit var btnClawBotAction: Button
+
+    // ClawBot session-expired receiver
+    private val clawBotSessionExpiredReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == ClawBotPollingService.ACTION_SESSION_EXPIRED) {
+                updateClawBotUI()
+            }
+        }
+    }
+
     // Debug logs views
     private lateinit var logSizeText: TextView
     private lateinit var btnExportLogs: Button
@@ -91,6 +110,17 @@ class SettingsFragment : Fragment() {
         super.onResume()
         refreshPermissionStates()
         updateLogSizeDisplay()
+        updateClawBotUI()
+        @Suppress("UnspecifiedRegisterReceiverFlag")
+        requireContext().registerReceiver(
+            clawBotSessionExpiredReceiver,
+            IntentFilter(ClawBotPollingService.ACTION_SESSION_EXPIRED),
+        )
+    }
+
+    override fun onPause() {
+        super.onPause()
+        runCatching { requireContext().unregisterReceiver(clawBotSessionExpiredReceiver) }
     }
 
     /**
@@ -122,6 +152,10 @@ class SettingsFragment : Fragment() {
         // LLM-agent settings entry button
         view.findViewById<Button>(R.id.btnLLMAgentSettings)
             .setOnClickListener { showLLMAgentSettingsDialog() }
+
+        // ClawBot connection
+        clawBotStatusText = view.findViewById(R.id.clawBotStatusText)
+        btnClawBotAction = view.findViewById(R.id.btnClawBotAction)
 
         // Setup permission items
         setupPermissionItem(
@@ -175,6 +209,22 @@ class SettingsFragment : Fragment() {
 
         btnExportLogs.setOnClickListener { exportDebugLogs() }
         btnClearLogs.setOnClickListener { showClearLogsDialog() }
+
+        btnClawBotAction.setOnClickListener {
+            if (ClawBotManager.isConnected(requireContext())) {
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("解绑 ClawBot")
+                    .setMessage("确定要断开 ClawBot 连接吗？断开后将停止接收微信消息。")
+                    .setPositiveButton(R.string.dialog_confirm) { _, _ ->
+                        ClawBotManager.disconnect(requireContext())
+                        updateClawBotUI()
+                    }
+                    .setNegativeButton(R.string.dialog_cancel, null)
+                    .showWithPrimaryButtons()
+            } else {
+                showClawBotQrLoginDialog()
+            }
+        }
     }
 
     /**
@@ -354,6 +404,31 @@ class SettingsFragment : Fragment() {
                 data = Uri.parse("package:${requireContext().packageName}")
             }
         startActivity(intent)
+    }
+
+    // endregion
+
+    // region ClawBot
+
+    private fun updateClawBotUI() {
+        val connected = ClawBotManager.isConnected(requireContext())
+        if (connected) {
+            clawBotStatusText.text = "已连接"
+            btnClawBotAction.text = "解绑"
+        } else {
+            clawBotStatusText.text = "未连接"
+            btnClawBotAction.text = "连接"
+        }
+    }
+
+    private fun showClawBotQrLoginDialog() {
+        val dialog = ClawBotQrLoginDialog()
+        dialog.setCallback(object : ClawBotQrLoginDialog.Callback {
+            override fun onConnected() {
+                updateClawBotUI()
+            }
+        })
+        dialog.show(childFragmentManager, "clawbot_qr_login")
     }
 
     // endregion

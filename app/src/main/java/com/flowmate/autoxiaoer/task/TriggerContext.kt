@@ -15,6 +15,9 @@ enum class TriggerType {
 
     /** Task started by a voice command. */
     VOICE,
+
+    /** Task started by an incoming ClawBot (WeChat iLink) message. */
+    CLAWBOT,
 }
 
 /**
@@ -38,6 +41,11 @@ enum class TriggerType {
  * @property scheduledTaskBackground Background memo the agent wrote for itself when it created
  *   the scheduled task, explaining why it was scheduled and any relevant context.
  *   Only set for [TriggerType.SCHEDULED] triggers.
+ * @property clawBotContextToken The `context_token` from the incoming ClawBot message.
+ *   Must be echoed back in every `sendmessage` call to route the reply correctly.
+ *   Only set for [TriggerType.CLAWBOT] triggers.
+ * @property clawBotFromUserId The `from_user_id` of the WeChat user who sent the message.
+ *   Only set for [TriggerType.CLAWBOT] triggers.
  * @property triggerTime Epoch milliseconds when the trigger occurred
  */
 data class TriggerContext(
@@ -50,6 +58,8 @@ data class TriggerContext(
     val notificationSubText: String? = null,
     val notificationCategory: String? = null,
     val scheduledTaskBackground: String? = null,
+    val clawBotContextToken: String? = null,
+    val clawBotFromUserId: String? = null,
     val triggerTime: Long = System.currentTimeMillis(),
 ) {
     /**

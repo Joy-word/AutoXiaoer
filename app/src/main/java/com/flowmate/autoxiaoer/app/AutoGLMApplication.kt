@@ -60,6 +60,9 @@ class AutoGLMApplication : Application() {
         // Initialize ScheduledTaskManager and restore scheduled tasks
         initializeScheduledTasks()
 
+        // Resume ClawBot polling if credentials are already stored from a previous session
+        com.flowmate.autoxiaoer.clawbot.ClawBotManager.startPollingIfConnected(this)
+
         registerActivityLifecycleCallbacks(
             object : ActivityLifecycleCallbacks {
                 override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {

@@ -192,6 +192,11 @@
             </intent-filter>
         </receiver>
 
+        <!-- ClawBot iLink long-poll messaging service -->
+        <service
+            android:name=".clawbot.ClawBotPollingService"
+            android:exported="false" />
+
     </application>
 
 </manifest>

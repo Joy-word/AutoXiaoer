@@ -131,6 +131,66 @@
 
                 </com.google.android.material.card.MaterialCardView>
 
+                <!-- ClawBot Connection Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/clawBotSettingsCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    app:cardBackgroundColor="@color/card_background"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="4dp"
+                            android:text="ClawBot 连接"
+                            android:textAppearance="?attr/textAppearanceTitleMedium"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="12dp"
+                            android:text="连接 ClawBot 后，可通过微信接收指令并回复消息。"
+                            android:textAppearance="?attr/textAppearanceBodySmall"
+                            android:textColor="@color/text_secondary" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <TextView
+                                android:id="@+id/clawBotStatusText"
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_weight="1"
+                                android:text="未连接"
+                                android:textAppearance="?attr/textAppearanceBodySmall"
+                                android:textColor="@color/text_secondary" />
+
+                            <Button
+                                android:id="@+id/btnClawBotAction"
+                                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="48dp"
+                                android:text="连接" />
+
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                </com.google.android.material.card.MaterialCardView>
+
                 <!-- Permissions Center Card (Collapsible) -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/permissionsCenterCard"

@@ -141,6 +141,12 @@ class SettingsManager private constructor(private val context: Context) {
         // Notification trigger rules key
         private const val KEY_NOTIFICATION_TRIGGER_RULES = "notification_trigger_rules"
 
+        // ClawBot credential keys
+        private const val KEY_CLAWBOT_BOT_TOKEN = "clawbot_bot_token"
+        private const val KEY_CLAWBOT_BASE_URL = "clawbot_base_url"
+        private const val KEY_CLAWBOT_ILINK_BOT_ID = "clawbot_ilink_bot_id"
+        private const val KEY_CLAWBOT_ILINK_USER_ID = "clawbot_ilink_user_id"
+
         // LLMAgentConfig keys
         private const val KEY_LLM_AGENT_BASE_URL = "llm_agent_base_url"
         private const val KEY_LLM_AGENT_API_KEY = "llm_agent_api_key"
@@ -978,4 +984,48 @@ class SettingsManager private constructor(private val context: Context) {
         val lang = prefs.getString(KEY_LLM_AGENT_LANGUAGE, DEFAULT_LLM_AGENT_CONFIG.language) ?: "cn"
         return lang.lowercase() != "en" && lang.lowercase() != "english"
     }
+
+    // ==================== ClawBot Credentials ====================
+
+    /**
+     * Saves ClawBot login credentials. bot_token is stored in encrypted prefs.
+     */
+    fun saveClawBotCredentials(creds: com.flowmate.autoxiaoer.clawbot.ClawBotCredentials) {
+        Logger.i(TAG, "Saving ClawBot credentials, ilinkBotId=${creds.ilinkBotId}")
+        securePrefs.edit().putString(KEY_CLAWBOT_BOT_TOKEN, creds.botToken).apply()
+        prefs.edit().apply {
+            putString(KEY_CLAWBOT_BASE_URL, creds.baseUrl)
+            putString(KEY_CLAWBOT_ILINK_BOT_ID, creds.ilinkBotId)
+            putString(KEY_CLAWBOT_ILINK_USER_ID, creds.ilinkUserId)
+            apply()
+        }
+    }
+
+    /**
+     * Returns stored ClawBot credentials, or null if not yet connected.
+     */
+    fun getClawBotCredentials(): com.flowmate.autoxiaoer.clawbot.ClawBotCredentials? {
+        val token = securePrefs.getString(KEY_CLAWBOT_BOT_TOKEN, null)
+            ?.takeIf { it.isNotBlank() } ?: return null
+        val baseUrl = prefs.getString(KEY_CLAWBOT_BASE_URL, null)
+            ?.takeIf { it.isNotBlank() } ?: return null
+        val botId = prefs.getString(KEY_CLAWBOT_ILINK_BOT_ID, null) ?: ""
+        val userId = prefs.getString(KEY_CLAWBOT_ILINK_USER_ID, null) ?: ""
+        return com.flowmate.autoxiaoer.clawbot.ClawBotCredentials(token, baseUrl, botId, userId)
+    }
+
+    /**
+     * Removes all stored ClawBot credentials (used on disconnect or session expiry).
+     */
+    fun clearClawBotCredentials() {
+        Logger.i(TAG, "Clearing ClawBot credentials")
+        securePrefs.edit().remove(KEY_CLAWBOT_BOT_TOKEN).apply()
+        prefs.edit().apply {
+            remove(KEY_CLAWBOT_BASE_URL)
+            remove(KEY_CLAWBOT_ILINK_BOT_ID)
+            remove(KEY_CLAWBOT_ILINK_USER_ID)
+            apply()
+        }
+    }
+
 }

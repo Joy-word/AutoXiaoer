@@ -72,6 +72,19 @@ object LLMAgentPrompts {
      */
     fun getDefaultEnglishPromptTemplate(): String = DEFAULT_ENGLISH_PROMPT
 
+    /**
+     * Returns a short current date-time string suitable for prepending to the first user message.
+     */
+    fun getCurrentDateTimePrefix(language: String): String {
+        val date = getCurrentDate(language)
+        val time = getCurrentTime()
+        return if (language.lowercase() == "en" || language.lowercase() == "english") {
+            "[Current time: $date $time]"
+        } else {
+            "【当前时间】$date $time"
+        }
+    }
+
     private fun getCurrentDate(language: String): String {
         val calendar = Calendar.getInstance()
         return if (language == "zh") {

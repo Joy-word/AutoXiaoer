@@ -63,3 +63,4 @@ autoglm_logs_*/
 
 # Dev profiles config
 dev_profiles.json
+ignore_docs/
