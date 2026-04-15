@@ -314,9 +314,12 @@ object ClawBotClient {
             val request = buildAuthenticatedPostRequest(url, creds.botToken, requestBody)
             val response = httpClient.newCall(request).execute()
             val bodyText = response.body?.string() ?: return false
-            Logger.d(TAG, "sendMessage HTTP=${response.code} response: ${bodyText.take(300)}")
+            Logger.i(TAG, "sendMessage HTTP=${response.code} response: ${bodyText.take(300)}")
             val json = JSONObject(bodyText)
-            json.optInt("ret", -1) == 0
+            // Server returns {} (no "ret" field) on success — treat absent "ret" as 0.
+            val ret = if (json.has("ret")) json.optInt("ret", -1) else 0
+            Logger.i(TAG, "sendMessage ret=$ret")
+            ret == 0
         } catch (e: Exception) {
             Logger.e(TAG, "sendMessage failed", e)
             false

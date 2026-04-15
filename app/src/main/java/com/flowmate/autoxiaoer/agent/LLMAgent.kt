@@ -281,17 +281,13 @@ class LLMAgent(
 
                                 Logger.i(TAG, "ClawBot request_user sent=$sent")
 
-                                if (!sent) {
-                                    // Notification failed — terminate as failure
-                                    val failMsg = "通知用户失败：$msg"
-                                    val result = LLMTaskResult(success = false, message = failMsg, planningRounds = round)
-                                    historyManager?.completeTask(false, failMsg)
-                                    listener?.onTaskFinished(result)
-                                    return@coroutineScope result
+                                // Feed the send result back into context regardless of success/failure,
+                                // and let the LLM decide how to proceed.
+                                if (sent) {
+                                    context.addUserMessage("【用户通知结果】已成功将以下消息发送给用户：「$msg」\n\n请根据此结果继续决定下一步操作（如任务已完成可使用 finish）。")
+                                } else {
+                                    context.addUserMessage("【用户通知结果】消息发送失败，无法将以下内容传达给用户：「$msg」\n\n请根据此情况决定下一步操作（可以重试、调整策略，或使用 finish 结束任务）。")
                                 }
-
-                                // Notification sent successfully — feed result back and continue the loop
-                                context.addUserMessage("【用户通知结果】已成功将以下消息发送给用户：「$msg」\n\n请根据此结果继续决定下一步操作（如任务已完成可使用 finish）。")
                             }
 
                             ACTION_EXECUTE_SUBTASK -> {
