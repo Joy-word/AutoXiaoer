@@ -81,12 +81,42 @@ object ClawBotManager {
             Logger.w(TAG, "sendMessage called but not connected")
             return@withContext false
         }
-        if (toUserId.isBlank() || contextToken.isBlank()) {
-            Logger.w(TAG, "sendMessage called with blank toUserId or contextToken")
+        if (toUserId.isBlank()) {
+            Logger.w(TAG, "sendMessage called with blank toUserId")
             return@withContext false
         }
         val ok = ClawBotClient.sendMessage(creds, toUserId, contextToken, text)
         Logger.i(TAG, "sendMessage toUserId=$toUserId ok=$ok")
         ok
     }
+
+    /**
+     * Sends a text message to the last known ClawBot conversation.
+     * Use this for proactive (app-initiated) notifications when no triggerContext is available.
+     * Requires that at least one incoming ClawBot message was received since the last login.
+     *
+     * @return true on success, false if ClawBot is not connected or no prior conversation exists.
+     */
+    suspend fun sendProactiveMessage(context: Context, text: String): Boolean =
+        withContext(Dispatchers.IO) {
+            val creds = getCredentials(context)
+            if (creds == null) {
+                Logger.w(TAG, "sendProactiveMessage: not connected")
+                return@withContext false
+            }
+            val settings = SettingsManager.getInstance(context)
+            val (fromUserId, contextToken) = settings.getClawBotLastConversation()
+                ?: run {
+                    // No prior conversation stored — try with the bot's own iLink user id and empty token.
+                    Logger.w(TAG, "sendProactiveMessage: no prior conversation stored, attempting with ilinkUserId")
+                    val userId = creds.ilinkUserId.takeIf { it.isNotBlank() } ?: run {
+                        Logger.w(TAG, "sendProactiveMessage: ilinkUserId also blank, aborting")
+                        return@withContext false
+                    }
+                    Pair(userId, "")
+                }
+            val ok = ClawBotClient.sendMessage(creds, fromUserId, contextToken, text)
+            Logger.i(TAG, "sendProactiveMessage toUserId=$fromUserId ok=$ok")
+            ok
+        }
 }

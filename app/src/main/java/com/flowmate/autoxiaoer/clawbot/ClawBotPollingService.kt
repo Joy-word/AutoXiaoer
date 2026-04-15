@@ -151,6 +151,13 @@ class ClawBotPollingService : Service() {
             clawBotFromUserId = msg.fromUserId,
         )
 
+        // Persist the latest conversation so proactive sends (app-initiated tasks) can
+        // push notifications back to this user even without an active triggerContext.
+        if (msg.contextToken.isNotBlank()) {
+            SettingsManager.getInstance(applicationContext)
+                .saveClawBotLastConversation(msg.fromUserId, msg.contextToken)
+        }
+
         Logger.i(TAG, "Triggering task from ClawBot message: ${text.take(80)}")
         TaskExecutionManager.startTask(text, triggerContext)
     }

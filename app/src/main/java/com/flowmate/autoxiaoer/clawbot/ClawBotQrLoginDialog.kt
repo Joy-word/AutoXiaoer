@@ -52,6 +52,8 @@ class ClawBotQrLoginDialog : DialogFragment() {
     private lateinit var progressBar: ProgressBar
     private lateinit var btnRefresh: Button
 
+    private var lastError: String? = null
+
     fun setCallback(cb: Callback) {
         callback = cb
     }
@@ -169,17 +171,26 @@ class ClawBotQrLoginDialog : DialogFragment() {
 
     private fun startLogin() {
         loginJob?.cancel()
+        lastError = null
         btnRefresh.visibility = View.GONE
         qrImageView.visibility = View.GONE
         progressBar.visibility = View.VISIBLE
         statusText.text = "正在获取二维码…"
 
         loginJob = viewLifecycleOwner.lifecycleScope.launch {
-            val qrResponse = withContext(Dispatchers.IO) { ClawBotClient.getBotQrCode() }
+            val qrResponse = withContext(Dispatchers.IO) {
+                try {
+                    ClawBotClient.getBotQrCode()
+                } catch (e: Exception) {
+                    Logger.e(TAG, "getBotQrCode exception: ${e.javaClass.simpleName}: ${e.message}", e)
+                    lastError = "${e.javaClass.simpleName}: ${e.message}"
+                    null
+                }
+            }
 
             if (qrResponse == null) {
                 progressBar.visibility = View.GONE
-                statusText.text = "获取二维码失败，请检查网络后重试。"
+                statusText.text = "获取二维码失败，请检查网络后重试。\n${lastError ?: ""}"
                 btnRefresh.visibility = View.VISIBLE
                 return@launch
             }

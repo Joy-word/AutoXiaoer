@@ -146,6 +146,9 @@ class SettingsManager private constructor(private val context: Context) {
         private const val KEY_CLAWBOT_BASE_URL = "clawbot_base_url"
         private const val KEY_CLAWBOT_ILINK_BOT_ID = "clawbot_ilink_bot_id"
         private const val KEY_CLAWBOT_ILINK_USER_ID = "clawbot_ilink_user_id"
+        // Last incoming ClawBot conversation (used for proactive sends when no triggerContext)
+        private const val KEY_CLAWBOT_LAST_FROM_USER_ID = "clawbot_last_from_user_id"
+        private const val KEY_CLAWBOT_LAST_CONTEXT_TOKEN = "clawbot_last_context_token"
 
         // LLMAgentConfig keys
         private const val KEY_LLM_AGENT_BASE_URL = "llm_agent_base_url"
@@ -1007,8 +1010,17 @@ class SettingsManager private constructor(private val context: Context) {
     fun getClawBotCredentials(): com.flowmate.autoxiaoer.clawbot.ClawBotCredentials? {
         val token = securePrefs.getString(KEY_CLAWBOT_BOT_TOKEN, null)
             ?.takeIf { it.isNotBlank() } ?: return null
-        val baseUrl = prefs.getString(KEY_CLAWBOT_BASE_URL, null)
+        val rawBaseUrl = prefs.getString(KEY_CLAWBOT_BASE_URL, null)
             ?.takeIf { it.isNotBlank() } ?: return null
+        // The server returns a bare host (e.g. "https://ilinkai.weixin.qq.com") but all
+        // business endpoints live under the /ilink/bot path prefix.  Normalise here so the
+        // rest of the code never needs to worry about it.
+        val baseUrl = if (rawBaseUrl.contains("/ilink/bot")) {
+            rawBaseUrl.trimEnd('/')
+        } else {
+            rawBaseUrl.trimEnd('/') + "/ilink/bot"
+        }
+        Logger.d(TAG, "getClawBotCredentials: baseUrl=$baseUrl (raw=$rawBaseUrl)")
         val botId = prefs.getString(KEY_CLAWBOT_ILINK_BOT_ID, null) ?: ""
         val userId = prefs.getString(KEY_CLAWBOT_ILINK_USER_ID, null) ?: ""
         return com.flowmate.autoxiaoer.clawbot.ClawBotCredentials(token, baseUrl, botId, userId)
@@ -1024,8 +1036,31 @@ class SettingsManager private constructor(private val context: Context) {
             remove(KEY_CLAWBOT_BASE_URL)
             remove(KEY_CLAWBOT_ILINK_BOT_ID)
             remove(KEY_CLAWBOT_ILINK_USER_ID)
+            remove(KEY_CLAWBOT_LAST_FROM_USER_ID)
+            remove(KEY_CLAWBOT_LAST_CONTEXT_TOKEN)
             apply()
         }
+    }
+
+    /**
+     * Persists the most recent ClawBot conversation so the app can proactively push
+     * messages to the user even when the task was not triggered by an incoming message.
+     */
+    fun saveClawBotLastConversation(fromUserId: String, contextToken: String) {
+        prefs.edit().apply {
+            putString(KEY_CLAWBOT_LAST_FROM_USER_ID, fromUserId)
+            putString(KEY_CLAWBOT_LAST_CONTEXT_TOKEN, contextToken)
+            apply()
+        }
+    }
+
+    /**
+     * Returns the last known ClawBot (fromUserId, contextToken) pair, or null if none stored.
+     */
+    fun getClawBotLastConversation(): Pair<String, String>? {
+        val userId = prefs.getString(KEY_CLAWBOT_LAST_FROM_USER_ID, null)?.takeIf { it.isNotBlank() } ?: return null
+        val token = prefs.getString(KEY_CLAWBOT_LAST_CONTEXT_TOKEN, null)?.takeIf { it.isNotBlank() } ?: return null
+        return Pair(userId, token)
     }
 
 }

@@ -211,14 +211,17 @@ object LLMAgentPrompts {
 }
 </action>
 
-或者，当需要用户介入时：
+或者，当需要向用户发送消息（回复、询问、通知错误等）时：
 
 <action>
 {
   "type": "request_user",
-  "message": "需要用户介入的原因和具体要求"
+  "message": "要发送给用户的消息内容"
 }
 </action>
+
+- `request_user` 会将消息发送给用户
+- 如果只是回复用户的提问且任务已完成，发送后请用 `finish` 结束任务
 
 ## 关于 preGeneratedTexts
 - 凡是需要在手机上输入文字的（发消息、填表单、写评论等），一律由你提前生成好内容
@@ -255,7 +258,7 @@ object LLMAgentPrompts {
 - 每次只下达一个子任务，等待 phone-agent 汇报结果后再决定下一步
 - 子任务描述要清晰具体：包含目标 App、界面、操作动作
 - 观察 phone-agent 返回的执行结果，如果失败，尝试调整策略重新规划
-- 如果子任务失败超过 3 次，考虑使用 request_user 请求用户介入
+- 如果子任务连续失败超过 3 次，使用 request_user 将情况反馈给用户，发送成功后结束任务
 
 ## 风险边界
 - 涉及支付、转账、删除数据等高风险操作，在 description 中明确提示 phone-agent 执行前需二次确认
@@ -343,14 +346,18 @@ Or when the overall task is done:
 }
 </action>
 
-Or when user intervention is required:
+Or when you need to send a message to the user (reply, question, error notification, etc.):
 
 <action>
 {
   "type": "request_user",
-  "message": "Reason for needing user input and what is required"
+  "message": "The message content to send to the user"
 }
 </action>
+
+- `request_user` delivers the message to the user; upon successful send the **task does not terminate** — you will receive the send result and continue with subsequent steps
+- If you are simply replying to the user's question and the task is done, follow up with `finish` after sending
+- If the send fails, the task terminates and is recorded as a failure
 
 ## About preGeneratedTexts
 - Whenever text needs to be typed on the phone (messages, forms, comments, etc.), generate the content yourself
@@ -386,7 +393,7 @@ Your agenda is your own planning — independent of user-delegated tasks. You ca
 ## Behavioural Rules
 - Issue only one sub-task at a time; wait for phone-agent's result before planning the next step
 - Sub-task descriptions must be specific: include target app, screen context, and action
-- If a sub-task fails, adjust your strategy and retry; after 3 consecutive failures consider using request_user
+- If a sub-task fails, adjust your strategy and retry; after 3 consecutive failures use request_user to report the situation to the user and continue after the message is sent
 - Always observe and incorporate phone-agent's execution summary before deciding the next action
 
 ## Risk Boundaries

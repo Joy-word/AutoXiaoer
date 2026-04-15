@@ -246,25 +246,52 @@ class LLMAgent(
                                     ),
                                 )
 
-                                // If triggered from ClawBot, reply directly to the user via iLink.
-                                if (triggerContext?.triggerType == TriggerType.CLAWBOT) {
-                                    val fromUserId = triggerContext.clawBotFromUserId
-                                    val contextToken = triggerContext.clawBotContextToken
-                                    val appCtx = this@LLMAgent.context
-                                    if (appCtx != null && !fromUserId.isNullOrBlank() && !contextToken.isNullOrBlank()) {
-                                        try {
-                                            val sent = ClawBotManager.sendMessage(appCtx, fromUserId, contextToken, msg)
-                                            Logger.i(TAG, "ClawBot request_user reply sent=$sent")
-                                        } catch (e: Exception) {
-                                            Logger.e(TAG, "Failed to send ClawBot request_user reply", e)
+                                // Send message to ClawBot (WeChat):
+                                // - If triggered by a ClawBot message: reply using that conversation's context.
+                                // - Otherwise: fall back to the last stored conversation for proactive push.
+                                // If the send fails (ClawBot unavailable or server error), terminate as failure.
+                                // If the send succeeds, feed the result back into the context and continue the loop
+                                // so the LLM can decide to finish or proceed with the next step.
+                                val appCtx = this@LLMAgent.context
+                                val sent = if (appCtx != null && ClawBotManager.isConnected(appCtx)) {
+                                    try {
+                                        val fromUserId = triggerContext?.clawBotFromUserId
+                                        val contextToken = triggerContext?.clawBotContextToken
+                                        if (triggerContext?.triggerType == TriggerType.CLAWBOT
+                                            && !fromUserId.isNullOrBlank()
+                                            && !contextToken.isNullOrBlank()
+                                        ) {
+                                            ClawBotManager.sendMessage(
+                                                appCtx,
+                                                fromUserId,
+                                                contextToken,
+                                                msg,
+                                            )
+                                        } else {
+                                            ClawBotManager.sendProactiveMessage(appCtx, msg)
                                         }
+                                    } catch (e: Exception) {
+                                        Logger.e(TAG, "Failed to send ClawBot request_user message", e)
+                                        false
                                     }
+                                } else {
+                                    Logger.w(TAG, "ClawBot not available for request_user notification")
+                                    false
                                 }
 
-                                val result = LLMTaskResult(success = false, message = msg, planningRounds = round)
-                                historyManager?.completeTask(false, msg)
-                                listener?.onTaskFinished(result)
-                                return@coroutineScope result
+                                Logger.i(TAG, "ClawBot request_user sent=$sent")
+
+                                if (!sent) {
+                                    // Notification failed — terminate as failure
+                                    val failMsg = "通知用户失败：$msg"
+                                    val result = LLMTaskResult(success = false, message = failMsg, planningRounds = round)
+                                    historyManager?.completeTask(false, failMsg)
+                                    listener?.onTaskFinished(result)
+                                    return@coroutineScope result
+                                }
+
+                                // Notification sent successfully — feed result back and continue the loop
+                                context.addUserMessage("【用户通知结果】已成功将以下消息发送给用户：「$msg」\n\n请根据此结果继续决定下一步操作（如任务已完成可使用 finish）。")
                             }
 
                             ACTION_EXECUTE_SUBTASK -> {
@@ -559,6 +586,7 @@ class LLMAgent(
                 TriggerType.MANUAL -> { /* No extra context needed for manual triggers */ }
                 TriggerType.CLAWBOT -> {
                     sb.appendLine("【触发来源】ClawBot 微信消息")
+                    sb.appendLine("【注意事项】如果需要回复用户消息，请使用 request_user action 输出回复内容，发送成功后你会收到反馈并继续执行后续步骤；如果已回复用户的提问，请使用 finish action 输出回复内容，发送成功后任务将结束。")
                     if (!triggerContext.clawBotFromUserId.isNullOrBlank()) {
                         sb.appendLine("【发送方】${triggerContext.clawBotFromUserId}")
                     }

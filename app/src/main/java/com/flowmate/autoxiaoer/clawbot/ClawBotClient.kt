@@ -6,7 +6,9 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
+import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 
@@ -75,8 +77,13 @@ data class ClawBotUpdatesResponse(
 object ClawBotClient {
     private const val TAG = "ClawBotClient"
 
-    const val DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com"
+    const val DEFAULT_BASE_URL = "https://ilinkai.weixin.qq.com/ilink/bot"
     private const val CHANNEL_VERSION = "2.0.0"
+
+    // iLink message protocol constants
+    private const val MESSAGE_TYPE_BOT = 2
+    private const val MESSAGE_STATE_FINISH = 2
+    private const val MESSAGE_ITEM_TYPE_TEXT = 1
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
     /**
@@ -128,7 +135,15 @@ object ClawBotClient {
             .header("AuthorizationType", "ilink_bot_token")
             .header("Authorization", "Bearer $botToken")
             .header("X-WECHAT-UIN", generateWeChatUin())
+            .header("iLink-App-ClientVersion", "1")
             .build()
+    }
+
+    /** Generates a 32-character random hex string for use as client_id. */
+    private fun generateClientId(): String {
+        val bytes = ByteArray(16)
+        SecureRandom().nextBytes(bytes)
+        return bytes.joinToString("") { "%02x".format(it) }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -143,19 +158,29 @@ object ClawBotClient {
      *
      * @return [ClawBotQrCodeResponse] on success, null on network/parse error.
      */
-    fun getBotQrCode(): ClawBotQrCodeResponse? = try {
-        val url = "$DEFAULT_BASE_URL/get_bot_qrcode?bot_type=3"
-        val response = httpClient.newCall(buildGetRequest(url)).execute()
-        val body = response.body?.string() ?: return null
-        Logger.d(TAG, "getBotQrCode response: ${body.take(200)}")
-        val json = JSONObject(body)
-        ClawBotQrCodeResponse(
-            qrcode = json.getString("qrcode"),
-            qrcodeImgContent = json.getString("qrcode_img_content"),
-        )
-    } catch (e: Exception) {
-        Logger.e(TAG, "getBotQrCode failed", e)
-        null
+    fun getBotQrCode(): ClawBotQrCodeResponse? {
+        return try {
+            val url = "$DEFAULT_BASE_URL/get_bot_qrcode?bot_type=3"
+            val response = httpClient.newCall(buildGetRequest(url)).execute()
+            val body = response.body?.string()
+            if (body == null) {
+                Logger.e(TAG, "getBotQrCode empty body, HTTP ${response.code}")
+                return null
+            }
+            Logger.d(TAG, "getBotQrCode HTTP ${response.code}, body: ${body.take(300)}")
+            if (!response.isSuccessful) {
+                Logger.e(TAG, "getBotQrCode non-2xx: ${response.code} body=$body")
+                return null
+            }
+            val json = JSONObject(body)
+            ClawBotQrCodeResponse(
+                qrcode = json.getString("qrcode"),
+                qrcodeImgContent = json.getString("qrcode_img_content"),
+            )
+        } catch (e: Exception) {
+            Logger.e(TAG, "getBotQrCode failed: ${e.javaClass.simpleName}: ${e.message}", e)
+            null
+        }
     }
 
     /**
@@ -167,7 +192,8 @@ object ClawBotClient {
      * @param qrcode The opaque qrcode id from [getBotQrCode].
      * @return [ClawBotQrCodeStatusResponse] on success, null on error.
      */
-    fun getQrCodeStatus(qrcode: String): ClawBotQrCodeStatusResponse? = try {
+    fun getQrCodeStatus(qrcode: String): ClawBotQrCodeStatusResponse? {
+        return try {
         val url = "$DEFAULT_BASE_URL/get_qrcode_status?qrcode=$qrcode"
         val response = httpClient.newCall(buildGetRequest(url)).execute()
         val body = response.body?.string() ?: return null
@@ -185,9 +211,10 @@ object ClawBotClient {
         } else {
             ClawBotQrCodeStatusResponse(status = status)
         }
-    } catch (e: Exception) {
-        Logger.e(TAG, "getQrCodeStatus failed", e)
-        null
+        } catch (e: Exception) {
+            Logger.e(TAG, "getQrCodeStatus failed", e)
+            null
+        }
     }
 
     /**
@@ -229,19 +256,26 @@ object ClawBotClient {
      * @param getUpdatesBuf Opaque cursor ("" for first call).
      * @return [ClawBotUpdatesResponse] on success, null on hard network error.
      */
-    fun getUpdates(creds: ClawBotCredentials, getUpdatesBuf: String): ClawBotUpdatesResponse? = try {
-        val url = "${creds.baseUrl}/getupdates"
-        val requestBody = JSONObject().apply {
-            put("get_updates_buf", getUpdatesBuf)
+    fun getUpdates(creds: ClawBotCredentials, getUpdatesBuf: String): ClawBotUpdatesResponse? {
+        return try {
+            val url = "${creds.baseUrl}/getupdates"
+            val requestBody = JSONObject().apply {
+                put("get_updates_buf", getUpdatesBuf)
+            }
+            Logger.d(TAG, "getUpdates req url=$url buf=${getUpdatesBuf.take(40)}")
+            val request = buildAuthenticatedPostRequest(url, creds.botToken, requestBody)
+            val response = httpClient.newCall(request).execute()
+            val bodyText = response.body?.string() ?: return null
+            if (bodyText.isBlank()) {
+                Logger.w(TAG, "getUpdates: empty body (HTTP ${response.code})")
+                return null
+            }
+            Logger.d(TAG, "getUpdates HTTP=${response.code} response: ${bodyText.take(500)}")
+            parseUpdatesResponse(bodyText)
+        } catch (e: Exception) {
+            Logger.e(TAG, "getUpdates failed", e)
+            null
         }
-        val request = buildAuthenticatedPostRequest(url, creds.botToken, requestBody)
-        val response = httpClient.newCall(request).execute()
-        val bodyText = response.body?.string() ?: return null
-        Logger.d(TAG, "getUpdates response: ${bodyText.take(300)}")
-        parseUpdatesResponse(bodyText)
-    } catch (e: Exception) {
-        Logger.e(TAG, "getUpdates failed", e)
-        null
     }
 
     /**
@@ -257,25 +291,36 @@ object ClawBotClient {
         toUserId: String,
         contextToken: String,
         text: String,
-    ): Boolean = try {
-        val url = "${creds.baseUrl}/sendmessage"
-        val msgBody = JSONObject().apply {
-            put("to_user_id", toUserId)
-            put("context_token", contextToken)
-            put("text", text)
+    ): Boolean {
+        return try {
+            val url = "${creds.baseUrl}/sendmessage"
+            val textItem = JSONObject().put("text", text)
+            val item = JSONObject().apply {
+                put("type", MESSAGE_ITEM_TYPE_TEXT)
+                put("text_item", textItem)
+            }
+            val msgBody = JSONObject().apply {
+                put("to_user_id", toUserId)
+                put("client_id", generateClientId())
+                put("message_type", MESSAGE_TYPE_BOT)
+                put("message_state", MESSAGE_STATE_FINISH)
+                put("item_list", JSONArray().put(item))
+                put("context_token", contextToken)
+            }
+            val requestBody = JSONObject().apply {
+                put("msg", msgBody)
+            }
+            Logger.d(TAG, "sendMessage req url=$url toUser=$toUserId requestBody=${requestBody.toString().take(300)}")
+            val request = buildAuthenticatedPostRequest(url, creds.botToken, requestBody)
+            val response = httpClient.newCall(request).execute()
+            val bodyText = response.body?.string() ?: return false
+            Logger.d(TAG, "sendMessage HTTP=${response.code} response: ${bodyText.take(300)}")
+            val json = JSONObject(bodyText)
+            json.optInt("ret", -1) == 0
+        } catch (e: Exception) {
+            Logger.e(TAG, "sendMessage failed", e)
+            false
         }
-        val requestBody = JSONObject().apply {
-            put("msg", msgBody)
-        }
-        val request = buildAuthenticatedPostRequest(url, creds.botToken, requestBody)
-        val response = httpClient.newCall(request).execute()
-        val bodyText = response.body?.string() ?: return false
-        Logger.d(TAG, "sendMessage response: ${bodyText.take(200)}")
-        val json = JSONObject(bodyText)
-        json.optInt("ret", -1) == 0
-    } catch (e: Exception) {
-        Logger.e(TAG, "sendMessage failed", e)
-        false
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -284,7 +329,12 @@ object ClawBotClient {
 
     private fun parseUpdatesResponse(bodyText: String): ClawBotUpdatesResponse {
         val json = JSONObject(bodyText)
-        val ret = json.optInt("ret", -1)
+        val ret = json.optInt("ret", 0)
+        // Server may signal session expiry via errcode instead of (or in addition to) ret.
+        // Normalize: if either field is -14, expose ret=-14 so the polling loop handles it uniformly.
+        val errCode = json.optInt("errcode", 0).takeIf { it != 0 }
+            ?: json.optInt("err_code", 0)
+        val effectiveRet = if (ret == -14 || errCode == -14) -14 else ret
         val topContextToken = json.optString("context_token", "")
         val nextBuf = json.optString("get_updates_buf", "")
 
@@ -296,13 +346,19 @@ object ClawBotClient {
             }
         }
 
-        // If top-level context_token is absent, fall back to the first message's token
+        // Determine the top-level context_token (fallback: first message's token)
         val resolvedContextToken = topContextToken.takeIf { it.isNotBlank() }
             ?: msgs.firstOrNull()?.contextToken ?: ""
 
+        // Back-fill resolvedContextToken into any per-message entry that arrived without its own
+        // token (server sometimes only sends context_token at the response top level).
+        val filledMsgs = if (resolvedContextToken.isNotBlank()) {
+            msgs.map { if (it.contextToken.isBlank()) it.copy(contextToken = resolvedContextToken) else it }
+        } else msgs
+
         return ClawBotUpdatesResponse(
-            ret = ret,
-            msgs = msgs,
+            ret = effectiveRet,
+            msgs = filledMsgs,
             contextToken = resolvedContextToken,
             nextBuf = nextBuf,
         )
@@ -317,8 +373,15 @@ object ClawBotClient {
         val fromUserId = obj.optString("from_user_id").takeIf { it.isNotBlank() } ?: return null
         val contextToken = obj.optString("context_token", "")
 
-        // Try multiple candidate field paths for text content
-        val text: String? = obj.optString("text").takeIf { it.isNotBlank() }
+        // Try multiple candidate field paths for text content.
+        // Primary path mirrors the sendmessage structure: item_list[0].text_item.text
+        val text: String? = run {
+            val itemList = obj.optJSONArray("item_list")
+            if (itemList != null && itemList.length() > 0) {
+                itemList.getJSONObject(0).optJSONObject("text_item")?.optString("text")?.takeIf { it.isNotBlank() }
+            } else null
+        }
+            ?: obj.optString("text").takeIf { it.isNotBlank() }
             ?: obj.optJSONObject("content")?.optString("str")?.takeIf { it.isNotBlank() }
             ?: obj.optString("content").takeIf { it.isNotBlank() }
 
