@@ -584,6 +584,33 @@ A:
 
 A: Disable the corresponding rule's toggle in the rule list, or revoke Xiao'er's notification listening permission in system settings.
 
+## ⚠️ Security & Privacy Risks
+
+Please read the following risks carefully before using this app:
+
+### Safety Limits Are Prompt-Based
+
+The app's safety restrictions (e.g. refusing to perform dangerous actions) are **implemented via AI model system prompts**, not hard-coded constraints. This means:
+
+- Prompts can potentially be bypassed by carefully crafted task descriptions (i.e. "prompt injection" attacks)
+- Different models vary in how strictly they follow the same prompt
+- **Do not use this app for high-risk scenarios involving sensitive accounts, financial transactions, or private data**
+
+### Model API Data Security
+
+- All AI features in this app are powered **exclusively by third-party model APIs configured by the user**
+- The app itself does not collect, upload, or store any user data or screenshots
+- Screenshots taken during task execution are sent to your configured model service provider via the API you set up
+- **Ensure you trust the model service provider you use, and review their privacy policy carefully**
+
+### Usage Recommendations
+
+- 🔒 Sensitive screens (payment pages, password fields, etc.) trigger system protection and appear as black screenshots
+- 👀 When executing tasks involving sensitive operations, keep an eye on the screen and be ready to intervene manually
+- 🔑 Do not include passwords, verification codes, or other sensitive information in task descriptions
+
+---
+
 ## 📄 License
 
 This project is licensed under [MIT License](LICENSE).
