@@ -150,6 +150,9 @@ class SettingsManager private constructor(private val context: Context) {
         private const val KEY_CLAWBOT_LAST_FROM_USER_ID = "clawbot_last_from_user_id"
         private const val KEY_CLAWBOT_LAST_CONTEXT_TOKEN = "clawbot_last_context_token"
 
+        // Floating window UI state keys
+        private const val KEY_FLOATING_WINDOW_MINIMIZED = "floating_window_minimized"
+
         // LLMAgentConfig keys
         private const val KEY_LLM_AGENT_BASE_URL = "llm_agent_base_url"
         private const val KEY_LLM_AGENT_API_KEY = "llm_agent_api_key"
@@ -1061,6 +1064,23 @@ class SettingsManager private constructor(private val context: Context) {
         val userId = prefs.getString(KEY_CLAWBOT_LAST_FROM_USER_ID, null)?.takeIf { it.isNotBlank() } ?: return null
         val token = prefs.getString(KEY_CLAWBOT_LAST_CONTEXT_TOKEN, null)?.takeIf { it.isNotBlank() } ?: return null
         return Pair(userId, token)
+    }
+
+    // ==================== Floating Window UI State ====================
+
+    /**
+     * Returns whether the floating window should be minimized.
+     * Defaults to true so the window starts minimized by default.
+     */
+    fun isFloatingWindowMinimized(): Boolean = prefs.getBoolean(KEY_FLOATING_WINDOW_MINIMIZED, true)
+
+    /**
+     * Persists the floating window minimized state so it is restored on next open.
+     *
+     * @param minimized true if the window is currently minimized
+     */
+    fun setFloatingWindowMinimized(minimized: Boolean) {
+        prefs.edit().putBoolean(KEY_FLOATING_WINDOW_MINIMIZED, minimized).apply()
     }
 
 }

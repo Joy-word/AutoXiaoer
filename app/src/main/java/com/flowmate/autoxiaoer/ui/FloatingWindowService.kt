@@ -769,6 +769,14 @@ class FloatingWindowService :
         // Setup touch listener to clear focus when tapping outside input
         setupTouchToClearFocus()
 
+        // Restore saved minimize state (defaults to true = minimized)
+        val savedMinimized = com.flowmate.autoxiaoer.settings.SettingsManager
+            .getInstance(this).isFloatingWindowMinimized()
+        if (savedMinimized) {
+            // Apply minimized appearance without toggling (isMinimized starts false)
+            applyMinimizedState(minimized = true)
+        }
+
         Logger.d(TAG, "Floating window view created")
     }
 
@@ -1143,6 +1151,15 @@ class FloatingWindowService :
      * Toggles the minimized state of the floating window.
      */
     private fun toggleMinimize() {
+        applyMinimizedState(!isMinimized)
+    }
+
+    /**
+     * Applies the given minimized state to the floating window and persists it.
+     *
+     * @param minimized true to minimize, false to expand
+     */
+    private fun applyMinimizedState(minimized: Boolean) {
         val inputArea = floatingView?.findViewById<LinearLayout>(R.id.input_area)
         val recyclerView = floatingView?.findViewById<RecyclerView>(R.id.steps_recycler_view)
         val resultView = floatingView?.findViewById<TextView>(R.id.tv_result)
@@ -1151,9 +1168,8 @@ class FloatingWindowService :
         val resumeBtn = floatingView?.findViewById<MaterialButton>(R.id.btn_resume)
         val newTaskBtn = floatingView?.findViewById<MaterialButton>(R.id.btn_new_task)
         val minimizeBtn = floatingView?.findViewById<ImageButton>(R.id.btn_minimize)
-        val container = floatingView?.findViewById<View>(R.id.floating_window_container)
 
-        isMinimized = !isMinimized
+        isMinimized = minimized
 
         val displayMetrics = resources.displayMetrics
         val screenWidth = displayMetrics.widthPixels
@@ -1197,6 +1213,10 @@ class FloatingWindowService :
                 Logger.e(TAG, "Error updating layout after minimize", e)
             }
         }
+
+        // Persist state so it is restored on next open
+        com.flowmate.autoxiaoer.settings.SettingsManager
+            .getInstance(this).setFloatingWindowMinimized(isMinimized)
     }
 
     // ==================== Steps Adapter ====================
