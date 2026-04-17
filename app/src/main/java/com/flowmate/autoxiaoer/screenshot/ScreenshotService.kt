@@ -10,6 +10,7 @@ import com.flowmate.autoxiaoer.util.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 
@@ -112,6 +113,9 @@ class ScreenshotService(
 
         // Base64 output chunk size for reading (safe for Binder)
         private const val BASE64_CHUNK_SIZE = 500000
+
+        // If screencap blocks for this long (screen off), send a wake command to unblock it
+        private const val SCREENCAP_WAKE_TIMEOUT_MS = 10_000L
     }
 
     /**
@@ -278,11 +282,27 @@ class ScreenshotService(
             Logger.d(TAG, "Attempting screenshot capture")
             val startTime = System.currentTimeMillis()
 
+            // Watchdog: screencap blocks indefinitely when the screen is off (SurfaceFlinger
+            // pauses frame composition). After SCREENCAP_WAKE_TIMEOUT_MS, send KEYCODE_WAKEUP
+            // so the screen turns on and screencap can capture a frame.
+            val screenWakeWatchdog = launch {
+                delay(SCREENCAP_WAKE_TIMEOUT_MS)
+                Logger.w(TAG, "screencap stalled after ${SCREENCAP_WAKE_TIMEOUT_MS}ms, sending screen wake command")
+                try {
+                    userService.executeCommand("input keyevent 224") // KEYCODE_WAKEUP
+                    Logger.d(TAG, "Screen wake command sent")
+                } catch (e: Exception) {
+                    Logger.w(TAG, "Failed to send screen wake command", e)
+                }
+            }
+
             // Capture screenshot and pipe to base64
             val captureResult =
                 userService.executeCommand(
                     "screencap -p | base64 > $base64File && stat -c %s $base64File",
                 )
+
+            screenWakeWatchdog.cancel()
 
             val captureTime = System.currentTimeMillis() - startTime
             Logger.d(TAG, "Screenshot capture took ${captureTime}ms")
