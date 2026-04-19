@@ -14,7 +14,7 @@
 </div>
 
 ## 📽️视频介绍
-[点击查看](https://www.bilibili.com/video/BV1S7dWBWE3S)
+请查看B站视频：[手机里的全能智能体，Auto小二开源啦](https://www.bilibili.com/video/BV1S7dWBWE3S)
 
 ## 📸 应用截图
 
