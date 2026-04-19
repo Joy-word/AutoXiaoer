@@ -14,7 +14,7 @@
 </div>
 
 ## 📽️视频介绍
-<iframe src="//player.bilibili.com/player.html?isOutside=true&aid=116426446735021&bvid=BV1S7dWBWE3S&cid=37616288594&p=1" scrolling="no" border="0" frameborder="no" framespacing="0" allowfullscreen="true"></iframe>
+[点击查看](https://www.bilibili.com/video/BV1S7dWBWE3S)
 
 ## 📸 应用截图
 
