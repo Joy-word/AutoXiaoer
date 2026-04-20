@@ -799,15 +799,12 @@ class LLMAgent(
                         }
                     }
 
-                    val subtaskContext = subtaskJson.optString("context")
-
                     // Use round count + 1 as sequential id; caller increments separately.
                     // A stable id is not strictly required here — SubTaskResult just echoes it.
                     val subTask = SubTask(
                         id = System.currentTimeMillis().toInt() and 0xFFFF, // transient unique id
                         description = description,
                         preGeneratedTexts = preGeneratedTexts,
-                        context = subtaskContext,
                     )
 
                     ParsedAction(type = type, message = null, subTask = subTask)

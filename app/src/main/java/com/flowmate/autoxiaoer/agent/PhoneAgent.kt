@@ -1337,15 +1337,6 @@ Please re-analyze the current screenshot and output correct coordinates (within 
             }
         }
 
-        if (subTask.context.isNotBlank()) {
-            sb.appendLine()
-            if (config.language.lowercase() == "en" || config.language.lowercase() == "english") {
-                sb.appendLine("【Additional context】${subTask.context}")
-            } else {
-                sb.appendLine("【附加说明】${subTask.context}")
-            }
-        }
-
         return sb.toString().trimEnd()
     }
 
