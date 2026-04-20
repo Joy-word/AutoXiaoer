@@ -12,6 +12,8 @@
  * @property maxTokens Maximum tokens per LLM response
  * @property temperature Sampling temperature; higher values produce more creative plans
  * @property maxPlanningSteps Maximum number of ReAct iterations before giving up
+ * @property maxTaskRetries Number of times to retry the entire task on failure (0 = no retry).
+ *   Cancellation is never retried.
  * @property language Response language: "cn" for Chinese, "en" for English
  * @property customSystemPrompt If non-empty, overrides the built-in system prompt
  */
@@ -22,6 +24,7 @@ data class LLMAgentConfig(
     val maxTokens: Int = 2000,
     val temperature: Float = 0.7f,
     val maxPlanningSteps: Int = 20,
+    val maxTaskRetries: Int = 1,
     val language: String = "cn",
     val customSystemPrompt: String = "",
 )

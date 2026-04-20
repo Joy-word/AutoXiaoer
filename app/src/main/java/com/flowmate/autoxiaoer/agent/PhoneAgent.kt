@@ -734,22 +734,58 @@ class PhoneAgent(
 
                     val handledError = ErrorHandler.handleNetworkError(modelResult.error)
                     Logger.e(TAG, ErrorHandler.formatErrorForLog(handledError))
-                    // Record failed step
-                    historyManager?.recordStep(
-                        stepNumber = currentStepNumber,
-                        thinking = "",
-                        action = null,
-                        actionDescription = "模型错误",
-                        success = false,
-                        message = handledError.userMessage,
-                    )
-                    return StepResult(
-                        success = false,
-                        finished = false,
-                        action = null,
-                        thinking = "",
-                        message = handledError.userMessage,
-                    )
+                    Logger.i(TAG, "Network error, retrying after 10s...")
+                    kotlinx.coroutines.delay(10_000L)
+
+                    // Check state after delay before retrying
+                    if (_state.value == PhoneAgentState.CANCELLED) {
+                        return StepResult(success = false, finished = true, action = null, thinking = "", message = cancellationMsg)
+                    }
+                    if (_state.value == PhoneAgentState.PAUSED) {
+                        currentStepNumber--
+                        ctx.removeLastUserMessage()
+                        return StepResult(success = true, finished = false, action = null, thinking = "", message = PAUSE_MESSAGE, paused = true)
+                    }
+
+                    val retryResult = modelClient.request(ctx.getMessages(), screenshot.base64Data, config.maxResponseLength)
+                    if (retryResult is ModelResult.Error) {
+                        val retryError = ErrorHandler.handleNetworkError(retryResult.error)
+                        Logger.e(TAG, "Network retry also failed: ${ErrorHandler.formatErrorForLog(retryError)}")
+                        // Record failed step
+                        historyManager?.recordStep(
+                            stepNumber = currentStepNumber,
+                            thinking = "",
+                            action = null,
+                            actionDescription = "模型错误",
+                            success = false,
+                            message = retryError.userMessage,
+                        )
+                        return StepResult(
+                            success = false,
+                            finished = false,
+                            action = null,
+                            thinking = "",
+                            message = retryError.userMessage,
+                        )
+                    }
+                    // Retry succeeded — fall through by re-entering when block logic
+                    // Re-assign modelResult to the retry result and re-process
+                    val retrySuccess = retryResult as ModelResult.Success
+                    Logger.i(TAG, "Network retry succeeded")
+                    listener?.onThinkingUpdate(retrySuccess.response.thinking)
+                    if (retrySuccess.response.action.isBlank()) {
+                        historyManager?.recordStep(
+                            stepNumber = currentStepNumber,
+                            thinking = "",
+                            action = null,
+                            actionDescription = "模型错误",
+                            success = false,
+                            message = handledError.userMessage,
+                        )
+                        return StepResult(success = false, finished = false, action = null, thinking = "", message = handledError.userMessage)
+                    }
+                    ctx.addAssistantMessage(retrySuccess.response.rawContent)
+                    return executeAction(retrySuccess.response.action, retrySuccess.response.thinking, screenshot.originalWidth, screenshot.originalHeight)
                 }
             }
         } catch (e: CancellationException) {
@@ -853,9 +889,38 @@ class PhoneAgent(
 
             is ModelResult.Error -> {
                 Logger.e(TAG, "Model request failed: ${initialResult.error.message}")
-                return null
+                Logger.i(TAG, "Network error in requestModelWithRetry, retrying after 10s...")
+                kotlinx.coroutines.delay(10_000L)
+
+                if (_state.value == PhoneAgentState.CANCELLED || _state.value == PhoneAgentState.PAUSED) {
+                    return null
+                }
+
+                val retryResult = modelClient.request(ctx.getMessages(), screenshotBase64, config.maxResponseLength)
+                when (retryResult) {
+                    is ModelResult.Error -> {
+                        Logger.e(TAG, "Network retry also failed: ${retryResult.error.message}")
+                        return null
+                    }
+                    is ModelResult.Success -> {
+                        Logger.i(TAG, "Network retry succeeded")
+                        val response = retryResult.response
+                        listener?.onThinkingUpdate(response.thinking)
+                        if (response.action.isBlank()) {
+                            Logger.w(TAG, "No action in retry response, attempting empty-action retry...")
+                            return retryForEmptyAction(ctx, screenshotBase64, response.thinking)
+                        }
+                        ctx.addAssistantMessage(response.rawContent)
+                        return ModelRequestResult(
+                            thinking = response.thinking,
+                            action = response.action,
+                            rawContent = response.rawContent,
+                        )
+                    }
+                }
             }
         }
+        return null
     }
 
     /**
@@ -972,11 +1037,12 @@ class PhoneAgent(
 
         // Determine if we need to pass a hint to the next step
         // This is used when an action succeeds but needs follow-up (e.g., app not found by package name)
+        val resultMessage = result.message
         val nextHint =
-            if (result.success && !result.shouldFinish && result.message != null &&
-                result.message.contains("请在主屏幕或应用列表中查找")
+            if (result.success && !result.shouldFinish && resultMessage != null &&
+                resultMessage.contains("请在主屏幕或应用列表中查找")
             ) {
-                result.message
+                resultMessage
             } else {
                 null
             }

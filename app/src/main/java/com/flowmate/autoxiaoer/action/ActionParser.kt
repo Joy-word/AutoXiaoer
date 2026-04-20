@@ -228,11 +228,15 @@ object ActionParser {
 
         val text =
             if (quote == '"' || quote == '\'') {
-                // Find the closing quote, handling escaped quotes
                 val content = afterText.drop(1)
-                val closingIndex = findUnescapedQuote(content, quote)
+                // Prefer the last quote immediately before the closing ')' — this handles
+                // LLM-generated text that contains unescaped inner quotes, e.g.:
+                //   do(action="Type", text="Hello \"World\"")
+                // where findUnescapedQuote would stop at the first inner quote instead.
+                val closingIndex = findLastQuoteBeforeCloseParen(content, quote)
+                    .takeIf { it >= 0 }
+                    ?: findUnescapedQuote(content, quote) // fallback to first-unescaped
                 if (closingIndex >= 0) {
-                    // Unescape the content
                     unescapeText(content.substring(0, closingIndex), quote)
                 } else {
                     content.substringBefore(")")
@@ -242,6 +246,29 @@ object ActionParser {
             }
 
         return if (isTypeName) AgentAction.TypeName(text) else AgentAction.Type(text)
+    }
+
+    /**
+     * Finds the index of the last [quote] character that is immediately followed by ')'.
+     *
+     * This is used to locate the closing delimiter of the `text` field in Type actions,
+     * since `text` is always the last parameter and the action always ends with `")`.`
+     * When LLM output contains unescaped inner quotes (e.g. `text="Hello \"World\""`),
+     * using the last `quote+')'` pair correctly identifies the closing quote instead of
+     * stopping at the first inner quote.
+     *
+     * @param content The string content **after** the opening quote (i.e. `afterText.drop(1)`)
+     * @param quote The quote character to find
+     * @return The index of the closing quote inside [content], or -1 if not found
+     */
+    private fun findLastQuoteBeforeCloseParen(content: String, quote: Char): Int {
+        var lastIndex = -1
+        for (i in 0 until content.length - 1) {
+            if (content[i] == quote && content[i + 1] == ')') {
+                lastIndex = i
+            }
+        }
+        return lastIndex
     }
 
     /**
