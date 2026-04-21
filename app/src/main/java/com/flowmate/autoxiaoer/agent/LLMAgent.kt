@@ -57,6 +57,14 @@ interface LLMAgentListener {
 
     /** Called when the overall task is done (success or failure). */
     fun onTaskFinished(result: LLMTaskResult)
+
+    /**
+     * Called when the task has failed and is about to be retried.
+     *
+     * @param attempt The attempt number that just failed (1-based)
+     * @param reason  The failure message from the failed attempt
+     */
+    fun onTaskRetrying(attempt: Int, reason: String) {}
 }
 
 /**
@@ -128,13 +136,49 @@ class LLMAgent(
     }
 
     /**
-     * Runs the full ReAct planning loop for the given task.
+     * Runs the full ReAct planning loop for the given task, with automatic retry on failure.
+     *
+     * The task will be attempted up to [LLMAgentConfig.maxTaskRetries] + 1 times in total.
+     * User-initiated cancellation is never retried.
      *
      * @param taskDescription Natural-language description of the task to accomplish
      * @param triggerContext Optional context about how the task was triggered
      * @return [LLMTaskResult] with success/failure status and a summary message
      */
     suspend fun run(
+        taskDescription: String,
+        triggerContext: TriggerContext? = null,
+    ): LLMTaskResult {
+        val maxAttempts = config.maxTaskRetries + 1
+        var lastResult = LLMTaskResult(success = false, message = "未执行", planningRounds = 0)
+
+        for (attempt in 1..maxAttempts) {
+            val result = runOnce(taskDescription, triggerContext)
+            lastResult = result
+
+            // Success or user-initiated cancellation — do not retry
+            if (result.success || cancelRequested.get() || result.message == "任务已取消") break
+
+            if (attempt < maxAttempts) {
+                Logger.i(TAG, "Task failed (attempt $attempt/$maxAttempts), retrying: ${result.message.take(80)}")
+                listener?.onTaskRetrying(attempt, result.message)
+                // Reset control flags so the next attempt starts cleanly
+                cancelRequested.set(false)
+                pauseRequested.set(false)
+            }
+        }
+
+        return lastResult
+    }
+
+    /**
+     * Executes one attempt of the full ReAct planning loop for the given task.
+     *
+     * @param taskDescription Natural-language description of the task to accomplish
+     * @param triggerContext Optional context about how the task was triggered
+     * @return [LLMTaskResult] with success/failure status and a summary message
+     */
+    private suspend fun runOnce(
         taskDescription: String,
         triggerContext: TriggerContext? = null,
     ): LLMTaskResult = coroutineScope {
@@ -185,17 +229,36 @@ class LLMAgent(
                 listener?.onPlanningRoundStarted(round)
 
                 // ── Think ──────────────────────────────────────────────────────
-                val modelResult = modelClient.request(context.getMessages(), currentScreenshot = null)
+                val initialResult = modelClient.request(context.getMessages(), currentScreenshot = null)
+                val modelResult: ModelResult = if (initialResult is ModelResult.Error) {
+                    Logger.e(TAG, "LLM request failed: ${initialResult.error.message}")
+                    Logger.i(TAG, "Network error in LLMAgent, retrying after 10s...")
+                    delay(10_000L)
 
-                when (modelResult) {
-                    is ModelResult.Error -> {
-                        val msg = "LLM request failed: ${modelResult.error.message}"
-                        Logger.e(TAG, msg)
+                    if (cancelRequested.get() || !isActive) {
+                        val result = LLMTaskResult(success = false, message = "任务已取消", planningRounds = round)
+                        historyManager?.completeTask(false, result.message)
+                        listener?.onTaskFinished(result)
+                        return@coroutineScope result
+                    }
+
+                    val retryResult = modelClient.request(context.getMessages(), currentScreenshot = null)
+                    if (retryResult is ModelResult.Error) {
+                        val msg = "LLM request failed: ${retryResult.error.message}"
+                        Logger.e(TAG, "LLM network retry also failed: $msg")
                         val result = LLMTaskResult(success = false, message = msg, planningRounds = round)
                         historyManager?.completeTask(false, msg)
                         listener?.onTaskFinished(result)
                         return@coroutineScope result
                     }
+                    Logger.i(TAG, "LLM network retry succeeded")
+                    retryResult
+                } else {
+                    initialResult
+                }
+
+                when (modelResult) {
+                    is ModelResult.Error -> { /* unreachable, handled above */ }
 
                     is ModelResult.Success -> {
                         val response = modelResult.response
@@ -736,15 +799,12 @@ class LLMAgent(
                         }
                     }
 
-                    val subtaskContext = subtaskJson.optString("context")
-
                     // Use round count + 1 as sequential id; caller increments separately.
                     // A stable id is not strictly required here — SubTaskResult just echoes it.
                     val subTask = SubTask(
                         id = System.currentTimeMillis().toInt() and 0xFFFF, // transient unique id
                         description = description,
                         preGeneratedTexts = preGeneratedTexts,
-                        context = subtaskContext,
                     )
 
                     ParsedAction(type = type, message = null, subTask = subTask)

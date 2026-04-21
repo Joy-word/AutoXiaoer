@@ -182,6 +182,28 @@ class ActionParserTest {
         assertEquals(AgentAction.Type(text = "Test@123!#\$%"), result)
     }
 
+    @Test
+    fun `parse_typeActionWithUnescapedInnerDoubleQuotes_returnsFullText`() {
+        // LLM sometimes outputs unescaped inner double quotes, e.g.:
+        //   do(action="Type", text="Hello "World"")
+        // The content should NOT be truncated at the first inner quote.
+        val input = """do(action="Type", text="Hello "World"")"""
+
+        val result = ActionParser.parse(input)
+
+        assertEquals(AgentAction.Type(text = """Hello "World""""), result)
+    }
+
+    @Test
+    fun `parse_typeActionWithMultipleUnescapedInnerDoubleQuotes_returnsFullText`() {
+        // Multiple inner unescaped quotes — common in LLM-generated quoted phrases
+        val input = """do(action="Type", text="He said "hello" and she said "hi"")"""
+
+        val result = ActionParser.parse(input)
+
+        assertEquals(AgentAction.Type(text = """He said "hello" and she said "hi""""), result)
+    }
+
     // ==================== Launch Action Tests ====================
 
     @Test
