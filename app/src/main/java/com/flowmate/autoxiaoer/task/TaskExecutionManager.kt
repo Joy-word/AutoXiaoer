@@ -40,8 +40,214 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
     private const val POST_TASK_ACTION_DELAY_MS = 2000L
     private const val KEYCODE_POWER = 26
 
+    // Passive task queue configuration
+    private const val QUEUE_MAX_CAPACITY = 5
+    private const val QUEUE_TASK_TTL_MS = 10 * 60 * 1000L // 10 minutes
+
     private var applicationContext: Context? = null
     private val managerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+    // region Passive Task Queue
+
+    /**
+     * Priority level for queued tasks.
+     *
+     * Higher [value] = higher priority; [processNextInQueue] always picks the
+     * highest-priority non-expired task first. Among equal-priority tasks, the
+     * earliest [QueuedTask.enqueueTime] wins (FIFO).
+     */
+    private enum class TaskPriority(val value: Int) {
+        /** Default priority for notification-triggered tasks. */
+        NORMAL(0),
+
+        /**
+         * Elevated priority for scheduled tasks.
+         *
+         * Scheduled tasks are time-sensitive: a notification reply can tolerate a short
+         * delay, but a scheduled alarm should execute as soon as possible. HIGH-priority
+         * tasks therefore jump ahead of any queued NORMAL tasks.
+         */
+        HIGH(1),
+    }
+
+    /**
+     * A queued task waiting to run after the current task finishes.
+     *
+     * @property description The task prompt to execute
+     * @property triggerContext The trigger context; for merged notification entries,
+     *   [TriggerContext.notificationTexts] contains all accumulated message texts.
+     * @property mergeKey Deduplication / merge key. Format:
+     *   - Notification tasks: `"packageName|title"`
+     *   - Scheduled tasks:    `"scheduled|taskId"`
+     * @property priority Determines execution order when multiple tasks are queued.
+     * @property enqueueTime Epoch ms when this entry was added, used for TTL checks and
+     *   FIFO ordering among equal-priority tasks.
+     */
+    private data class QueuedTask(
+        val description: String,
+        val triggerContext: TriggerContext,
+        val mergeKey: String,
+        val priority: TaskPriority = TaskPriority.NORMAL,
+        val enqueueTime: Long = System.currentTimeMillis(),
+    )
+
+    /**
+     * Queue of pending passive tasks, keyed by [QueuedTask.mergeKey] so same-session
+     * notifications can be merged in O(1). Iteration order reflects insertion order (FIFO).
+     *
+     * All accesses are guarded by [synchronized] because [enqueuePassiveTask] may be called
+     * from the notification listener binder thread while [processNextInQueue] runs on the main thread.
+     */
+    private val passiveTaskQueue = LinkedHashMap<String, QueuedTask>()
+
+    /**
+     * Enqueues a passive (notification-triggered) task.
+     *
+     * - If no task is running, calls [startTask] immediately.
+     * - If a task is running and the same merge key is already in the queue, merges the new
+     *   notification text into the existing entry's [TriggerContext.notificationTexts].
+     * - If a task is running and the key is new, appends to the queue if capacity allows.
+     * - If the queue is already at [QUEUE_MAX_CAPACITY], drops the incoming task.
+     *
+     * @param description The task prompt
+     * @param triggerContext Trigger context from the notification
+     * @return true if the task was started or successfully enqueued; false if dropped
+     */
+    fun enqueuePassiveTask(description: String, triggerContext: TriggerContext): Boolean {
+        if (!isTaskRunning()) {
+            return startTask(description, triggerContext)
+        }
+
+        val mergeKey = buildMergeKey(triggerContext)
+        val newText = triggerContext.notificationText?.takeIf { it.isNotBlank() }
+
+        synchronized(passiveTaskQueue) {
+            val existing = passiveTaskQueue[mergeKey]
+            if (existing != null) {
+                // Same session already queued — merge new text in
+                val mergedTexts = existing.triggerContext.notificationTexts +
+                    listOfNotNull(newText)
+                val mergedContext = existing.triggerContext.copy(notificationTexts = mergedTexts)
+                passiveTaskQueue[mergeKey] = existing.copy(triggerContext = mergedContext)
+                Logger.i(TAG, "Merged notification into queue entry. key=$mergeKey texts=${mergedTexts.size}")
+                return true
+            }
+
+            if (passiveTaskQueue.size >= QUEUE_MAX_CAPACITY) {
+                Logger.w(TAG, "Passive task queue full ($QUEUE_MAX_CAPACITY), dropping task. key=$mergeKey")
+                return false
+            }
+
+            // New entry — seed notificationTexts with the first message text
+            val initialTexts = listOfNotNull(newText)
+            val contextWithTexts = triggerContext.copy(notificationTexts = initialTexts)
+            passiveTaskQueue[mergeKey] = QueuedTask(
+                description = description,
+                triggerContext = contextWithTexts,
+                mergeKey = mergeKey,
+            )
+            Logger.i(TAG, "Passive task enqueued. key=$mergeKey queueSize=${passiveTaskQueue.size}")
+            return true
+        }
+    }
+
+    /**
+     * Builds the merge key used to identify same-session notifications in the queue.
+     * Key = packageName + "|" + notificationTitle
+     */
+    private fun buildMergeKey(triggerContext: TriggerContext): String =
+        "${triggerContext.notificationPackageName}|${triggerContext.notificationTitle}"
+
+    /**
+     * Enqueues a scheduled (alarm-triggered) task with [TaskPriority.HIGH].
+     *
+     * Scheduled tasks are time-sensitive and will be processed before any pending
+     * [TaskPriority.NORMAL] notification tasks. Each scheduled task alarm is identified
+     * by [taskId]; if the same task fires again before the queue drains, the duplicate
+     * is dropped rather than queued twice.
+     *
+     * - If no task is running, calls [startTask] immediately.
+     * - If a task is running and capacity allows, inserts with HIGH priority.
+     * - If the queue is full, drops and returns false.
+     *
+     * @param taskId Unique identifier of the scheduled task (used as merge/dedup key)
+     * @param description The task prompt
+     * @param triggerContext Trigger context with [TriggerType.SCHEDULED]
+     * @return true if the task was started or successfully enqueued; false if dropped
+     */
+    fun enqueueScheduledTask(
+        taskId: String,
+        description: String,
+        triggerContext: TriggerContext,
+    ): Boolean {
+        if (!isTaskRunning()) {
+            return startTask(description, triggerContext)
+        }
+
+        val mergeKey = "scheduled|$taskId"
+        synchronized(passiveTaskQueue) {
+            if (passiveTaskQueue.containsKey(mergeKey)) {
+                Logger.w(TAG, "Scheduled task $taskId already queued, dropping duplicate")
+                return false
+            }
+            if (passiveTaskQueue.size >= QUEUE_MAX_CAPACITY) {
+                Logger.w(TAG, "Task queue full ($QUEUE_MAX_CAPACITY), dropping scheduled task $taskId")
+                return false
+            }
+            passiveTaskQueue[mergeKey] = QueuedTask(
+                description = description,
+                triggerContext = triggerContext,
+                mergeKey = mergeKey,
+                priority = TaskPriority.HIGH,
+            )
+            Logger.i(TAG, "Scheduled task enqueued (HIGH priority). key=$mergeKey queueSize=${passiveTaskQueue.size}")
+            return true
+        }
+    }
+
+    /**
+     * Dequeues and starts the next valid task in [passiveTaskQueue].
+     *
+     * Selection order:
+     * 1. Expired entries ([QueuedTask.enqueueTime] > [QUEUE_TASK_TTL_MS]) are removed first.
+     * 2. Among remaining entries, the highest [TaskPriority] wins.
+     * 3. Among equal-priority entries, the earliest [QueuedTask.enqueueTime] wins (FIFO).
+     *
+     * Must be called after every task completion, failure, or cancellation.
+     */
+    private fun processNextInQueue() {
+        val now = System.currentTimeMillis()
+        synchronized(passiveTaskQueue) {
+            // Purge all TTL-expired entries up front
+            val expiredKeys = passiveTaskQueue.entries
+                .filter { now - it.value.enqueueTime > QUEUE_TASK_TTL_MS }
+                .map { it.key }
+            expiredKeys.forEach { key ->
+                Logger.w(TAG, "Queued task TTL expired, dropping. key=$key")
+                passiveTaskQueue.remove(key)
+            }
+
+            // Pick the highest-priority task; FIFO among equal priority
+            val next = passiveTaskQueue.values
+                .minWithOrNull(
+                    compareByDescending<QueuedTask> { it.priority.value }
+                        .thenBy { it.enqueueTime },
+                ) ?: run {
+                Logger.d(TAG, "Passive task queue is empty")
+                return
+            }
+
+            passiveTaskQueue.remove(next.mergeKey)
+            Logger.i(
+                TAG,
+                "Processing next queued task (priority=${next.priority}). " +
+                    "key=${next.mergeKey} remaining=${passiveTaskQueue.size}",
+            )
+            startTask(next.description, next.triggerContext)
+        }
+    }
+
+    // endregion
 
     // Primary state flow for task execution state
     private val _taskState = MutableStateFlow(TaskExecutionState())
@@ -373,6 +579,7 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
                 status = TaskStatus.FAILED,
                 resultMessage = "任务已取消",
             )
+        processNextInQueue()
     }
 
     /**
@@ -553,6 +760,7 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
             )
         // Note: FloatingWindowStateManager.onTaskCompleted() is called automatically
         // by the observer in observeTaskStateForScreenKeepAlive()
+        processNextInQueue()
     }
 
     /**
@@ -581,6 +789,7 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
             )
         // Note: FloatingWindowStateManager.onTaskCompleted() is called automatically
         // by the observer in observeTaskStateForScreenKeepAlive()
+        processNextInQueue()
     }
 
     /**

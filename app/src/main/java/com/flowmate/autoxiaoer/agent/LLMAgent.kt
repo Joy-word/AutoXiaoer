@@ -661,6 +661,10 @@ class LLMAgent(
     /**
      * Appends raw notification fields to [sb] without interpretation.
      * The LLM receives the original values and reasons about them directly.
+     *
+     * When [TriggerContext.notificationTexts] is non-empty (same-session notifications were
+     * merged in the queue), all accumulated message texts are rendered as a numbered list so
+     * the LLM can see every individual message rather than only the last one.
      */
     private fun appendNotificationContext(sb: StringBuilder, ctx: TriggerContext) {
         val appLabel = ctx.notificationApp ?: ctx.notificationPackageName ?: "未知应用"
@@ -672,10 +676,18 @@ class LLMAgent(
             sb.appendLine("- 标题：${ctx.notificationTitle}")
         }
 
-        val body = ctx.notificationBigText?.takeIf { it.isNotBlank() }
-            ?: ctx.notificationText?.takeIf { it.isNotBlank() }
-        if (!body.isNullOrBlank()) {
-            sb.appendLine("- 正文：$body")
+        if (ctx.notificationTexts.isNotEmpty()) {
+            // Multiple messages merged from the same session — render as a list
+            sb.appendLine("- 消息共 ${ctx.notificationTexts.size} 条（按时间顺序）：")
+            ctx.notificationTexts.forEachIndexed { index, text ->
+                sb.appendLine("  ${index + 1}. $text")
+            }
+        } else {
+            val body = ctx.notificationBigText?.takeIf { it.isNotBlank() }
+                ?: ctx.notificationText?.takeIf { it.isNotBlank() }
+            if (!body.isNullOrBlank()) {
+                sb.appendLine("- 正文：$body")
+            }
         }
 
         if (!ctx.notificationSubText.isNullOrBlank()) {

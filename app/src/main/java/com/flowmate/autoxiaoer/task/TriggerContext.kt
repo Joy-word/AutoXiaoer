@@ -46,6 +46,10 @@ enum class TriggerType {
  *   Only set for [TriggerType.CLAWBOT] triggers.
  * @property clawBotFromUserId The `from_user_id` of the WeChat user who sent the message.
  *   Only set for [TriggerType.CLAWBOT] triggers.
+ * @property notificationTexts Accumulated notification text messages for queue-merged entries.
+ *   When multiple notifications from the same session are merged in the passive task queue,
+ *   their individual [notificationText] values are collected here in arrival order.
+ *   Empty for non-merged (directly started) tasks.
  * @property triggerTime Epoch milliseconds when the trigger occurred
  */
 data class TriggerContext(
@@ -60,6 +64,7 @@ data class TriggerContext(
     val scheduledTaskBackground: String? = null,
     val clawBotContextToken: String? = null,
     val clawBotFromUserId: String? = null,
+    val notificationTexts: List<String> = emptyList(),
     val triggerTime: Long = System.currentTimeMillis(),
 ) {
     /**
@@ -68,7 +73,10 @@ data class TriggerContext(
      */
     val notificationContent: String?
         get() {
-            val body = notificationBigText?.takeIf { it.isNotBlank() } ?: notificationText
+            val body = when {
+                notificationTexts.isNotEmpty() -> notificationTexts.joinToString("\n")
+                else -> notificationBigText?.takeIf { it.isNotBlank() } ?: notificationText
+            }
             val parts = listOfNotNull(
                 notificationTitle?.takeIf { it.isNotBlank() },
                 body?.takeIf { it.isNotBlank() },

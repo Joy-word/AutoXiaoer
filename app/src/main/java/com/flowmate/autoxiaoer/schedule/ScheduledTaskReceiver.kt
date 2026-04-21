@@ -46,20 +46,12 @@ class ScheduledTaskReceiver : BroadcastReceiver() {
             return
         }
 
-        // Check if another task is currently running
-        if (TaskExecutionManager.isTaskRunning()) {
-            Logger.w(TAG, "Another task is currently running, skipping scheduled task $taskId")
-            // For repeating tasks, reschedule for next execution
-            if (task.repeatType != RepeatType.ONCE) {
-                taskManager.rescheduleTask(taskId)
-            }
-            return
-        }
-
-        // Check if Shizuku is connected (required for task execution)
+        // Check if Shizuku is connected (required for task execution).
+        // TASK_ALREADY_RUNNING is handled by the queue, so only hard blockers abort here.
         val blockReason = TaskExecutionManager.getStartTaskBlockReason()
-        if (blockReason != TaskExecutionManager.StartTaskBlockReason.NONE) {
-            Logger.w(TAG, "Cannot execute scheduled task $taskId: $blockReason")
+        if (blockReason != TaskExecutionManager.StartTaskBlockReason.NONE &&
+            blockReason != TaskExecutionManager.StartTaskBlockReason.TASK_ALREADY_RUNNING) {
+            Logger.w(TAG, "Cannot enqueue scheduled task $taskId: $blockReason")
             // For repeating tasks, reschedule for next execution
             if (task.repeatType != RepeatType.ONCE) {
                 taskManager.rescheduleTask(taskId)
@@ -67,16 +59,13 @@ class ScheduledTaskReceiver : BroadcastReceiver() {
             return
         }
 
-        Logger.i(TAG, "Executing scheduled task: ${task.taskDescription.take(50)}...")
+        Logger.i(TAG, "Enqueueing scheduled task: ${task.taskDescription.take(50)}...")
 
-        // Execute the task
-        // Note: Both FloatingWindowStateManager.onTaskStarted() and ScreenKeepAliveManager.onTaskStarted()
-        // are now called automatically by TaskExecutionManager when task state changes to RUNNING
         val triggerContext = TriggerContext(
             triggerType = TriggerType.SCHEDULED,
             scheduledTaskBackground = task.taskBackground,
         )
-        val success = TaskExecutionManager.startTask(task.taskDescription, triggerContext)
+        val success = TaskExecutionManager.enqueueScheduledTask(taskId, task.taskDescription, triggerContext)
         
         if (success) {
             // Update last executed timestamp
