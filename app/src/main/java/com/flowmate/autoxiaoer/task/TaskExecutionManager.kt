@@ -416,6 +416,13 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
             // Delay to let the user briefly see the task result
             kotlinx.coroutines.delay(POST_TASK_ACTION_DELAY_MS)
 
+            // If a queued task has already started during the delay, skip the post-task action
+            // to avoid conflicting with the new task (e.g., locking screen mid-execution).
+            if (_taskState.value.status == TaskStatus.RUNNING) {
+                Logger.i(TAG, "Post-task action skipped: next queued task is already running")
+                return@launch
+            }
+
             try {
                 when (action) {
                     PostTaskAction.LOCK_SCREEN -> {
