@@ -79,10 +79,21 @@ class ActionHandler(
      *
      * This method should be called before any touch-based operation (tap, swipe, etc.)
      * to ensure the floating window doesn't intercept the touch events.
+     *
+     * Polls [FloatingWindowController.isVisible] until the window is actually removed from the
+     * screen (i.e. isAttached becomes false), rather than relying on a fixed delay.  This avoids
+     * a race condition where the window is still visible when the swipe gesture starts on a
+     * heavily-loaded device.
      */
     private suspend fun hideFloatingWindow() {
-        floatingWindowProvider?.invoke()?.hide()
-        delay(WINDOW_HIDE_DELAY_MS)
+        val controller = floatingWindowProvider?.invoke() ?: return
+        if (!controller.isVisible()) return // Already hidden, nothing to do
+        controller.hide()
+        // Wait until the window is actually removed, up to WINDOW_HIDE_TIMEOUT_MS
+        val deadline = System.currentTimeMillis() + WINDOW_HIDE_TIMEOUT_MS
+        while (controller.isVisible() && System.currentTimeMillis() < deadline) {
+            delay(10L)
+        }
     }
 
     /**
@@ -643,7 +654,8 @@ class ActionHandler(
 
     companion object {
         private const val TAG = "ActionHandler"
-        private const val WINDOW_HIDE_DELAY_MS = 100L
+        /** Maximum time (ms) to wait for the floating window to actually disappear before a touch op. */
+        private const val WINDOW_HIDE_TIMEOUT_MS = 300L
         private const val WINDOW_SHOW_DELAY_MS = 50L
         private const val KEYCODE_ESCAPE = 111
 
