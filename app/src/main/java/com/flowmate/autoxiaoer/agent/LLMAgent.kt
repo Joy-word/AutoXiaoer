@@ -316,7 +316,7 @@ class LLMAgent(
                                 // brainLLM present but returned null → call failed; add fun tagline.
                                 // brainLLM absent (not configured) → silent fallback, no tagline.
                                 val msg = brainMsg
-                                    ?: if (brainLLM != null) "$rawMsg（Brain Miss）" else rawMsg
+                                    ?: if (brainLLM != null) "$rawMsg (🩶)" else rawMsg
                                 Logger.i(TAG, "LLMAgent requesting user: ${msg.take(80)}")
                                 historyManager?.recordPlanningRound(
                                     LLMPlanningRound(
