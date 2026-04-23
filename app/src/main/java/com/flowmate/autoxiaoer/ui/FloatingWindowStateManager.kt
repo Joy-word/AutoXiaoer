@@ -68,20 +68,11 @@ object FloatingWindowStateManager {
     /**
      * Called when a task completes (success or failure).
      *
-     * Returns to user preference state.
+     * Does nothing — state remains FORCED_VISIBLE from task execution,
+     * so the floating window stays visible and the user can see the result.
      */
     fun onTaskCompleted() {
-        Logger.d(TAG, "onTaskCompleted: userEnabledWindow = $userEnabledWindow")
-        _state.value =
-            if (userEnabledWindow) {
-                FloatingWindowState.VISIBLE_WHEN_BACKGROUND
-            } else {
-                FloatingWindowState.HIDDEN
-            }
-            // 如果状态变为HIDDEN,显式隐藏窗口
-        if (_state.value == FloatingWindowState.HIDDEN) {
-            hideWindow()
-        }
+        Logger.d(TAG, "onTaskCompleted: keeping state as-is (${_state.value})")
     }
 
     /**

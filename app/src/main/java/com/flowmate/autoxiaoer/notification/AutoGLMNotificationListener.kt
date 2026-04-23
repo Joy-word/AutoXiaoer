@@ -36,20 +36,18 @@ class AutoGLMNotificationListener : NotificationListenerService() {
 
         Logger.d(TAG, "Notification from $packageName matched rule '${rule.appLabel}'")
 
-        if (TaskExecutionManager.isTaskRunning()) {
-            Logger.w(TAG, "A task is already running, skipping notification trigger for $packageName")
-            return
-        }
-
+        // Drop immediately if a fundamental precondition is missing (no service / no agent).
+        // TASK_ALREADY_RUNNING is handled by the queue, so we allow that case through.
         val blockReason = TaskExecutionManager.getStartTaskBlockReason()
-        if (blockReason != TaskExecutionManager.StartTaskBlockReason.NONE) {
-            Logger.w(TAG, "Cannot start task, block reason: $blockReason")
+        if (blockReason != TaskExecutionManager.StartTaskBlockReason.NONE &&
+            blockReason != TaskExecutionManager.StartTaskBlockReason.TASK_ALREADY_RUNNING) {
+            Logger.w(TAG, "Cannot enqueue task, block reason: $blockReason")
             return
         }
 
         val triggerContext = buildTriggerContext(sbn, rule)
-        Logger.i(TAG, "Triggering task for notification from ${rule.appLabel} prompt=${rule.taskPrompt.take(50)}")
-        TaskExecutionManager.startTask(rule.taskPrompt, triggerContext)
+        Logger.i(TAG, "Enqueueing task for notification from ${rule.appLabel} prompt=${rule.taskPrompt.take(50)}")
+        TaskExecutionManager.enqueuePassiveTask(rule.taskPrompt, triggerContext)
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification) {

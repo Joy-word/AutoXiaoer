@@ -1195,6 +1195,9 @@ class FloatingWindowService :
         } else {
             // Restore based on current status
             updateUIForStatus(currentStatus)
+            // updateUIForStatus(RUNNING) clears the adapter; re-populate from current state
+            // so that the expanded window shows existing steps instead of going blank.
+            updateStepsFromTaskManager(TaskExecutionManager.steps.value)
             if (resultView?.text?.isNotEmpty() == true) {
                 resultView.visibility = View.VISIBLE
             }
