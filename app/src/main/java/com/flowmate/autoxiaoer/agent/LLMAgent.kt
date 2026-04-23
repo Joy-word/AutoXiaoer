@@ -307,12 +307,16 @@ class LLMAgent(
                                 val rawMsg = action.message ?: "需要用户介入"
                                 // Delegate to BrainLLM if available — it generates the final
                                 // in-character text; fall back to rawMsg if unavailable.
-                                val msg = brainLLM?.generateMessage(
+                                val brainMsg = brainLLM?.generateMessage(
                                     recipient = triggerContext?.clawBotFromUserId ?: "用户",
                                     receivedMessage = triggerContext?.notificationContent ?: "",
                                     background = rawMsg,
                                     language = config.language,
-                                ) ?: rawMsg
+                                )
+                                // brainLLM present but returned null → call failed; add fun tagline.
+                                // brainLLM absent (not configured) → silent fallback, no tagline.
+                                val msg = brainMsg
+                                    ?: if (brainLLM != null) "$rawMsg（Brain Miss）" else rawMsg
                                 Logger.i(TAG, "LLMAgent requesting user: ${msg.take(80)}")
                                 historyManager?.recordPlanningRound(
                                     LLMPlanningRound(
@@ -661,8 +665,8 @@ class LLMAgent(
                     memoryContext = if (purpose.isNotBlank()) purpose else null,
                     language = config.language,
                 )
-                // Fallback: use the intent description as the text if brain call fails
-                resolved[purpose] = generated ?: value
+                // Fallback: brain was invoked but failed → use LLMAgent's own text with fun tagline.
+                resolved[purpose] = generated ?: "$value（没过脑子版）"
             } else {
                 resolved[key] = value
             }
