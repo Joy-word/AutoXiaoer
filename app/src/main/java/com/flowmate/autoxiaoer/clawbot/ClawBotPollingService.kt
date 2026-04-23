@@ -136,6 +136,18 @@ class ClawBotPollingService : Service() {
 
         if (TaskExecutionManager.isTaskRunning()) {
             Logger.w(TAG, "Task already running, dropping ClawBot message: ${text.take(50)}")
+            serviceScope.launch {
+                try {
+                    ClawBotManager.sendMessage(
+                        applicationContext,
+                        msg.fromUserId,
+                        msg.contextToken,
+                        "正在忙，稍后处理～",
+                    )
+                } catch (e: Exception) {
+                    Logger.w(TAG, "Failed to send busy reply: ${e.message}")
+                }
+            }
             return
         }
 

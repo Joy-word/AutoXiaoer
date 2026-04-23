@@ -164,6 +164,16 @@ class SettingsManager private constructor(private val context: Context) {
         private const val KEY_LLM_AGENT_CUSTOM_PROMPT_CN = "llm_agent_custom_prompt_cn"
         private const val KEY_LLM_AGENT_CUSTOM_PROMPT_EN = "llm_agent_custom_prompt_en"
 
+        // BrainLLMConfig keys
+        private const val KEY_BRAIN_LLM_BASE_URL = "brain_llm_base_url"
+        private const val KEY_BRAIN_LLM_API_KEY = "brain_llm_api_key"
+        private const val KEY_BRAIN_LLM_MODEL_NAME = "brain_llm_model_name"
+        private const val KEY_BRAIN_LLM_MAX_TOKENS = "brain_llm_max_tokens"
+        private const val KEY_BRAIN_LLM_TEMPERATURE = "brain_llm_temperature"
+        private const val KEY_BRAIN_LLM_ENABLED = "brain_llm_enabled"
+        private const val KEY_BRAIN_LLM_CUSTOM_PROMPT_CN = "brain_llm_custom_prompt_cn"
+        private const val KEY_BRAIN_LLM_CUSTOM_PROMPT_EN = "brain_llm_custom_prompt_en"
+
         // Default values
         private val DEFAULT_MODEL_CONFIG = ModelConfig()
         private val DEFAULT_PHONE_AGENT_CONFIG = PhoneAgentConfig()
@@ -989,6 +999,90 @@ class SettingsManager private constructor(private val context: Context) {
     private fun isChineseLanguage(): Boolean {
         val lang = prefs.getString(KEY_LLM_AGENT_LANGUAGE, DEFAULT_LLM_AGENT_CONFIG.language) ?: "cn"
         return lang.lowercase() != "en" && lang.lowercase() != "english"
+    }
+
+    // ==================== BrainLLM Config ====================
+
+    /**
+     * Gets the current [BrainLLMConfig] from storage.
+     *
+     * Returns default values if not previously saved.
+     */
+    fun getBrainLLMConfig(): com.flowmate.autoxiaoer.agent.BrainLLMConfig {
+        Logger.d(TAG, "Loading BrainLLM configuration")
+        val default = com.flowmate.autoxiaoer.agent.BrainLLMConfig()
+        val language = prefs.getString(KEY_LLM_AGENT_LANGUAGE, "cn") ?: "cn"
+        val customPromptKey = if (language.lowercase() == "en") KEY_BRAIN_LLM_CUSTOM_PROMPT_EN else KEY_BRAIN_LLM_CUSTOM_PROMPT_CN
+        return com.flowmate.autoxiaoer.agent.BrainLLMConfig(
+            baseUrl = prefs.getString(KEY_BRAIN_LLM_BASE_URL, default.baseUrl) ?: default.baseUrl,
+            apiKey = securePrefs.getString(KEY_BRAIN_LLM_API_KEY, default.apiKey)
+                ?.ifEmpty { "EMPTY" } ?: "EMPTY",
+            modelName = prefs.getString(KEY_BRAIN_LLM_MODEL_NAME, default.modelName) ?: default.modelName,
+            maxTokens = prefs.getInt(KEY_BRAIN_LLM_MAX_TOKENS, default.maxTokens),
+            temperature = prefs.getFloat(KEY_BRAIN_LLM_TEMPERATURE, default.temperature),
+            enabled = prefs.getBoolean(KEY_BRAIN_LLM_ENABLED, default.enabled),
+            customSystemPrompt = prefs.getString(customPromptKey, "") ?: "",
+        )
+    }
+
+    /**
+     * Saves the [BrainLLMConfig] to storage.
+     *
+     * API Key is stored in encrypted preferences for security.
+     */
+    fun saveBrainLLMConfig(config: com.flowmate.autoxiaoer.agent.BrainLLMConfig) {
+        Logger.d(TAG, "Saving BrainLLM configuration: enabled=${config.enabled}, modelName=${config.modelName}")
+        prefs.edit().apply {
+            putString(KEY_BRAIN_LLM_BASE_URL, config.baseUrl)
+            putString(KEY_BRAIN_LLM_MODEL_NAME, config.modelName)
+            putInt(KEY_BRAIN_LLM_MAX_TOKENS, config.maxTokens)
+            putFloat(KEY_BRAIN_LLM_TEMPERATURE, config.temperature)
+            putBoolean(KEY_BRAIN_LLM_ENABLED, config.enabled)
+            apply()
+        }
+        securePrefs.edit().apply {
+            putString(KEY_BRAIN_LLM_API_KEY, config.apiKey)
+            apply()
+        }
+    }
+
+    /**
+     * Gets the BrainLLM custom system prompt for the specified language.
+     *
+     * @param language "cn" or "en"
+     * @return The custom prompt, or null if not set
+     */
+    fun getBrainLLMCustomPrompt(language: String): String? {
+        val key = if (language.lowercase() == "en" || language.lowercase() == "english") {
+            KEY_BRAIN_LLM_CUSTOM_PROMPT_EN
+        } else {
+            KEY_BRAIN_LLM_CUSTOM_PROMPT_CN
+        }
+        return prefs.getString(key, null)
+    }
+
+    /**
+     * Saves the BrainLLM custom system prompt for the specified language.
+     */
+    fun saveBrainLLMCustomPrompt(language: String, prompt: String) {
+        val key = if (language.lowercase() == "en" || language.lowercase() == "english") {
+            KEY_BRAIN_LLM_CUSTOM_PROMPT_EN
+        } else {
+            KEY_BRAIN_LLM_CUSTOM_PROMPT_CN
+        }
+        prefs.edit().putString(key, prompt).apply()
+    }
+
+    /**
+     * Clears the BrainLLM custom system prompt for the specified language.
+     */
+    fun clearBrainLLMCustomPrompt(language: String) {
+        val key = if (language.lowercase() == "en" || language.lowercase() == "english") {
+            KEY_BRAIN_LLM_CUSTOM_PROMPT_EN
+        } else {
+            KEY_BRAIN_LLM_CUSTOM_PROMPT_CN
+        }
+        prefs.edit().remove(key).apply()
     }
 
     // ==================== ClawBot Credentials ====================

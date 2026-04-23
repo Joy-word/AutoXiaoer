@@ -532,15 +532,18 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
         componentManager.llmAgent?.pause()
 
         val paused = agent.pause()
-        if (paused) {
+        // Also treat IDLE as a valid pause target: LLMAgent may be mid-think while
+        // PhoneAgent hasn't started executing a sub-task yet (state == IDLE).
+        if (paused || agent.getState() == PhoneAgentState.IDLE) {
             Logger.i(TAG, "Task paused (LLMAgent + PhoneAgent)")
             _taskState.value = _taskState.value.copy(status = TaskStatus.PAUSED)
+            return true
         } else {
-            // PhoneAgent couldn't be paused; undo LLMAgent pause to avoid deadlock
+            // PhoneAgent is neither running nor IDLE; undo LLMAgent pause to avoid deadlock
             componentManager.llmAgent?.resume()
             Logger.w(TAG, "Failed to pause task")
+            return false
         }
-        return paused
     }
 
     /**
@@ -586,7 +589,9 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
                 status = TaskStatus.FAILED,
                 resultMessage = "任务已取消",
             )
-        processNextInQueue()
+        // processNextInQueue() is NOT called here intentionally.
+        // The running coroutine will call onTaskFailed("任务已取消") once it
+        // actually terminates, which triggers processNextInQueue() exactly once.
     }
 
     /**

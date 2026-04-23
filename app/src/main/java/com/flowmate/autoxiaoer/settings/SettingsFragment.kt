@@ -155,6 +155,10 @@ class SettingsFragment : Fragment() {
         view.findViewById<Button>(R.id.btnLLMAgentSettings)
             .setOnClickListener { showLLMAgentSettingsDialog() }
 
+        // BrainLLM settings entry button
+        view.findViewById<Button>(R.id.btnBrainLLMSettings)
+            .setOnClickListener { showBrainLLMSettingsDialog() }
+
         // ClawBot connection
         clawBotStatusText = view.findViewById(R.id.clawBotStatusText)
         btnClawBotAction = view.findViewById(R.id.btnClawBotAction)
@@ -814,6 +818,217 @@ class SettingsFragment : Fragment() {
      * Fields: Base URL, API Key, Model Name, Max Tokens, Temperature, Max Planning Steps,
      *         Language, Custom System Prompt. Includes a test-connection button.
      */
+    private fun showBrainLLMSettingsDialog() {
+        Logger.d(TAG, "Showing BrainLLM settings dialog")
+        val ctx = requireContext()
+        val config = settingsManager.getBrainLLMConfig()
+
+        val scrollView = android.widget.ScrollView(ctx)
+        val container = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            val paddingPx = (16 * resources.displayMetrics.density).toInt()
+            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+        }
+        scrollView.addView(container)
+
+        fun makeInputLayout(hint: String): Pair<TextInputLayout, TextInputEditText> {
+            val layout = TextInputLayout(ctx).apply {
+                this.hint = hint
+                boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
+                val lp = android.widget.LinearLayout.LayoutParams(
+                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+                )
+                lp.bottomMargin = (8 * resources.displayMetrics.density).toInt()
+                layoutParams = lp
+            }
+            val edit = TextInputEditText(ctx)
+            layout.addView(edit)
+            return layout to edit
+        }
+
+        val dp8 = (8 * resources.displayMetrics.density).toInt()
+        val dp4 = (4 * resources.displayMetrics.density).toInt()
+
+        // Enable switch
+        val enableSwitch = android.widget.Switch(ctx).apply {
+            text = "启用大脑 (BrainLLM)"
+            isChecked = config.enabled
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            lp.bottomMargin = dp8
+            layoutParams = lp
+        }
+        container.addView(enableSwitch)
+
+        val descText = android.widget.TextView(ctx).apply {
+            text = "启用后，小脑每次需要发送文字时将调用大脑生成内容，实现人设和任务逻辑的分离。"
+            textSize = 12f
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            lp.bottomMargin = dp8
+            layoutParams = lp
+        }
+        container.addView(descText)
+
+        val (baseUrlLayout, baseUrlEdit) = makeInputLayout("Base URL")
+        baseUrlEdit.setText(config.baseUrl)
+        container.addView(baseUrlLayout)
+
+        val (apiKeyLayout, apiKeyEdit) = makeInputLayout("API Key")
+        apiKeyEdit.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        apiKeyLayout.endIconMode = TextInputLayout.END_ICON_PASSWORD_TOGGLE
+        apiKeyEdit.setText(if (config.apiKey == "EMPTY") "" else config.apiKey)
+        container.addView(apiKeyLayout)
+
+        val (modelNameLayout, modelNameEdit) = makeInputLayout("模型名称 (Model Name)")
+        modelNameEdit.setText(config.modelName)
+        container.addView(modelNameLayout)
+
+        // Test connection button
+        val btnTestConn = Button(ctx).apply {
+            text = getString(R.string.settings_test_connection)
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            lp.bottomMargin = dp8
+            layoutParams = lp
+        }
+        container.addView(btnTestConn)
+
+        val (maxTokensLayout, maxTokensEdit) = makeInputLayout("最大 Token 数 (Max Tokens)")
+        maxTokensEdit.setText(config.maxTokens.toString())
+        maxTokensEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+        container.addView(maxTokensLayout)
+
+        val (temperatureLayout, temperatureEdit) = makeInputLayout("Temperature (0.0 - 2.0)")
+        temperatureEdit.setText(config.temperature.toString())
+        temperatureEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER or
+            android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+        container.addView(temperatureLayout)
+
+        // Custom system prompt button
+        val btnCustomPrompt = Button(ctx).apply {
+            text = "编辑大脑 System Prompt"
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            lp.topMargin = dp4
+            layoutParams = lp
+        }
+        container.addView(btnCustomPrompt)
+
+        val dialog = MaterialAlertDialogBuilder(ctx)
+            .setTitle("BrainLLM 设置（大脑）")
+            .setView(scrollView)
+            .setPositiveButton("保存") { _, _ ->
+                val baseUrl = baseUrlEdit.text?.toString()?.trim() ?: ""
+                val apiKey = apiKeyEdit.text?.toString()?.trim().let {
+                    if (it.isNullOrEmpty()) "EMPTY" else it
+                }
+                val modelName = modelNameEdit.text?.toString()?.trim() ?: ""
+                val maxTokens = maxTokensEdit.text?.toString()?.trim()?.toIntOrNull()
+                    ?: config.maxTokens
+                val temperature = temperatureEdit.text?.toString()?.trim()?.toFloatOrNull()
+                    ?: config.temperature
+                val enabled = enableSwitch.isChecked
+
+                if (enabled) {
+                    if (baseUrl.isEmpty() || !isValidUrl(baseUrl)) {
+                        Toast.makeText(ctx, "Base URL 格式不正确", Toast.LENGTH_SHORT).show()
+                        return@setPositiveButton
+                    }
+                    if (modelName.isEmpty()) {
+                        Toast.makeText(ctx, "模型名称不能为空", Toast.LENGTH_SHORT).show()
+                        return@setPositiveButton
+                    }
+                }
+
+                val language = settingsManager.getLLMAgentConfig().language
+                val newConfig = com.flowmate.autoxiaoer.agent.BrainLLMConfig(
+                    baseUrl = baseUrl,
+                    apiKey = apiKey,
+                    modelName = modelName,
+                    maxTokens = maxTokens,
+                    temperature = temperature.coerceIn(0f, 2f),
+                    enabled = enabled,
+                    customSystemPrompt = settingsManager.getBrainLLMCustomPrompt(language) ?: "",
+                )
+                settingsManager.saveBrainLLMConfig(newConfig)
+                com.flowmate.autoxiaoer.ComponentManager.getInstance(ctx).reinitializeAgents()
+                Toast.makeText(ctx, "BrainLLM 设置已保存", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
+            .create()
+
+        btnTestConn.setOnClickListener {
+            testConnectionInDialog(
+                baseUrl = baseUrlEdit.text?.toString()?.trim() ?: "",
+                apiKey = apiKeyEdit.text?.toString()?.trim() ?: "",
+                modelName = modelNameEdit.text?.toString()?.trim() ?: "",
+                testButton = btnTestConn,
+            )
+        }
+
+        btnCustomPrompt.setOnClickListener {
+            val language = settingsManager.getLLMAgentConfig().language
+            showBrainLLMPromptDialog(language)
+        }
+
+        dialog.show()
+        dialog.applyPrimaryButtonColors()
+    }
+
+    /**
+     * Shows an edit dialog for BrainLLM's custom system prompt.
+     */
+    private fun showBrainLLMPromptDialog(language: String) {
+        Logger.d(TAG, "Showing BrainLLM prompt dialog for language: $language")
+        val ctx = requireContext()
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_system_prompt, null)
+        val promptInput = dialogView.findViewById<TextInputEditText>(R.id.promptInput)
+        val btnReset = dialogView.findViewById<Button>(R.id.btnResetPrompt)
+
+        val currentPrompt = settingsManager.getBrainLLMCustomPrompt(language)
+            ?: if (language == "en") {
+                com.flowmate.autoxiaoer.config.BrainLLMPrompts.getDefaultEnglishPromptTemplate()
+            } else {
+                com.flowmate.autoxiaoer.config.BrainLLMPrompts.getDefaultChinesePromptTemplate()
+            }
+
+        promptInput.setText(currentPrompt)
+
+        btnReset.setOnClickListener {
+            val defaultPrompt = if (language == "en") {
+                com.flowmate.autoxiaoer.config.BrainLLMPrompts.getDefaultEnglishPromptTemplate()
+            } else {
+                com.flowmate.autoxiaoer.config.BrainLLMPrompts.getDefaultChinesePromptTemplate()
+            }
+            promptInput.setText(defaultPrompt)
+        }
+
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle("大脑 System Prompt")
+            .setView(dialogView)
+            .setPositiveButton("保存") { _, _ ->
+                val prompt = promptInput.text?.toString() ?: ""
+                settingsManager.saveBrainLLMCustomPrompt(language, prompt)
+                com.flowmate.autoxiaoer.config.BrainLLMPrompts.run {
+                    if (language == "en") setCustomEnglishPrompt(prompt) else setCustomChinesePrompt(prompt)
+                }
+                Toast.makeText(ctx, "大脑 System Prompt 已保存", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
+            .create()
+            .also { it.show(); it.applyPrimaryButtonColors() }
+    }
+
     private fun showLLMAgentSettingsDialog() {
         Logger.d(TAG, "Showing LLM-agent settings dialog")
         val ctx = requireContext()
@@ -923,7 +1138,7 @@ class SettingsFragment : Fragment() {
         container.addView(btnCustomPrompt)
 
         val dialog = MaterialAlertDialogBuilder(ctx)
-            .setTitle("LLM-agent 设置（大脑）")
+            .setTitle("LLM-agent 设置（小脑）")
             .setView(scrollView)
             .setPositiveButton("保存") { _, _ ->
                 val baseUrl = baseUrlEdit.text?.toString()?.trim() ?: ""

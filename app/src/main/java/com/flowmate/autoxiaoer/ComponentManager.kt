@@ -2,6 +2,7 @@ package com.flowmate.autoxiaoer
 
 import android.content.Context
 import com.flowmate.autoxiaoer.action.ActionHandler
+import com.flowmate.autoxiaoer.agent.BrainLLM
 import com.flowmate.autoxiaoer.agent.LLMAgent
 import com.flowmate.autoxiaoer.agent.PhoneAgent
 import com.flowmate.autoxiaoer.agent.PhoneAgentListener
@@ -85,6 +86,10 @@ class ComponentManager private constructor(private val context: Context) {
     private var llmModelClientInternal: ModelClient? = null
     private var llmAgentInternal: LLMAgent? = null
 
+    // BrainLLM and its dedicated ModelClient
+    private var brainModelClientInternal: ModelClient? = null
+    private var brainLLMInternal: BrainLLM? = null
+
     /**
      * Checks if the UserService is connected.
      */
@@ -164,6 +169,7 @@ class ComponentManager private constructor(private val context: Context) {
     // Track current model configs for change detection
     private var currentModelConfig: ModelConfig? = null
     private var currentLLMAgentConfig: com.flowmate.autoxiaoer.agent.LLMAgentConfig? = null
+    private var currentBrainLLMConfig: com.flowmate.autoxiaoer.agent.BrainLLMConfig? = null
 
     /**
      * Called when UserService connects.
@@ -228,12 +234,20 @@ class ComponentManager private constructor(private val context: Context) {
         val llmAgentConfig = settingsManager.getLLMAgentConfig()
         llmModelClientInternal = buildLLMModelClient(llmAgentConfig)
         currentLLMAgentConfig = llmAgentConfig
+
+        // Create BrainLLM
+        val brainLLMConfig = settingsManager.getBrainLLMConfig()
+        brainModelClientInternal = buildBrainModelClient(brainLLMConfig)
+        brainLLMInternal = BrainLLM(config = brainLLMConfig, modelClient = brainModelClientInternal!!)
+        currentBrainLLMConfig = brainLLMConfig
+
         llmAgentInternal = LLMAgent(
             config = llmAgentConfig,
             modelClient = llmModelClientInternal!!,
             phoneAgent = phoneAgentInternal!!,
             historyManager = historyManager,
             context = context,
+            brainLLM = brainLLMInternal,
         )
 
         Logger.i(TAG, "All service-dependent components initialized")
@@ -246,6 +260,9 @@ class ComponentManager private constructor(private val context: Context) {
         llmAgentInternal = null
         llmModelClientInternal = null
         currentLLMAgentConfig = null
+        brainLLMInternal = null
+        brainModelClientInternal = null
+        currentBrainLLMConfig = null
         phoneAgentInternal?.cancel()
         phoneAgentInternal = null
         actionHandlerInternal = null
@@ -298,15 +315,23 @@ class ComponentManager private constructor(private val context: Context) {
         val llmAgentConfig = settingsManager.getLLMAgentConfig()
         llmModelClientInternal = buildLLMModelClient(llmAgentConfig)
         currentLLMAgentConfig = llmAgentConfig
+
+        // Recreate BrainLLM with potentially updated config
+        val brainLLMConfig = settingsManager.getBrainLLMConfig()
+        brainModelClientInternal = buildBrainModelClient(brainLLMConfig)
+        brainLLMInternal = BrainLLM(config = brainLLMConfig, modelClient = brainModelClientInternal!!)
+        currentBrainLLMConfig = brainLLMConfig
+
         llmAgentInternal = LLMAgent(
             config = llmAgentConfig,
             modelClient = llmModelClientInternal!!,
             phoneAgent = phoneAgentInternal!!,
             historyManager = historyManager,
             context = context,
+            brainLLM = brainLLMInternal,
         )
 
-        Logger.i(TAG, "PhoneAgent and LLMAgent reinitialized with new configuration")
+        Logger.i(TAG, "PhoneAgent, LLMAgent and BrainLLM reinitialized with new configuration")
     }
 
     /**
@@ -371,6 +396,22 @@ class ComponentManager private constructor(private val context: Context) {
         )
 
     /**
+     * Builds a [ModelClient] from [BrainLLMConfig].
+     */
+    private fun buildBrainModelClient(config: com.flowmate.autoxiaoer.agent.BrainLLMConfig): ModelClient =
+        ModelClient(
+            ModelConfig(
+                baseUrl = config.baseUrl,
+                apiKey = config.apiKey,
+                modelName = config.modelName,
+                maxTokens = config.maxTokens,
+                temperature = config.temperature,
+                topP = 1.0f,
+                frequencyPenalty = 0.0f,
+            ),
+        )
+
+    /**
      * Gets the current state summary for debugging.
      */
     fun getStateSummary(): String = buildString {
@@ -381,8 +422,10 @@ class ComponentManager private constructor(private val context: Context) {
         appendLine("  - ActionHandler: ${if (actionHandlerInternal != null) "initialized" else "null"}")
         appendLine("  - PhoneAgent: ${if (phoneAgentInternal != null) "initialized" else "null"}")
         appendLine("  - LLMAgent: ${if (llmAgentInternal != null) "initialized" else "null"}")
+        appendLine("  - BrainLLM: ${if (brainLLMInternal != null) "initialized (enabled=${brainLLMInternal?.let { currentBrainLLMConfig?.enabled }})" else "null"}")
         appendLine("  - ModelClient: ${if (modelClientInternal != null) "initialized" else "null"}")
         appendLine("  - LLMModelClient: ${if (llmModelClientInternal != null) "initialized" else "null"}")
+        appendLine("  - BrainModelClient: ${if (brainModelClientInternal != null) "initialized" else "null"}")
         appendLine("  - AppResolver: ${if (appResolverInternal != null) "initialized" else "null"}")
         appendLine("  - SwipeGenerator: ${if (swipeGeneratorInternal != null) "initialized" else "null"}")
     }

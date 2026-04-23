@@ -108,7 +108,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginBottom="4dp"
-                            android:text="LLM-agent（大脑）"
+                            android:text="LLM-agent（小脑）"
                             android:textAppearance="?attr/textAppearanceTitleMedium"
                             android:textColor="@color/text_primary" />
 
@@ -116,7 +116,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginBottom="12dp"
-                            android:text="配置负责任务规划和文本生成的大语言模型，可使用与 phone-agent 不同的模型和 API。"
+                            android:text="配置负责任务规划和能力调用的小脑模型，可使用与 phone-agent 不同的模型和 API。"
                             android:textAppearance="?attr/textAppearanceBodySmall"
                             android:textColor="@color/text_secondary" />
 
@@ -125,7 +125,50 @@
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             android:layout_width="wrap_content"
                             android:layout_height="48dp"
-                            android:text="配置 LLM-agent" />
+                            android:text="配置小脑 (LLM-agent)" />
+
+                    </LinearLayout>
+
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- BrainLLM Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/brainLLMSettingsCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    app:cardBackgroundColor="@color/card_background"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="4dp"
+                            android:text="BrainLLM（大脑）"
+                            android:textAppearance="?attr/textAppearanceTitleMedium"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="12dp"
+                            android:text="配置负责人设表达和人际关系的大脑模型。启用后，所有需要发送给朋友的文字将由大脑生成，可单独配置更具表达力的模型。"
+                            android:textAppearance="?attr/textAppearanceBodySmall"
+                            android:textColor="@color/text_secondary" />
+
+                        <Button
+                            android:id="@+id/btnBrainLLMSettings"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:text="配置大脑 (BrainLLM)" />
 
                     </LinearLayout>
 

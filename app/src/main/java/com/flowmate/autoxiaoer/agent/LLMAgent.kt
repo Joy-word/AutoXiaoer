@@ -68,12 +68,16 @@ interface LLMAgentListener {
 }
 
 /**
- * The "brain" layer of the two-agent architecture.
+ * The "cerebellum" (小脑) layer of the two-agent architecture.
  *
  * [LLMAgent] implements a simple ReAct loop:
  *   1. **Think** — call the LLM to reason about the current state and decide on a sub-task
  *   2. **Act**   — dispatch the sub-task to [PhoneAgent] via [PhoneAgent.runSubTask]
  *   3. **Observe** — feed the sub-task result back into the LLM context and loop
+ *
+ * When [brainLLM] is provided and enabled, all outgoing text (request_user messages and
+ * preGeneratedTexts marked with [BRAIN_KEY_PREFIX]) is routed through [BrainLLM.generateMessage]
+ * so that persona and interpersonal expression remain fully isolated from task logic.
  *
  * The agent terminates when the LLM emits a "finish" or "request_user" action,
  * or when [LLMAgentConfig.maxPlanningSteps] is exceeded.
@@ -81,6 +85,7 @@ interface LLMAgentListener {
  * @param config LLM-agent configuration (independent from PhoneAgent's ModelConfig)
  * @param modelClient Pre-built [ModelClient] constructed from [config] by [ComponentManager]
  * @param phoneAgent The PhoneAgent used to execute sub-tasks
+ * @param brainLLM Optional [BrainLLM] for persona-aware text generation
  */
 class LLMAgent(
     private val config: LLMAgentConfig,
@@ -88,6 +93,7 @@ class LLMAgent(
     private val phoneAgent: PhoneAgent,
     private val historyManager: HistoryManager? = null,
     private val context: Context? = null,
+    private val brainLLM: BrainLLM? = null,
 ) {
     private var listener: LLMAgentListener? = null
 
@@ -298,8 +304,16 @@ class LLMAgent(
                             }
 
                             ACTION_REQUEST_USER -> {
-                                val msg = action.message ?: "需要用户介入"
-                                Logger.i(TAG, "LLMAgent requesting user: $msg")
+                                val rawMsg = action.message ?: "需要用户介入"
+                                // Delegate to BrainLLM if available — it generates the final
+                                // in-character text; fall back to rawMsg if unavailable.
+                                val msg = brainLLM?.generateMessage(
+                                    recipient = triggerContext?.clawBotFromUserId ?: "用户",
+                                    receivedMessage = triggerContext?.notificationContent ?: "",
+                                    background = rawMsg,
+                                    language = config.language,
+                                ) ?: rawMsg
+                                Logger.i(TAG, "LLMAgent requesting user: ${msg.take(80)}")
                                 historyManager?.recordPlanningRound(
                                     LLMPlanningRound(
                                         round = round,
@@ -364,11 +378,13 @@ class LLMAgent(
                                 // Capture timestamp now so the planning round sorts before the sub-task steps
                                 val planningRoundTimestamp = System.currentTimeMillis()
 
-                                Logger.i(TAG, "Dispatching SubTask ${subTask.id}: ${subTask.description.take(80)}")
-                                listener?.onSubTaskStarted(subTask)
+                                // Resolve any brain-delegated preGeneratedTexts before dispatching.
+                                val resolvedSubTask = resolveSubTaskTexts(subTask, triggerContext)
+                                Logger.i(TAG, "Dispatching SubTask ${resolvedSubTask.id}: ${resolvedSubTask.description.take(80)}")
+                                listener?.onSubTaskStarted(resolvedSubTask)
 
                                 // ── Observe ────────────────────────────────────
-                                val subTaskResult = phoneAgent.runSubTask(subTask)
+                                val subTaskResult = phoneAgent.runSubTask(resolvedSubTask)
                                 Logger.i(
                                     TAG,
                                     "SubTask ${subTask.id} done: success=${subTaskResult.success}, " +
@@ -386,8 +402,8 @@ class LLMAgent(
                                 }
 
                                 // Feed result back as user observation
-                                val observation = buildObservationMessage(subTask, subTaskResult)
-                                listener?.onObservationReceived(subTask, subTaskResult, observation)
+                                val observation = buildObservationMessage(resolvedSubTask, subTaskResult)
+                                listener?.onObservationReceived(resolvedSubTask, subTaskResult, observation)
                                 context.addUserMessage(observation)
 
                                 historyManager?.recordPlanningRound(
@@ -396,8 +412,8 @@ class LLMAgent(
                                         timestamp = planningRoundTimestamp,
                                         thinking = thinking,
                                         actionType = ACTION_EXECUTE_SUBTASK,
-                                        subTaskDescription = subTask.description,
-                                        subTaskId = subTask.id,
+                                        subTaskDescription = resolvedSubTask.description,
+                                        subTaskId = resolvedSubTask.id,
                                         observation = observation,
                                         subTaskSuccess = subTaskResult.success,
                                         subTaskStepCount = subTaskResult.stepCount,
@@ -611,6 +627,47 @@ class LLMAgent(
             listener?.onTaskFinished(result)
             result
         }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // BrainLLM helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Resolves any [BRAIN_KEY_PREFIX] entries in [subTask]'s preGeneratedTexts by calling
+     * [brainLLM] to generate the actual text.  Non-brain keys are left unchanged.
+     *
+     * If [brainLLM] is null / disabled, the original [subTask] is returned as-is so the
+     * cerebellum-generated text (the key's value) is used directly.
+     */
+    private suspend fun resolveSubTaskTexts(
+        subTask: SubTask,
+        triggerContext: TriggerContext?,
+    ): SubTask {
+        val original = subTask.preGeneratedTexts
+        if (original.isEmpty() || brainLLM == null) return subTask
+
+        val hasBrainKeys = original.keys.any { it.startsWith(BRAIN_KEY_PREFIX) }
+        if (!hasBrainKeys) return subTask
+
+        val resolved = mutableMapOf<String, String>()
+        for ((key, value) in original) {
+            if (key.startsWith(BRAIN_KEY_PREFIX)) {
+                val purpose = key.removePrefix(BRAIN_KEY_PREFIX)
+                val generated = brainLLM.generateMessage(
+                    recipient = triggerContext?.clawBotFromUserId ?: "朋友",
+                    receivedMessage = triggerContext?.notificationContent ?: "",
+                    background = "正在执行子任务：${subTask.description}，需要输入：$value",
+                    memoryContext = if (purpose.isNotBlank()) purpose else null,
+                    language = config.language,
+                )
+                // Fallback: use the intent description as the text if brain call fails
+                resolved[purpose] = generated ?: value
+            } else {
+                resolved[key] = value
+            }
+        }
+        return subTask.copy(preGeneratedTexts = resolved)
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -921,5 +978,19 @@ class LLMAgent(
         private const val ACTION_QUERY_SCHEDULED_TASKS = "query_scheduled_tasks"
         private const val ACTION_UPDATE_SCHEDULED_TASK = "update_scheduled_task"
         private const val ACTION_DELETE_SCHEDULED_TASK = "delete_scheduled_task"
+
+        /**
+         * If a preGeneratedTexts key starts with this prefix the value is treated as a
+         * "brain consultation request" — the value is the intent description and the
+         * actual text will be generated by [BrainLLM] at runtime.
+         *
+         * Example:
+         * ```json
+         * "preGeneratedTexts": {
+         *   "brain:回复内容": "告诉他我已经看到了，稍后回复"
+         * }
+         * ```
+         */
+        const val BRAIN_KEY_PREFIX = "brain:"
     }
 }
