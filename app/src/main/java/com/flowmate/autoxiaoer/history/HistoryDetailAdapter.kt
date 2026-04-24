@@ -249,6 +249,7 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
                 "execute_subtask" -> "执行子任务" to ContextCompat.getColor(context, R.color.primary)
                 "finish" -> "完成" to ContextCompat.getColor(context, R.color.status_success)
                 "request_user" -> "需要介入" to ContextCompat.getColor(context, R.color.status_paused)
+                "request_brain" -> "请求大脑" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
                 "schedule_task" -> "记录日程" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
                 "query_scheduled_tasks" -> "查询日程" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
                 "update_scheduled_task" -> "更新日程" to ContextCompat.getColor(context, R.color.step_llm_agent_action)

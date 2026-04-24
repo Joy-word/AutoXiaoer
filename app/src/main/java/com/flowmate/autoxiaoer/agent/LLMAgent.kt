@@ -316,7 +316,7 @@ class LLMAgent(
                                 // brainLLM present but returned null → call failed; add fun tagline.
                                 // brainLLM absent (not configured) → silent fallback, no tagline.
                                 val msg = brainMsg
-                                    ?: if (brainLLM != null) "$rawMsg (🩶)" else rawMsg
+                                    ?: if (brainLLM != null) "$rawMsg (🩶)" else "$rawMsg (❤️)"
                                 Logger.i(TAG, "LLMAgent requesting user: ${msg.take(80)}")
                                 historyManager?.recordPlanningRound(
                                     LLMPlanningRound(
@@ -602,9 +602,63 @@ class LLMAgent(
                                 context.addUserMessage("【日程删除结果】\n$resultMessage\n\n请根据结果决定下一步操作。")
                             }
 
+                            ACTION_REQUEST_BRAIN -> {
+                                val params = action.brainRequestParams
+                                if (params == null) {
+                                    Logger.w(TAG, "request_brain action missing required fields")
+                                    context.addUserMessage("你输出的 request_brain 缺少必要字段，请重新输出。")
+                                    continue
+                                }
+                                Logger.i(TAG, "LLMAgent requesting BrainLLM: recipient=${params.recipient}")
+                                val brainResult = brainLLM?.generateMessage(
+                                    recipient = params.recipient,
+                                    receivedMessage = params.receivedMessage,
+                                    background = params.background,
+                                    memoryContext = params.context,
+                                    language = config.language,
+                                )
+                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
+                                val observation = when {
+                                    brainResult != null -> {
+                                        // Brain responded successfully
+                                        if (isEn) {
+                                            "[Brain Result]\n$brainResult\n\nPlease place the above content into the next action (request_user's message, or the corresponding value in preGeneratedTexts)."
+                                        } else {
+                                            "【大脑生成结果】\n$brainResult\n\n请将以上内容填入后续 action（request_user 的 message 或 preGeneratedTexts 的对应 value）。"
+                                        }
+                                    }
+                                    brainLLM != null -> {
+                                        // Brain is configured but call failed
+                                        Logger.w(TAG, "BrainLLM call failed for request_brain")
+                                        if (isEn) {
+                                            "[Brain Disconnected] The brain failed to respond. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
+                                        } else {
+                                            "【大脑断联】大脑未能响应。请你根据以下情境和意图自行生成回复内容，再填入后续 action。\n【情境】${params.background}\n【收到的消息】${params.receivedMessage}"
+                                        }
+                                    }
+                                    else -> {
+                                        // Brain not configured
+                                        if (isEn) {
+                                            "[Brain Not Available] Brain is not configured. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
+                                        } else {
+                                            "【大脑未启用】大脑未配置。请你根据以下情境和意图自行生成回复内容，再填入后续 action。\n【情境】${params.background}\n【收到的消息】${params.receivedMessage}"
+                                        }
+                                    }
+                                }
+                                historyManager?.recordPlanningRound(
+                                    LLMPlanningRound(
+                                        round = round,
+                                        thinking = thinking,
+                                        actionType = ACTION_REQUEST_BRAIN,
+                                        message = brainResult ?: params.background,
+                                    ),
+                                )
+                                context.addUserMessage(observation)
+                            }
+
                             else -> {
                                 Logger.w(TAG, "Unknown action type: ${action.type}")
-                                context.addUserMessage("未知的 action type \"${action.type}\"，请使用 execute_subtask、finish、request_user、schedule_task、query_scheduled_tasks、update_scheduled_task 或 delete_scheduled_task。")
+                                context.addUserMessage("未知的 action type \"${action.type}\"，请使用 execute_subtask、finish、request_user、request_brain、schedule_task、query_scheduled_tasks、update_scheduled_task 或 delete_scheduled_task。")
                             }
                         }
                     }
@@ -838,6 +892,14 @@ class LLMAgent(
         val scheduleTaskParams: ScheduleTaskParams? = null,
         val updateScheduledTaskParams: UpdateScheduledTaskParams? = null,
         val deleteTaskId: String? = null,
+        val brainRequestParams: BrainRequestParams? = null,
+    )
+
+    private data class BrainRequestParams(
+        val recipient: String,
+        val receivedMessage: String,
+        val background: String,
+        val context: String?,
     )
 
     /**
@@ -937,6 +999,24 @@ class LLMAgent(
                     ParsedAction(type = type, message = null, subTask = null, deleteTaskId = taskId)
                 }
 
+                ACTION_REQUEST_BRAIN -> {
+                    val recipient = json.optString("recipient").ifBlank { return null }
+                    val receivedMessage = json.optString("receivedMessage")
+                    val background = json.optString("background").ifBlank { return null }
+                    val context = json.optString("context").ifBlank { null }
+                    ParsedAction(
+                        type = type,
+                        message = null,
+                        subTask = null,
+                        brainRequestParams = BrainRequestParams(
+                            recipient = recipient,
+                            receivedMessage = receivedMessage,
+                            background = background,
+                            context = context,
+                        ),
+                    )
+                }
+
                 else -> ParsedAction(type = type, message = null, subTask = null)
             }
         } catch (e: Exception) {
@@ -978,6 +1058,7 @@ class LLMAgent(
         private const val ACTION_EXECUTE_SUBTASK = "execute_subtask"
         private const val ACTION_FINISH = "finish"
         private const val ACTION_REQUEST_USER = "request_user"
+        private const val ACTION_REQUEST_BRAIN = "request_brain"
         private const val ACTION_SCHEDULE_TASK = "schedule_task"
         private const val ACTION_QUERY_SCHEDULED_TASKS = "query_scheduled_tasks"
         private const val ACTION_UPDATE_SCHEDULED_TASK = "update_scheduled_task"
