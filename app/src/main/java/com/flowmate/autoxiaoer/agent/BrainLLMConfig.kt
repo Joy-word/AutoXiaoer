@@ -18,8 +18,8 @@ data class BrainLLMConfig(
     val baseUrl: String = "https://open.bigmodel.cn/api/paas/v4",
     val apiKey: String = "EMPTY",
     val modelName: String = "glm-4-plus",
-    val maxTokens: Int = 1000,
-    val temperature: Float = 0.9f,
+    val maxTokens: Int = 8000,
+    val temperature: Float = 0.7f,
     val enabled: Boolean = false,
     val customSystemPrompt: String = "",
 )
