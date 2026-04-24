@@ -19,7 +19,7 @@ data class BrainLLMConfig(
     val apiKey: String = "EMPTY",
     val modelName: String = "glm-4-plus",
     val maxTokens: Int = 8000,
-    val temperature: Float = 0.7f,
+    val temperature: Float = 1f,
     val enabled: Boolean = false,
     val customSystemPrompt: String = "",
 )
