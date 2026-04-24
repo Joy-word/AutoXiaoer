@@ -308,14 +308,6 @@ class LLMAgent(
                             ACTION_REQUEST_USER -> {
                                 val msg = action.message ?: "需要用户介入"
                                 Logger.i(TAG, "LLMAgent requesting user: ${msg.take(80)}")
-                                historyManager?.recordPlanningRound(
-                                    LLMPlanningRound(
-                                        round = round,
-                                        thinking = thinking,
-                                        actionType = ACTION_REQUEST_USER,
-                                        message = msg,
-                                    ),
-                                )
 
                                 // Send message to ClawBot (WeChat):
                                 // - If triggered by a ClawBot message: reply using that conversation's context.
@@ -354,11 +346,21 @@ class LLMAgent(
 
                                 // Feed the send result back into context regardless of success/failure,
                                 // and let the LLM decide how to proceed.
-                                if (sent) {
-                                    context.addUserMessage("【用户通知结果】已成功将以下消息发送给用户：「$msg」\n\n请根据此结果继续决定下一步操作（如任务已完成可使用 finish）。")
+                                val sendResultObservation = if (sent) {
+                                    "【用户通知结果】已成功将以下消息发送给用户：「$msg」\n\n请根据此结果继续决定下一步操作（如任务已完成可使用 finish）。"
                                 } else {
-                                    context.addUserMessage("【用户通知结果】消息发送失败，无法将以下内容传达给用户：「$msg」\n\n请根据此情况决定下一步操作（可以重试、调整策略，或使用 finish 结束任务）。")
+                                    "【用户通知结果】消息发送失败，无法将以下内容传达给用户：「$msg」\n\n请根据此情况决定下一步操作（可以重试、调整策略，或使用 finish 结束任务）。"
                                 }
+                                historyManager?.recordPlanningRound(
+                                    LLMPlanningRound(
+                                        round = round,
+                                        thinking = thinking,
+                                        actionType = ACTION_REQUEST_USER,
+                                        message = msg,
+                                        observation = sendResultObservation,
+                                    ),
+                                )
+                                context.addUserMessage(sendResultObservation)
                             }
 
                             ACTION_EXECUTE_SUBTASK -> {
@@ -641,6 +643,7 @@ class LLMAgent(
                                         thinking = thinking,
                                         actionType = ACTION_REQUEST_BRAIN,
                                         message = brainResult ?: params.background,
+                                        observation = observation,
                                     ),
                                 )
                                 context.addUserMessage(observation)
