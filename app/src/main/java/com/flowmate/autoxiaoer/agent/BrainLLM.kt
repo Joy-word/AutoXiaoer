@@ -30,6 +30,8 @@ class BrainLLM(
     private val config: BrainLLMConfig,
     private val modelClient: ModelClient,
 ) {
+    val isEnabled: Boolean get() = config.enabled
+
     companion object {
         private const val TAG = "BrainLLM"
     }

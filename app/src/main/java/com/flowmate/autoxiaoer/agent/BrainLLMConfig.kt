@@ -20,6 +20,6 @@ data class BrainLLMConfig(
     val modelName: String = "glm-4-plus",
     val maxTokens: Int = 1000,
     val temperature: Float = 0.9f,
-    val enabled: Boolean = false,
+    val enabled: Boolean = true,
     val customSystemPrompt: String = "",
 )

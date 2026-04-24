@@ -619,21 +619,29 @@ class LLMAgent(
                                             "【大脑生成结果】\n$brainResult\n\n请将以上内容填入后续 action（request_user 的 message 或 preGeneratedTexts 的对应 value）。"
                                         }
                                     }
-                                    brainLLM != null -> {
-                                        // Brain is configured but call failed
-                                        Logger.w(TAG, "BrainLLM call failed for request_brain")
-                                        if (isEn) {
-                                            "[Brain Disconnected] The brain failed to respond. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
-                                        } else {
-                                            "【大脑断联】大脑未能响应。请你根据以下情境和意图自行生成回复内容，再填入后续 action。\n【情境】${params.background}\n【收到的消息】${params.receivedMessage}"
-                                        }
-                                    }
-                                    else -> {
+                                    brainLLM == null -> {
                                         // Brain not configured
                                         if (isEn) {
                                             "[Brain Not Available] Brain is not configured. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
                                         } else {
                                             "【大脑未启用】大脑未配置。请你根据以下情境和意图自行生成回复内容，再填入后续 action。\n【情境】${params.background}\n【收到的消息】${params.receivedMessage}"
+                                        }
+                                    }
+                                    !brainLLM.isEnabled -> {
+                                        // Brain is configured but disabled in settings
+                                        if (isEn) {
+                                            "[Brain Disabled] Brain is configured but currently disabled. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
+                                        } else {
+                                            "【大脑已禁用】大脑已配置但当前未启用。请你根据以下情境和意图自行生成回复内容，再填入后续 action。\n【情境】${params.background}\n【收到的消息】${params.receivedMessage}"
+                                        }
+                                    }
+                                    else -> {
+                                        // Brain is enabled but call failed
+                                        Logger.w(TAG, "BrainLLM call failed for request_brain")
+                                        if (isEn) {
+                                            "[Brain Disconnected] The brain failed to respond. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
+                                        } else {
+                                            "【大脑断联】大脑未能响应。请你根据以下情境和意图自行生成回复内容，再填入后续 action。\n【情境】${params.background}\n【收到的消息】${params.receivedMessage}"
                                         }
                                     }
                                 }
