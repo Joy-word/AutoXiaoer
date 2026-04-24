@@ -75,9 +75,11 @@ interface LLMAgentListener {
  *   2. **Act**   — dispatch the sub-task to [PhoneAgent] via [PhoneAgent.runSubTask]
  *   3. **Observe** — feed the sub-task result back into the LLM context and loop
  *
- * When [brainLLM] is provided and enabled, all outgoing text (request_user messages and
- * preGeneratedTexts marked with [BRAIN_KEY_PREFIX]) is routed through [BrainLLM.generateMessage]
- * so that persona and interpersonal expression remain fully isolated from task logic.
+ * When [brainLLM] is provided and enabled, the LLM is expected to issue a "request_brain"
+ * action before sending any human-facing text. The brain generates the final wording and
+ * returns it to the cerebellum, which then fills it into the subsequent "request_user" or
+ * "execute_subtask" (preGeneratedTexts) action. Persona and interpersonal expression remain
+ * fully isolated from task logic this way.
  *
  * The agent terminates when the LLM emits a "finish" or "request_user" action,
  * or when [LLMAgentConfig.maxPlanningSteps] is exceeded.
@@ -304,19 +306,7 @@ class LLMAgent(
                             }
 
                             ACTION_REQUEST_USER -> {
-                                val rawMsg = action.message ?: "需要用户介入"
-                                // Delegate to BrainLLM if available — it generates the final
-                                // in-character text; fall back to rawMsg if unavailable.
-                                val brainMsg = brainLLM?.generateMessage(
-                                    recipient = triggerContext?.clawBotFromUserId ?: "用户",
-                                    receivedMessage = triggerContext?.notificationContent ?: "",
-                                    background = rawMsg,
-                                    language = config.language,
-                                )
-                                // brainLLM present but returned null → call failed; add fun tagline.
-                                // brainLLM absent (not configured) → silent fallback, no tagline.
-                                val msg = brainMsg
-                                    ?: if (brainLLM != null) "$rawMsg (🩶)" else "$rawMsg (❤️)"
+                                val msg = action.message ?: "需要用户介入"
                                 Logger.i(TAG, "LLMAgent requesting user: ${msg.take(80)}")
                                 historyManager?.recordPlanningRound(
                                     LLMPlanningRound(
