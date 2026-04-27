@@ -3,7 +3,6 @@ package com.flowmate.autoxiaoer.agent
 import com.flowmate.autoxiaoer.config.BrainLLMPrompts
 import com.flowmate.autoxiaoer.model.ChatMessage
 import com.flowmate.autoxiaoer.model.ModelClient
-import com.flowmate.autoxiaoer.model.ModelConfig
 import com.flowmate.autoxiaoer.model.ModelResult
 import com.flowmate.autoxiaoer.util.Logger
 
@@ -43,18 +42,20 @@ class BrainLLM(
      * compose text inside the ReAct loop — keeping persona concerns fully isolated.
      *
      * @param recipient Who the message is addressed to (name, group name, or identifier)
-     * @param receivedMessage The notification / message content that triggered this reply
-     * @param background Operations already performed and information gathered by the cerebellum
-     *   (e.g. WeChat history retrieved, task outcome, etc.)
-     * @param memoryContext Optional memory content relevant to this conversation; pass null if none
+     * @param incomingMessage The incoming message that triggered this reply, as a map with
+     *   "sender" and "content" keys. Pass an empty map when initiating proactively.
+     * @param intent The core goal to convey — describes the objective only, not who instructed it
+     * @param facts Confirmed facts relevant to this reply, as key-value pairs
+     * @param conversationBrief A brief summary of the recent conversation; null if none
      * @param language "cn" or "en", used to select the system prompt language
      * @return The generated message text extracted from the <answer> tag, or null if the call failed
      */
     suspend fun generateMessage(
         recipient: String,
-        receivedMessage: String,
-        background: String,
-        memoryContext: String? = null,
+        incomingMessage: Map<String, String> = emptyMap(),
+        intent: String,
+        facts: Map<String, String> = emptyMap(),
+        conversationBrief: String? = null,
         language: String = "cn",
     ): String? {
         if (!config.enabled) {
@@ -68,14 +69,14 @@ class BrainLLM(
             BrainLLMPrompts.getPrompt(language)
         }
 
-        val userMessage = buildUserMessage(recipient, receivedMessage, background, memoryContext, language)
+        val userMessage = buildUserMessage(recipient, incomingMessage, intent, facts, conversationBrief, language)
 
         val messages = listOf(
             ChatMessage.System(systemPrompt),
             ChatMessage.User(userMessage),
         )
 
-        Logger.i(TAG, "Requesting BrainLLM: recipient=$recipient, background=${background.take(60)}")
+        Logger.i(TAG, "Requesting BrainLLM: recipient=$recipient, intent=${intent.take(60)}")
 
         return when (val result = modelClient.request(messages, currentScreenshot = null)) {
             is ModelResult.Success -> {
@@ -99,24 +100,32 @@ class BrainLLM(
 
     private fun buildUserMessage(
         recipient: String,
-        receivedMessage: String,
-        background: String,
-        memoryContext: String?,
+        incomingMessage: Map<String, String>,
+        intent: String,
+        facts: Map<String, String>,
+        conversationBrief: String?,
         language: String,
     ): String {
+        val incomingJson = if (incomingMessage.isEmpty()) "{}" else
+            "{sender: \"${incomingMessage["sender"] ?: ""}\", content: \"${incomingMessage["content"] ?: ""}\"}"
+        val factsStr = if (facts.isEmpty()) "{}" else
+            facts.entries.joinToString(", ", "{", "}") { (k, v) -> "\"$k\": \"$v\"" }
+
         return if (language.lowercase() == "en" || language.lowercase() == "english") {
             buildString {
-                appendLine("[Recipient] $recipient")
-                appendLine("[Received Message] $receivedMessage")
-                appendLine("[Background] $background")
-                appendLine("[Context] ${memoryContext ?: ""}")
+                appendLine("recipient: $recipient")
+                appendLine("incomingMessage: $incomingJson")
+                appendLine("intent: $intent")
+                appendLine("facts: $factsStr")
+                appendLine("conversationBrief: ${conversationBrief ?: ""}")
             }.trimEnd()
         } else {
             buildString {
-                appendLine("【对象】$recipient")
-                appendLine("【当前收到的信息】$receivedMessage")
-                appendLine("【背景】$background")
-                appendLine("【上下文】${memoryContext ?: ""}")
+                appendLine("recipient: $recipient")
+                appendLine("incomingMessage: $incomingJson")
+                appendLine("intent: $intent")
+                appendLine("facts: $factsStr")
+                appendLine("conversationBrief: ${conversationBrief ?: ""}")
             }.trimEnd()
         }
     }

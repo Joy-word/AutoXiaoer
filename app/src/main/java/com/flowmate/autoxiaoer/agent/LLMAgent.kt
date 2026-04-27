@@ -604,9 +604,10 @@ class LLMAgent(
                                 Logger.i(TAG, "LLMAgent requesting BrainLLM: recipient=${params.recipient}")
                                 val brainResult = brainLLM?.generateMessage(
                                     recipient = params.recipient,
-                                    receivedMessage = params.receivedMessage,
-                                    background = params.background,
-                                    memoryContext = params.context,
+                                    incomingMessage = params.incomingMessage,
+                                    intent = params.intent,
+                                    facts = params.facts,
+                                    conversationBrief = params.conversationBrief,
                                     language = config.language,
                                 )
                                 val isEn = config.language.lowercase().let { it == "en" || it == "english" }
@@ -624,7 +625,7 @@ class LLMAgent(
                                         if (isEn) {
                                             "[Brain Not Available] Brain is not configured. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
                                         } else {
-                                            "【大脑未启用】大脑未配置。请你根据以下情境和意图自行生成回复内容，再填入后续 action。\n【情境】${params.background}\n【收到的消息】${params.receivedMessage}"
+                                            "【大脑未启用】大脑未配置。请你根据以下意图自行生成回复内容，再填入后续 action。\n【意图】${params.intent}"
                                         }
                                     }
                                     !brainLLM.isEnabled -> {
@@ -632,7 +633,7 @@ class LLMAgent(
                                         if (isEn) {
                                             "[Brain Disabled] Brain is configured but currently disabled. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
                                         } else {
-                                            "【大脑已禁用】大脑已配置但当前未启用。请你根据以下情境和意图自行生成回复内容，再填入后续 action。\n【情境】${params.background}\n【收到的消息】${params.receivedMessage}"
+                                            "【大脑已禁用】大脑已配置但当前未启用。请你根据以下意图自行生成回复内容，再填入后续 action。\n【意图】${params.intent}"
                                         }
                                     }
                                     else -> {
@@ -641,7 +642,7 @@ class LLMAgent(
                                         if (isEn) {
                                             "[Brain Disconnected] The brain failed to respond. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
                                         } else {
-                                            "【大脑断联】大脑未能响应。请你根据以下情境和意图自行生成回复内容，再填入后续 action。\n【情境】${params.background}\n【收到的消息】${params.receivedMessage}"
+                                            "【大脑断联】大脑未能响应。请你根据以下意图自行生成回复内容，再填入后续 action。\n【意图】${params.intent}"
                                         }
                                     }
                                 }
@@ -650,7 +651,7 @@ class LLMAgent(
                                         round = round,
                                         thinking = thinking,
                                         actionType = ACTION_REQUEST_BRAIN,
-                                        message = brainResult ?: params.background,
+                                        message = brainResult ?: params.intent,
                                         observation = observation,
                                     ),
                                 )
@@ -715,9 +716,12 @@ class LLMAgent(
                 val purpose = key.removePrefix(BRAIN_KEY_PREFIX)
                 val generated = brainLLM.generateMessage(
                     recipient = triggerContext?.clawBotFromUserId ?: "朋友",
-                    receivedMessage = triggerContext?.notificationContent ?: "",
-                    background = "正在执行子任务：${subTask.description}，需要输入：$value",
-                    memoryContext = if (purpose.isNotBlank()) purpose else null,
+                    incomingMessage = if (!triggerContext?.notificationContent.isNullOrBlank())
+                        mapOf("sender" to (triggerContext?.clawBotFromUserId ?: ""), "content" to (triggerContext?.notificationContent ?: ""))
+                    else emptyMap(),
+                    intent = value,
+                    facts = emptyMap(),
+                    conversationBrief = if (purpose.isNotBlank()) purpose else null,
                     language = config.language,
                 )
                 // Fallback: brain was invoked but failed → use LLMAgent's own text with fun tagline.
@@ -898,9 +902,10 @@ class LLMAgent(
 
     private data class BrainRequestParams(
         val recipient: String,
-        val receivedMessage: String,
-        val background: String,
-        val context: String?,
+        val incomingMessage: Map<String, String>,
+        val intent: String,
+        val facts: Map<String, String>,
+        val conversationBrief: String?,
     )
 
     /**
@@ -1002,18 +1007,30 @@ class LLMAgent(
 
                 ACTION_REQUEST_BRAIN -> {
                     val recipient = json.optString("recipient").ifBlank { return null }
-                    val receivedMessage = json.optString("receivedMessage")
-                    val background = json.optString("background").ifBlank { return null }
-                    val context = json.optString("context").ifBlank { null }
+                    val incomingMessageJson = json.optJSONObject("incomingMessage")
+                    val incomingMessage = buildMap {
+                        incomingMessageJson?.keys()?.forEach { key ->
+                            put(key, incomingMessageJson.optString(key))
+                        }
+                    }
+                    val intent = json.optString("intent").ifBlank { return null }
+                    val factsJson = json.optJSONObject("facts")
+                    val facts = buildMap {
+                        factsJson?.keys()?.forEach { key ->
+                            put(key, factsJson.optString(key))
+                        }
+                    }
+                    val conversationBrief = json.optString("conversationBrief").ifBlank { null }
                     ParsedAction(
                         type = type,
                         message = null,
                         subTask = null,
                         brainRequestParams = BrainRequestParams(
                             recipient = recipient,
-                            receivedMessage = receivedMessage,
-                            background = background,
-                            context = context,
+                            incomingMessage = incomingMessage,
+                            intent = intent,
+                            facts = facts,
+                            conversationBrief = conversationBrief,
                         ),
                     )
                 }
