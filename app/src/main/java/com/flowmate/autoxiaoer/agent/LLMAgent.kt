@@ -1,6 +1,9 @@
 ﻿package com.flowmate.autoxiaoer.agent
 
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.BatteryManager
 import com.flowmate.autoxiaoer.clawbot.ClawBotManager
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
 import com.flowmate.autoxiaoer.history.HistoryManager
@@ -737,6 +740,15 @@ class LLMAgent(
     // Prompt / message building
     // ──────────────────────────────────────────────────────────────────────────
 
+    /** Returns the current battery percentage (0–100), or -1 if unavailable. */
+    private fun getBatteryLevel(): Int {
+        val ctx = context ?: return -1
+        val intent = ctx.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) ?: return -1
+        val level = intent.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+        val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, -1)
+        return if (level >= 0 && scale > 0) level * 100 / scale else -1
+    }
+
     private fun buildSystemPrompt(): String {
         return if (config.customSystemPrompt.isNotBlank()) {
             config.customSystemPrompt
@@ -748,6 +760,11 @@ class LLMAgent(
     private fun buildInitialMessage(taskDescription: String, triggerContext: TriggerContext?): String {
         val sb = StringBuilder()
         sb.appendLine(LLMAgentPrompts.getCurrentDateTimePrefix(config.language))
+        val batteryPct = getBatteryLevel()
+        if (batteryPct >= 0) {
+            val isEn = config.language.lowercase().let { it == "en" || it == "english" }
+            if (isEn) sb.appendLine("[Battery: $batteryPct%]") else sb.appendLine("【当前电量】$batteryPct%")
+        }
         sb.appendLine("【用户任务】$taskDescription")
 
         if (triggerContext != null) {
