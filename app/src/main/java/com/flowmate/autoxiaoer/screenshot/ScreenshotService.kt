@@ -114,8 +114,14 @@ class ScreenshotService(
         // Base64 output chunk size for reading (safe for Binder)
         private const val BASE64_CHUNK_SIZE = 500000
 
-        // If screencap blocks for this long (screen off), send a wake command to unblock it
-        private const val SCREENCAP_WAKE_TIMEOUT_MS = 10_000L
+        // Wait after sending KEYCODE_WAKEUP for SurfaceFlinger to resume frame composition
+        private const val SCREEN_WAKE_SETTLE_MS = 300L
+
+        // Shell-level hard timeout for screencap (seconds); handled by kernel, immune to Doze
+        private const val SCREENCAP_SHELL_TIMEOUT_S = 30
+
+        // If screencap still blocks after this long, cancel the coroutine and return fallback
+        private const val SCREENCAP_WATCHDOG_TIMEOUT_MS = (SCREENCAP_SHELL_TIMEOUT_S + 5) * 1000L
     }
 
     /**
@@ -282,24 +288,30 @@ class ScreenshotService(
             Logger.d(TAG, "Attempting screenshot capture")
             val startTime = System.currentTimeMillis()
 
-            // Watchdog: screencap blocks indefinitely when the screen is off (SurfaceFlinger
-            // pauses frame composition). After SCREENCAP_WAKE_TIMEOUT_MS, send KEYCODE_WAKEUP
-            // so the screen turns on and screencap can capture a frame.
+            // Proactively wake the screen before screencap so SurfaceFlinger is compositing.
+            // This prevents screencap from blocking when the screen is off / in Doze.
+            try {
+                userService.executeCommand("input keyevent 224") // KEYCODE_WAKEUP
+                Logger.d(TAG, "Screen wake command sent before screencap")
+            } catch (e: Exception) {
+                Logger.w(TAG, "Failed to send pre-screencap wake command", e)
+            }
+            delay(SCREEN_WAKE_SETTLE_MS)
+
+            // Watchdog: if screencap still blocks (e.g. wake failed), cancel this coroutine
+            // so the caller receives a fallback immediately instead of hanging indefinitely.
+            val watchdogJob = coroutineContext[kotlinx.coroutines.Job]
             val screenWakeWatchdog = launch {
-                delay(SCREENCAP_WAKE_TIMEOUT_MS)
-                Logger.w(TAG, "screencap stalled after ${SCREENCAP_WAKE_TIMEOUT_MS}ms, sending screen wake command")
-                try {
-                    userService.executeCommand("input keyevent 224") // KEYCODE_WAKEUP
-                    Logger.d(TAG, "Screen wake command sent")
-                } catch (e: Exception) {
-                    Logger.w(TAG, "Failed to send screen wake command", e)
-                }
+                delay(SCREENCAP_WATCHDOG_TIMEOUT_MS)
+                Logger.w(TAG, "screencap stalled after ${SCREENCAP_WATCHDOG_TIMEOUT_MS}ms, cancelling")
+                watchdogJob?.cancel()
             }
 
-            // Capture screenshot and pipe to base64
+            // Capture screenshot and pipe to base64.
+            // Shell-level `timeout` sends SIGTERM/SIGKILL via the kernel — immune to Doze.
             val captureResult =
                 userService.executeCommand(
-                    "screencap -p | base64 > $base64File && stat -c %s $base64File",
+                    "timeout $SCREENCAP_SHELL_TIMEOUT_S screencap -p | base64 > $base64File && stat -c %s $base64File",
                 )
 
             screenWakeWatchdog.cancel()
