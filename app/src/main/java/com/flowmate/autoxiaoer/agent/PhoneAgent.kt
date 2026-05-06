@@ -9,6 +9,7 @@ import com.flowmate.autoxiaoer.config.SystemPrompts
 import com.flowmate.autoxiaoer.history.HistoryManager
 import com.flowmate.autoxiaoer.model.ModelClient
 import com.flowmate.autoxiaoer.model.ModelResult
+import com.flowmate.autoxiaoer.model.TokenUsage
 import com.flowmate.autoxiaoer.screenshot.ScreenshotService
 import com.flowmate.autoxiaoer.util.ErrorHandler
 import com.flowmate.autoxiaoer.util.Logger
@@ -690,6 +691,7 @@ class PhoneAgent(
                             retryResult.thinking,
                             screenshot.originalWidth,
                             screenshot.originalHeight,
+                            retryResult.tokenUsage,
                         )
                     }
 
@@ -700,6 +702,7 @@ class PhoneAgent(
                         response.thinking,
                         screenshot.originalWidth,
                         screenshot.originalHeight,
+                        response.tokenUsage,
                     )
                 }
 
@@ -785,7 +788,7 @@ class PhoneAgent(
                         return StepResult(success = false, finished = false, action = null, thinking = "", message = handledError.userMessage)
                     }
                     ctx.addAssistantMessage(retrySuccess.response.rawContent)
-                    return executeAction(retrySuccess.response.action, retrySuccess.response.thinking, screenshot.originalWidth, screenshot.originalHeight)
+                    return executeAction(retrySuccess.response.action, retrySuccess.response.thinking, screenshot.originalWidth, screenshot.originalHeight, retrySuccess.response.tokenUsage)
                 }
             }
         } catch (e: CancellationException) {
@@ -844,12 +847,14 @@ class PhoneAgent(
      * @property action The action string from model response
      * @property rawContent The raw response content for context
      * @property retryCount Number of retries performed (0 if succeeded on first try)
+     * @property tokenUsage Token consumption for this request, or null if unavailable
      */
     private data class ModelRequestResult(
         val thinking: String,
         val action: String,
         val rawContent: String,
         val retryCount: Int = 0,
+        val tokenUsage: TokenUsage? = null,
     )
 
     /**
@@ -879,6 +884,7 @@ class PhoneAgent(
                         thinking = response.thinking,
                         action = response.action,
                         rawContent = response.rawContent,
+                        tokenUsage = response.tokenUsage,
                     )
                 }
 
@@ -915,6 +921,7 @@ class PhoneAgent(
                             thinking = response.thinking,
                             action = response.action,
                             rawContent = response.rawContent,
+                            tokenUsage = response.tokenUsage,
                         )
                     }
                 }
@@ -974,6 +981,7 @@ class PhoneAgent(
                             action = response.action,
                             rawContent = response.rawContent,
                             retryCount = retryCount,
+                            tokenUsage = response.tokenUsage,
                         )
                     }
                 }
@@ -996,6 +1004,7 @@ class PhoneAgent(
      * @param thinking The thinking text from model response
      * @param screenWidth Current screen width in pixels
      * @param screenHeight Current screen height in pixels
+     * @param tokenUsage Token consumption for this step's model call, or null if unavailable
      * @return StepResult containing action execution outcome
      */
     private suspend fun executeAction(
@@ -1003,6 +1012,7 @@ class PhoneAgent(
         thinking: String,
         screenWidth: Int,
         screenHeight: Int,
+        tokenUsage: TokenUsage? = null,
     ): StepResult = try {
         Logger.d(TAG, "Parsing action: $actionStr")
         val action = ActionParser.parse(actionStr)
@@ -1027,6 +1037,7 @@ class PhoneAgent(
             actionDescription = action.formatForDisplay(),
             success = result.success,
             message = result.message,
+            tokenUsage = tokenUsage,
         )
 
         // Refresh floating window if needed (e.g., after launching another app)
@@ -1068,6 +1079,7 @@ class PhoneAgent(
             actionDescription = "坐标越界: ${e.originalAction}",
             success = false,
             message = correctionHint,
+            tokenUsage = tokenUsage,
         )
 
         StepResult(
@@ -1090,6 +1102,7 @@ class PhoneAgent(
             actionDescription = "解析错误: $actionStr",
             success = false,
             message = handledError.userMessage,
+            tokenUsage = tokenUsage,
         )
         StepResult(
             success = false,

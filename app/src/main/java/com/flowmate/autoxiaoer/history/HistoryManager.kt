@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.os.Build
 import android.util.Base64
 import com.flowmate.autoxiaoer.action.AgentAction
+import com.flowmate.autoxiaoer.model.TokenUsage
 import com.flowmate.autoxiaoer.util.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -109,6 +110,7 @@ class HistoryManager private constructor(private val context: Context) {
      * @param actionDescription Human-readable description of the action
      * @param success Whether the step executed successfully
      * @param message Optional additional message or error details
+     * @param tokenUsage Token consumption for this step's model call, or null if unavailable
      *
      */
     suspend fun recordStep(
@@ -118,6 +120,7 @@ class HistoryManager private constructor(private val context: Context) {
         actionDescription: String,
         success: Boolean,
         message: String? = null,
+        tokenUsage: TokenUsage? = null,
     ) = withContext(Dispatchers.IO) {
         val task = currentTask ?: return@withContext
 
@@ -172,6 +175,7 @@ class HistoryManager private constructor(private val context: Context) {
                 annotatedScreenshotPath = annotatedPath,
                 success = success,
                 message = message,
+                tokenUsage = tokenUsage,
             )
 
         task.steps.add(step)
@@ -397,6 +401,13 @@ class HistoryManager private constructor(private val context: Context) {
                             put("annotatedScreenshotPath", step.annotatedScreenshotPath)
                             put("success", step.success)
                             put("message", step.message)
+                            step.tokenUsage?.let { usage ->
+                                put("tokenUsage", JSONObject().apply {
+                                    put("promptTokens", usage.promptTokens)
+                                    put("completionTokens", usage.completionTokens)
+                                    put("totalTokens", usage.totalTokens)
+                                })
+                            }
                         },
                     )
                 }
@@ -416,6 +427,13 @@ class HistoryManager private constructor(private val context: Context) {
                             put("subTaskSuccess", planningRound.subTaskSuccess)
                             put("subTaskStepCount", planningRound.subTaskStepCount)
                             put("message", planningRound.message)
+                            planningRound.tokenUsage?.let { usage ->
+                                put("tokenUsage", JSONObject().apply {
+                                    put("promptTokens", usage.promptTokens)
+                                    put("completionTokens", usage.completionTokens)
+                                    put("totalTokens", usage.totalTokens)
+                                })
+                            }
                         },
                     )
                 }
@@ -458,6 +476,13 @@ class HistoryManager private constructor(private val context: Context) {
                                 .takeIf { it.isNotEmpty() },
                             success = stepJson.getBoolean("success"),
                             message = stepJson.optString("message").takeIf { it.isNotEmpty() },
+                            tokenUsage = stepJson.optJSONObject("tokenUsage")?.let { u ->
+                                TokenUsage(
+                                    promptTokens = u.getInt("promptTokens"),
+                                    completionTokens = u.getInt("completionTokens"),
+                                    totalTokens = u.getInt("totalTokens"),
+                                )
+                            },
                         ),
                     )
                 }
@@ -480,6 +505,13 @@ class HistoryManager private constructor(private val context: Context) {
                             subTaskSuccess = if (roundJson.has("subTaskSuccess") && !roundJson.isNull("subTaskSuccess")) roundJson.getBoolean("subTaskSuccess") else null,
                             subTaskStepCount = roundJson.optInt("subTaskStepCount").takeIf { roundJson.has("subTaskStepCount") && !roundJson.isNull("subTaskStepCount") },
                             message = roundJson.optString("message").takeIf { it.isNotEmpty() },
+                            tokenUsage = roundJson.optJSONObject("tokenUsage")?.let { u ->
+                                TokenUsage(
+                                    promptTokens = u.getInt("promptTokens"),
+                                    completionTokens = u.getInt("completionTokens"),
+                                    totalTokens = u.getInt("totalTokens"),
+                                )
+                            },
                         ),
                     )
                 }

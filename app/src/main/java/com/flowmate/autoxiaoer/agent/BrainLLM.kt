@@ -4,6 +4,7 @@ import com.flowmate.autoxiaoer.config.BrainLLMPrompts
 import com.flowmate.autoxiaoer.model.ChatMessage
 import com.flowmate.autoxiaoer.model.ModelClient
 import com.flowmate.autoxiaoer.model.ModelResult
+import com.flowmate.autoxiaoer.model.TokenUsage
 import com.flowmate.autoxiaoer.util.Logger
 
 /**
@@ -36,6 +37,14 @@ class BrainLLM(
     }
 
     /**
+     * Result of a [generateMessage] call.
+     *
+     * @property text The generated message text, or null if the call failed or BrainLLM is disabled
+     * @property tokenUsage Token consumption for this call, or null if unavailable
+     */
+    data class GenerateResult(val text: String?, val tokenUsage: TokenUsage?)
+
+    /**
      * Generates an expressive, in-character message to be sent to [recipient].
      *
      * The cerebellum should call this method instead of letting the LLM directly
@@ -48,7 +57,7 @@ class BrainLLM(
      * @param facts Confirmed facts relevant to this reply, as key-value pairs
      * @param conversationBrief A brief summary of the recent conversation; null if none
      * @param language "cn" or "en", used to select the system prompt language
-     * @return The generated message text extracted from the <answer> tag, or null if the call failed
+     * @return [GenerateResult] containing the generated text and token usage; text is null on failure
      */
     suspend fun generateMessage(
         recipient: String,
@@ -57,10 +66,10 @@ class BrainLLM(
         facts: Map<String, String> = emptyMap(),
         conversationBrief: String? = null,
         language: String = "cn",
-    ): String? {
+    ): GenerateResult {
         if (!config.enabled) {
             Logger.w(TAG, "BrainLLM is disabled — returning null so caller falls back to self-generation")
-            return null
+            return GenerateResult(text = null, tokenUsage = null)
         }
 
         val systemPrompt = if (config.customSystemPrompt.isNotBlank()) {
@@ -85,11 +94,11 @@ class BrainLLM(
                 val answerMatch = Regex("""<answer>\s*([\s\S]*?)\s*</answer>""").find(raw)
                 val text = (answerMatch?.groupValues?.get(1) ?: raw).trim()
                 Logger.i(TAG, "BrainLLM generated: ${text.take(100)}")
-                text.ifBlank { null }
+                GenerateResult(text = text.ifBlank { null }, tokenUsage = result.response.tokenUsage)
             }
             is ModelResult.Error -> {
                 Logger.e(TAG, "BrainLLM request failed: ${result.error.message}")
-                null
+                GenerateResult(text = null, tokenUsage = null)
             }
         }
     }

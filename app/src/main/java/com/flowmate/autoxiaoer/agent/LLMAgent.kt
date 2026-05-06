@@ -10,6 +10,7 @@ import com.flowmate.autoxiaoer.history.HistoryManager
 import com.flowmate.autoxiaoer.history.LLMPlanningRound
 import com.flowmate.autoxiaoer.model.ModelClient
 import com.flowmate.autoxiaoer.model.ModelResult
+import com.flowmate.autoxiaoer.model.TokenUsage
 import com.flowmate.autoxiaoer.schedule.RepeatType
 import com.flowmate.autoxiaoer.schedule.ScheduledTask
 import com.flowmate.autoxiaoer.schedule.ScheduledTaskManager
@@ -275,6 +276,7 @@ class LLMAgent(
                         val response = modelResult.response
                         // val thinking = extractThinking(response.rawContent)
                         val thinking = response.thinking
+                        val roundTokenUsage = response.tokenUsage
                         Logger.d(TAG, "LLM thinking: ${thinking.take(200)}")
                         listener?.onThinkingUpdate(thinking)
 
@@ -300,6 +302,7 @@ class LLMAgent(
                                         thinking = thinking,
                                         actionType = ACTION_FINISH,
                                         message = msg,
+                                        tokenUsage = roundTokenUsage,
                                     ),
                                 )
                                 val result = LLMTaskResult(success = true, message = msg, planningRounds = round)
@@ -327,6 +330,7 @@ class LLMAgent(
                                             actionType = ACTION_REQUEST_USER,
                                             message = msg,
                                             observation = "【ClawBot 未连接】已将提醒内容显示在悬浮窗，任务结束。",
+                                            tokenUsage = roundTokenUsage,
                                         ),
                                     )
                                     val result = LLMTaskResult(success = true, message = msg, planningRounds = round)
@@ -377,6 +381,7 @@ class LLMAgent(
                                         actionType = ACTION_REQUEST_USER,
                                         message = msg,
                                         observation = sendResultObservation,
+                                        tokenUsage = roundTokenUsage,
                                     ),
                                 )
                                 context.addUserMessage(sendResultObservation)
@@ -432,6 +437,7 @@ class LLMAgent(
                                         observation = observation,
                                         subTaskSuccess = subTaskResult.success,
                                         subTaskStepCount = subTaskResult.stepCount,
+                                        tokenUsage = roundTokenUsage,
                                     ),
                                 )
                             }
@@ -480,6 +486,7 @@ class LLMAgent(
                                         thinking = thinking,
                                         actionType = ACTION_SCHEDULE_TASK,
                                         message = resultMessage,
+                                        tokenUsage = roundTokenUsage,
                                     ),
                                 )
 
@@ -523,6 +530,7 @@ class LLMAgent(
                                         thinking = thinking,
                                         actionType = ACTION_QUERY_SCHEDULED_TASKS,
                                         message = resultMessage,
+                                        tokenUsage = roundTokenUsage,
                                     ),
                                 )
                                 context.addUserMessage("$resultMessage\n\n请根据上述信息决定下一步操作。")
@@ -569,6 +577,7 @@ class LLMAgent(
                                         thinking = thinking,
                                         actionType = ACTION_UPDATE_SCHEDULED_TASK,
                                         message = resultMessage,
+                                        tokenUsage = roundTokenUsage,
                                     ),
                                 )
                                 context.addUserMessage("【日程更新结果】\n$resultMessage\n\n请根据结果决定下一步操作。")
@@ -608,6 +617,7 @@ class LLMAgent(
                                         thinking = thinking,
                                         actionType = ACTION_DELETE_SCHEDULED_TASK,
                                         message = resultMessage,
+                                        tokenUsage = roundTokenUsage,
                                     ),
                                 )
                                 context.addUserMessage("【日程删除结果】\n$resultMessage\n\n请根据结果决定下一步操作。")
@@ -621,7 +631,7 @@ class LLMAgent(
                                     continue
                                 }
                                 Logger.i(TAG, "LLMAgent requesting BrainLLM: recipient=${params.recipient}")
-                                val brainResult = brainLLM?.generateMessage(
+                                val brainGenResult = brainLLM?.generateMessage(
                                     recipient = params.recipient,
                                     incomingMessage = params.incomingMessage,
                                     intent = params.intent,
@@ -629,14 +639,17 @@ class LLMAgent(
                                     conversationBrief = params.conversationBrief,
                                     language = config.language,
                                 )
+                                val brainText = brainGenResult?.text
+                                // Merge cerebellum + brain token usage for this round
+                                val mergedTokenUsage = mergeTokenUsage(roundTokenUsage, brainGenResult?.tokenUsage)
                                 val isEn = config.language.lowercase().let { it == "en" || it == "english" }
                                 val observation = when {
-                                    brainResult != null -> {
+                                    brainText != null -> {
                                         // Brain responded successfully
                                         if (isEn) {
-                                            "[Brain Result]\n$brainResult\n\nPlease place the above content into the next action (request_user's message, or the corresponding value in preGeneratedTexts)."
+                                            "[Brain Result]\n$brainText\n\nPlease place the above content into the next action (request_user's message, or the corresponding value in preGeneratedTexts)."
                                         } else {
-                                            "【大脑生成结果】\n$brainResult\n\n请将以上内容填入后续 action（request_user 的 message 或 preGeneratedTexts 的对应 value）。"
+                                            "【大脑生成结果】\n$brainText\n\n请将以上内容填入后续 action（request_user 的 message 或 preGeneratedTexts 的对应 value）。"
                                         }
                                     }
                                     brainLLM == null -> {
@@ -670,8 +683,9 @@ class LLMAgent(
                                         round = round,
                                         thinking = thinking,
                                         actionType = ACTION_REQUEST_BRAIN,
-                                        message = brainResult ?: params.intent,
+                                        message = brainText ?: params.intent,
                                         observation = observation,
+                                        tokenUsage = mergedTokenUsage,
                                     ),
                                 )
                                 context.addUserMessage(observation)
@@ -709,6 +723,25 @@ class LLMAgent(
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // Token usage helpers
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Merges two [TokenUsage] instances by summing their token counts.
+     * Returns null only when both inputs are null; otherwise returns the non-null one or their sum.
+     */
+    private fun mergeTokenUsage(a: TokenUsage?, b: TokenUsage?): TokenUsage? {
+        if (a == null && b == null) return null
+        if (a == null) return b
+        if (b == null) return a
+        return TokenUsage(
+            promptTokens = a.promptTokens + b.promptTokens,
+            completionTokens = a.completionTokens + b.completionTokens,
+            totalTokens = a.totalTokens + b.totalTokens,
+        )
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // BrainLLM helpers
     // ──────────────────────────────────────────────────────────────────────────
 
@@ -742,7 +775,7 @@ class LLMAgent(
                     facts = emptyMap(),
                     conversationBrief = if (purpose.isNotBlank()) purpose else null,
                     language = config.language,
-                )
+                ).text
                 // Fallback: brain was invoked but failed → use LLMAgent's own text with fun tagline.
                 resolved[purpose] = generated ?: "$value（没过脑子版）"
             } else {

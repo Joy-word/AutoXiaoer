@@ -53,6 +53,20 @@ data class ModelConfig(
 )
 
 /**
+ * Token usage statistics returned by the model API.
+ *
+ * @property promptTokens Number of tokens in the input/prompt
+ * @property completionTokens Number of tokens in the generated response
+ * @property totalTokens Total tokens consumed (prompt + completion)
+ */
+@Serializable
+data class TokenUsage(
+    @SerialName("prompt_tokens") val promptTokens: Int,
+    @SerialName("completion_tokens") val completionTokens: Int,
+    @SerialName("total_tokens") val totalTokens: Int,
+)
+
+/**
  * Response from the model containing thinking and action.
  *
  * Represents the parsed response from the AutoGLM model, separating the thinking
@@ -63,6 +77,7 @@ data class ModelConfig(
  * @property rawContent The raw unparsed response content
  * @property timeToFirstToken Time in milliseconds until the first token was received
  * @property totalTime Total time in milliseconds for the complete response
+ * @property tokenUsage Token consumption statistics, or null if not provided by the API
  *
  */
 data class ModelResponse(
@@ -71,6 +86,7 @@ data class ModelResponse(
     val rawContent: String,
     val timeToFirstToken: Long?,
     val totalTime: Long?,
+    val tokenUsage: TokenUsage? = null,
 )
 
 /**
@@ -259,10 +275,14 @@ data class ChatCompletionRequest(
  * Represents a single chunk in a streaming chat completion response.
  *
  * @property choices List of completion choices in this chunk
+ * @property usage Token usage statistics; present in the final chunk when the API supports it
  *
  */
 @Serializable
-data class ChatCompletionChunk(val choices: List<ChunkChoice> = emptyList())
+data class ChatCompletionChunk(
+    val choices: List<ChunkChoice> = emptyList(),
+    val usage: TokenUsage? = null,
+)
 
 /**
  * Choice in a streaming chunk.
@@ -453,6 +473,7 @@ class ModelClient(private val config: ModelConfig) {
                         .build()
 
                 val contentBuilder = StringBuilder()
+                var lastTokenUsage: TokenUsage? = null
 
                 suspendCancellableCoroutine<ModelResult> { continuation ->
                     val eventSourceFactory = EventSources.createFactory(client)
@@ -472,7 +493,7 @@ class ModelClient(private val config: ModelConfig) {
                                     Logger.logNetworkResponse(HTTP_STATUS_OK, totalTime)
                                     Logger.d(
                                         TAG,
-                                        "Response complete: ${rawContent.length} chars, TTFT=${timeToFirstToken}ms",
+                                        "Response complete: ${rawContent.length} chars, TTFT=${timeToFirstToken}ms, usage=$lastTokenUsage",
                                     )
 
                                     val response =
@@ -482,6 +503,7 @@ class ModelClient(private val config: ModelConfig) {
                                             rawContent = rawContent,
                                             timeToFirstToken = timeToFirstToken,
                                             totalTime = totalTime,
+                                            tokenUsage = lastTokenUsage,
                                         )
 
                                     if (continuation.isActive) {
@@ -492,6 +514,12 @@ class ModelClient(private val config: ModelConfig) {
 
                                 try {
                                     val chunk = json.decodeFromString<ChatCompletionChunk>(data)
+
+                                    // Capture usage whenever the API includes it (typically in the last chunk)
+                                    if (chunk.usage != null) {
+                                        lastTokenUsage = chunk.usage
+                                    }
+
                                     val content =
                                         chunk.choices
                                             .firstOrNull()
@@ -522,6 +550,7 @@ class ModelClient(private val config: ModelConfig) {
                                                             rawContent = rawContent,
                                                             timeToFirstToken = timeToFirstToken,
                                                             totalTime = totalTime,
+                                                            tokenUsage = lastTokenUsage,
                                                         ),
                                                     ),
                                                 )
@@ -550,6 +579,7 @@ class ModelClient(private val config: ModelConfig) {
                                                 rawContent = rawContent,
                                                 timeToFirstToken = timeToFirstToken,
                                                 totalTime = totalTime,
+                                                tokenUsage = lastTokenUsage,
                                             )
                                         continuation.resume(ModelResult.Success(response))
                                     } else {

@@ -1,6 +1,7 @@
 ﻿package com.flowmate.autoxiaoer.history
 
 import com.flowmate.autoxiaoer.action.AgentAction
+import com.flowmate.autoxiaoer.model.TokenUsage
 import java.util.UUID
 
 /**
@@ -18,6 +19,7 @@ import java.util.UUID
  * @property annotatedScreenshotPath File path to the annotated screenshot, or null
  * @property success Whether the step executed successfully
  * @property message Optional additional message or error details
+ * @property tokenUsage Token consumption for this step's model call, or null if unavailable
  *
  */
 data class HistoryStep(
@@ -30,6 +32,7 @@ data class HistoryStep(
     val annotatedScreenshotPath: String?,
     val success: Boolean,
     val message: String? = null,
+    val tokenUsage: TokenUsage? = null,
 )
 
 /**
@@ -48,6 +51,8 @@ data class HistoryStep(
  * @property subTaskSuccess Whether the sub-task executed successfully, or null if not applicable
  * @property subTaskStepCount Number of PhoneAgent steps the sub-task consumed, or null
  * @property message Finish or request_user message, or null
+ * @property tokenUsage Token consumption for the LLMAgent call in this round, or null if unavailable.
+ *   When BrainLLM is invoked in the same round, its tokens are accumulated into this field.
  */
 data class LLMPlanningRound(
     val round: Int,
@@ -60,6 +65,7 @@ data class LLMPlanningRound(
     val subTaskSuccess: Boolean? = null,
     val subTaskStepCount: Int? = null,
     val message: String? = null,
+    val tokenUsage: TokenUsage? = null,
 )
 
 /**

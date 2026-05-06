@@ -185,6 +185,7 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
         private val messageText: TextView = itemView.findViewById(R.id.messageText)
         private val observationSection: LinearLayout = itemView.findViewById(R.id.observationSection)
         private val observationText: TextView = itemView.findViewById(R.id.observationText)
+        private val tokenUsageText: TextView = itemView.findViewById(R.id.tokenUsageText)
 
         fun bind(round: LLMPlanningRound) {
             val context = itemView.context
@@ -239,6 +240,15 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
             } else {
                 observationSection.visibility = View.GONE
             }
+
+            // Token usage
+            val usage = round.tokenUsage
+            if (usage != null) {
+                tokenUsageText.visibility = View.VISIBLE
+                tokenUsageText.text = "🔢 ${usage.totalTokens} tokens (↑${usage.promptTokens} ↓${usage.completionTokens})"
+            } else {
+                tokenUsageText.visibility = View.GONE
+            }
         }
 
         /**
@@ -274,6 +284,7 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
         private val btnOriginal: MaterialButton = itemView.findViewById(R.id.btnOriginal)
         private val btnAnnotated: MaterialButton = itemView.findViewById(R.id.btnAnnotated)
         private val messageText: TextView = itemView.findViewById(R.id.messageText)
+        private val tokenUsageText: TextView = itemView.findViewById(R.id.tokenUsageText)
 
         private var currentStep: HistoryStep? = null
 
@@ -336,6 +347,15 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
                 messageText.text = step.message
             } else {
                 messageText.visibility = View.GONE
+            }
+
+            // Token usage
+            val usage = step.tokenUsage
+            if (usage != null) {
+                tokenUsageText.visibility = View.VISIBLE
+                tokenUsageText.text = "🔢 ${usage.totalTokens} tokens (↑${usage.promptTokens} ↓${usage.completionTokens})"
+            } else {
+                tokenUsageText.visibility = View.GONE
             }
         }
 
