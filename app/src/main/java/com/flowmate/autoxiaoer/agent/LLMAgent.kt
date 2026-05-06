@@ -312,43 +312,59 @@ class LLMAgent(
                                 val msg = action.message ?: "需要用户介入"
                                 Logger.i(TAG, "LLMAgent requesting user: ${msg.take(80)}")
 
-                                // Send message to ClawBot (WeChat):
+                                val appCtx = this@LLMAgent.context
+
+                                // If ClawBot is not connected, show the message in the floating window
+                                // and finish the task immediately — no need to continue the loop.
+                                if (appCtx == null || !ClawBotManager.isConnected(appCtx)) {
+                                    Logger.w(TAG, "ClawBot not available for request_user — showing in floating window")
+                                    com.flowmate.autoxiaoer.ui.FloatingWindowService.getInstance()
+                                        ?.showResult(msg, true)
+                                    historyManager?.recordPlanningRound(
+                                        LLMPlanningRound(
+                                            round = round,
+                                            thinking = thinking,
+                                            actionType = ACTION_REQUEST_USER,
+                                            message = msg,
+                                            observation = "【ClawBot 未连接】已将提醒内容显示在悬浮窗，任务结束。",
+                                        ),
+                                    )
+                                    val result = LLMTaskResult(success = true, message = msg, planningRounds = round)
+                                    historyManager?.completeTask(true, msg)
+                                    listener?.onTaskFinished(result)
+                                    return@coroutineScope result
+                                }
+
+                                // ClawBot is connected — send the message via WeChat:
                                 // - If triggered by a ClawBot message: reply using that conversation's context.
                                 // - Otherwise: fall back to the last stored conversation for proactive push.
-                                // If the send fails (ClawBot unavailable or server error), terminate as failure.
-                                // If the send succeeds, feed the result back into the context and continue the loop
-                                // so the LLM can decide to finish or proceed with the next step.
-                                val appCtx = this@LLMAgent.context
-                                val sent = if (appCtx != null && ClawBotManager.isConnected(appCtx)) {
-                                    try {
-                                        val fromUserId = triggerContext?.clawBotFromUserId
-                                        val contextToken = triggerContext?.clawBotContextToken
-                                        if (triggerContext?.triggerType == TriggerType.CLAWBOT
-                                            && !fromUserId.isNullOrBlank()
-                                            && !contextToken.isNullOrBlank()
-                                        ) {
-                                            ClawBotManager.sendMessage(
-                                                appCtx,
-                                                fromUserId,
-                                                contextToken,
-                                                msg,
-                                            )
-                                        } else {
-                                            ClawBotManager.sendProactiveMessage(appCtx, msg)
-                                        }
-                                    } catch (e: Exception) {
-                                        Logger.e(TAG, "Failed to send ClawBot request_user message", e)
-                                        false
+                                // If the send fails, feed the failure back into context so the LLM can decide
+                                // how to proceed. If the send succeeds, continue the loop so the LLM can
+                                // finish or proceed with the next step.
+                                val sent = try {
+                                    val fromUserId = triggerContext?.clawBotFromUserId
+                                    val contextToken = triggerContext?.clawBotContextToken
+                                    if (triggerContext?.triggerType == TriggerType.CLAWBOT
+                                        && !fromUserId.isNullOrBlank()
+                                        && !contextToken.isNullOrBlank()
+                                    ) {
+                                        ClawBotManager.sendMessage(
+                                            appCtx,
+                                            fromUserId,
+                                            contextToken,
+                                            msg,
+                                        )
+                                    } else {
+                                        ClawBotManager.sendProactiveMessage(appCtx, msg)
                                     }
-                                } else {
-                                    Logger.w(TAG, "ClawBot not available for request_user notification")
+                                } catch (e: Exception) {
+                                    Logger.e(TAG, "Failed to send ClawBot request_user message", e)
                                     false
                                 }
 
                                 Logger.i(TAG, "ClawBot request_user sent=$sent")
 
-                                // Feed the send result back into context regardless of success/failure,
-                                // and let the LLM decide how to proceed.
+                                // Feed the send result back into context and let the LLM decide next step.
                                 val sendResultObservation = if (sent) {
                                     "【用户通知结果】已成功将以下消息发送给用户：「$msg」\n\n请根据此结果继续决定下一步操作（如任务已完成可使用 finish）。"
                                 } else {
