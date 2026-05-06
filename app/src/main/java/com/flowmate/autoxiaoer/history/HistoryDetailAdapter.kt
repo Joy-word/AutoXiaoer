@@ -249,7 +249,7 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
                 val sb = StringBuilder()
                 usage?.let { sb.append("🔢 ${it.totalTokens} tokens (↑${it.promptTokens} ↓${it.completionTokens})") }
                 brainUsage?.let {
-                    if (sb.isNotEmpty()) sb.append("  ")
+                    if (sb.isNotEmpty()) sb.append("\n")
                     sb.append("🧠 ${it.totalTokens} tokens (↑${it.promptTokens} ↓${it.completionTokens})")
                 }
                 tokenUsageText.text = sb.toString()
