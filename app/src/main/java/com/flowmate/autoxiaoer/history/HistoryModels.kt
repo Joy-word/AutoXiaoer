@@ -51,8 +51,9 @@ data class HistoryStep(
  * @property subTaskSuccess Whether the sub-task executed successfully, or null if not applicable
  * @property subTaskStepCount Number of PhoneAgent steps the sub-task consumed, or null
  * @property message Finish or request_user message, or null
- * @property tokenUsage Token consumption for the LLMAgent call in this round, or null if unavailable.
- *   When BrainLLM is invoked in the same round, its tokens are accumulated into this field.
+ * @property tokenUsage Token consumption for the LLMAgent (cerebellum) call in this round, or null if unavailable
+ * @property brainTokenUsage Token consumption for the BrainLLM call in this round (only set for
+ *   [actionType] == "request_brain"), or null if unavailable or not applicable
  */
 data class LLMPlanningRound(
     val round: Int,
@@ -66,6 +67,7 @@ data class LLMPlanningRound(
     val subTaskStepCount: Int? = null,
     val message: String? = null,
     val tokenUsage: TokenUsage? = null,
+    val brainTokenUsage: TokenUsage? = null,
 )
 
 /**

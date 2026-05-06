@@ -640,8 +640,6 @@ class LLMAgent(
                                     language = config.language,
                                 )
                                 val brainText = brainGenResult?.text
-                                // Merge cerebellum + brain token usage for this round
-                                val mergedTokenUsage = mergeTokenUsage(roundTokenUsage, brainGenResult?.tokenUsage)
                                 val isEn = config.language.lowercase().let { it == "en" || it == "english" }
                                 val observation = when {
                                     brainText != null -> {
@@ -685,7 +683,8 @@ class LLMAgent(
                                         actionType = ACTION_REQUEST_BRAIN,
                                         message = brainText ?: params.intent,
                                         observation = observation,
-                                        tokenUsage = mergedTokenUsage,
+                                        tokenUsage = roundTokenUsage,
+                                        brainTokenUsage = brainGenResult?.tokenUsage,
                                     ),
                                 )
                                 context.addUserMessage(observation)
@@ -720,25 +719,6 @@ class LLMAgent(
             listener?.onTaskFinished(result)
             result
         }
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Token usage helpers
-    // ──────────────────────────────────────────────────────────────────────────
-
-    /**
-     * Merges two [TokenUsage] instances by summing their token counts.
-     * Returns null only when both inputs are null; otherwise returns the non-null one or their sum.
-     */
-    private fun mergeTokenUsage(a: TokenUsage?, b: TokenUsage?): TokenUsage? {
-        if (a == null && b == null) return null
-        if (a == null) return b
-        if (b == null) return a
-        return TokenUsage(
-            promptTokens = a.promptTokens + b.promptTokens,
-            completionTokens = a.completionTokens + b.completionTokens,
-            totalTokens = a.totalTokens + b.totalTokens,
-        )
     }
 
     // ──────────────────────────────────────────────────────────────────────────

@@ -243,9 +243,16 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
 
             // Token usage
             val usage = round.tokenUsage
-            if (usage != null) {
+            val brainUsage = round.brainTokenUsage
+            if (usage != null || brainUsage != null) {
                 tokenUsageText.visibility = View.VISIBLE
-                tokenUsageText.text = "🔢 ${usage.totalTokens} tokens (↑${usage.promptTokens} ↓${usage.completionTokens})"
+                val sb = StringBuilder()
+                usage?.let { sb.append("🔢 ${it.totalTokens} tokens (↑${it.promptTokens} ↓${it.completionTokens})") }
+                brainUsage?.let {
+                    if (sb.isNotEmpty()) sb.append("  ")
+                    sb.append("🧠 ${it.totalTokens} tokens (↑${it.promptTokens} ↓${it.completionTokens})")
+                }
+                tokenUsageText.text = sb.toString()
             } else {
                 tokenUsageText.visibility = View.GONE
             }
