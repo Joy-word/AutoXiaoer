@@ -33,7 +33,13 @@ import com.google.android.material.textfield.TextInputLayout
 import com.flowmate.autoxiaoer.R
 import com.flowmate.autoxiaoer.agent.PhoneAgentConfig
 import com.flowmate.autoxiaoer.agent.LLMAgentConfig
+import com.flowmate.autoxiaoer.config.BrainLLMPrompts
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
+import com.flowmate.autoxiaoer.config.PromptManager
+import com.flowmate.autoxiaoer.config.PromptVersion
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import com.flowmate.autoxiaoer.model.ModelClient
 import com.flowmate.autoxiaoer.model.ModelConfig
 import com.flowmate.autoxiaoer.ui.MainViewModel
@@ -504,11 +510,14 @@ class SettingsFragment : Fragment() {
      */
     private fun showPhoneAgentPromptDialog(language: String) {
         Logger.d(TAG, "Showing Phone-agent prompt dialog for language: $language")
-        val dialogView = LayoutInflater.from(requireContext()).inflate(R.layout.dialog_system_prompt, null)
+        val ctx = requireContext()
+        val promptManager = PromptManager.getInstance(ctx)
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_system_prompt, null)
         val promptInput = dialogView.findViewById<TextInputEditText>(R.id.promptInput)
         val btnReset = dialogView.findViewById<Button>(R.id.btnResetPrompt)
 
-        val currentPrompt = settingsManager.getCustomSystemPrompt(language)
+        val currentPrompt = promptManager.getCurrent(PromptManager.PromptType.PHONE_AGENT, language)
+            ?: settingsManager.getCustomSystemPrompt(language)
             ?: if (language == "en") {
                 com.flowmate.autoxiaoer.config.SystemPrompts.getEnglishPromptTemplate()
             } else {
@@ -522,36 +531,43 @@ class SettingsFragment : Fragment() {
             getString(R.string.settings_system_prompt_cn)
         }
 
-        val dialog = MaterialAlertDialogBuilder(requireContext())
+        val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(title)
             .setView(dialogView)
             .setPositiveButton(R.string.dialog_confirm) { _, _ ->
                 val newPrompt = promptInput.text?.toString() ?: ""
                 if (newPrompt.isNotBlank()) {
+                    promptManager.saveNewVersion(PromptManager.PromptType.PHONE_AGENT, language, newPrompt)
                     settingsManager.saveCustomSystemPrompt(language, newPrompt)
                     if (language == "en") {
                         com.flowmate.autoxiaoer.config.SystemPrompts.setCustomEnglishPrompt(newPrompt)
                     } else {
                         com.flowmate.autoxiaoer.config.SystemPrompts.setCustomChinesePrompt(newPrompt)
                     }
-                    Toast.makeText(requireContext(), R.string.settings_system_prompt_saved, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, R.string.settings_system_prompt_saved, Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNeutralButton("历史版本") { _, _ ->
+                showPromptHistoryDialog(PromptManager.PromptType.PHONE_AGENT, language) { restored ->
+                    promptInput.setText(restored)
                 }
             }
             .setNegativeButton(R.string.dialog_cancel, null)
             .create()
 
         btnReset.setOnClickListener {
-            MaterialAlertDialogBuilder(requireContext())
+            MaterialAlertDialogBuilder(ctx)
                 .setTitle(R.string.settings_system_prompt_reset)
                 .setMessage(R.string.settings_system_prompt_reset_confirm)
                 .setPositiveButton(R.string.dialog_confirm) { _, _ ->
+                    promptManager.deleteCurrent(PromptManager.PromptType.PHONE_AGENT, language)
                     settingsManager.clearCustomSystemPrompt(language)
                     if (language == "en") {
                         com.flowmate.autoxiaoer.config.SystemPrompts.setCustomEnglishPrompt(null)
                     } else {
                         com.flowmate.autoxiaoer.config.SystemPrompts.setCustomChinesePrompt(null)
                     }
-                    Toast.makeText(requireContext(), R.string.settings_system_prompt_reset_done, Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, R.string.settings_system_prompt_reset_done, Toast.LENGTH_SHORT).show()
                     dialog.dismiss()
                 }
                 .setNegativeButton(R.string.dialog_cancel, null)
@@ -991,24 +1007,26 @@ class SettingsFragment : Fragment() {
     private fun showBrainLLMPromptDialog(language: String) {
         Logger.d(TAG, "Showing BrainLLM prompt dialog for language: $language")
         val ctx = requireContext()
+        val promptManager = PromptManager.getInstance(ctx)
         val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_system_prompt, null)
         val promptInput = dialogView.findViewById<TextInputEditText>(R.id.promptInput)
         val btnReset = dialogView.findViewById<Button>(R.id.btnResetPrompt)
 
-        val currentPrompt = settingsManager.getBrainLLMCustomPrompt(language)
+        val currentPrompt = promptManager.getCurrent(PromptManager.PromptType.BRAIN_LLM, language)
+            ?: settingsManager.getBrainLLMCustomPrompt(language)
             ?: if (language == "en") {
-                com.flowmate.autoxiaoer.config.BrainLLMPrompts.getDefaultEnglishPromptTemplate()
+                BrainLLMPrompts.getDefaultEnglishPromptTemplate()
             } else {
-                com.flowmate.autoxiaoer.config.BrainLLMPrompts.getDefaultChinesePromptTemplate()
+                BrainLLMPrompts.getDefaultChinesePromptTemplate()
             }
 
         promptInput.setText(currentPrompt)
 
         btnReset.setOnClickListener {
             val defaultPrompt = if (language == "en") {
-                com.flowmate.autoxiaoer.config.BrainLLMPrompts.getDefaultEnglishPromptTemplate()
+                BrainLLMPrompts.getDefaultEnglishPromptTemplate()
             } else {
-                com.flowmate.autoxiaoer.config.BrainLLMPrompts.getDefaultChinesePromptTemplate()
+                BrainLLMPrompts.getDefaultChinesePromptTemplate()
             }
             promptInput.setText(defaultPrompt)
         }
@@ -1018,11 +1036,19 @@ class SettingsFragment : Fragment() {
             .setView(dialogView)
             .setPositiveButton("保存") { _, _ ->
                 val prompt = promptInput.text?.toString() ?: ""
-                settingsManager.saveBrainLLMCustomPrompt(language, prompt)
-                com.flowmate.autoxiaoer.config.BrainLLMPrompts.run {
-                    if (language == "en") setCustomEnglishPrompt(prompt) else setCustomChinesePrompt(prompt)
+                if (prompt.isNotBlank()) {
+                    promptManager.saveNewVersion(PromptManager.PromptType.BRAIN_LLM, language, prompt)
+                    settingsManager.saveBrainLLMCustomPrompt(language, prompt)
+                    BrainLLMPrompts.run {
+                        if (language == "en") setCustomEnglishPrompt(prompt) else setCustomChinesePrompt(prompt)
+                    }
+                    Toast.makeText(ctx, "大脑 System Prompt 已保存", Toast.LENGTH_SHORT).show()
                 }
-                Toast.makeText(ctx, "大脑 System Prompt 已保存", Toast.LENGTH_SHORT).show()
+            }
+            .setNeutralButton("历史版本") { _, _ ->
+                showPromptHistoryDialog(PromptManager.PromptType.BRAIN_LLM, language) { restored ->
+                    promptInput.setText(restored)
+                }
             }
             .setNegativeButton("取消", null)
             .create()
@@ -1195,6 +1221,19 @@ class SettingsFragment : Fragment() {
             showLLMAgentPromptDialog(language)
         }
 
+        // Relationships archive button — added after btnCustomPrompt
+        val btnRelationships = Button(ctx).apply {
+            text = "人际关系档案"
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            lp.topMargin = dp4
+            layoutParams = lp
+        }
+        container.addView(btnRelationships)
+        btnRelationships.setOnClickListener { showRelationshipsDialog() }
+
         dialog.show()
         dialog.applyPrimaryButtonColors()
     }
@@ -1205,11 +1244,13 @@ class SettingsFragment : Fragment() {
     private fun showLLMAgentPromptDialog(language: String) {
         Logger.d(TAG, "Showing LLM-agent prompt dialog for language: $language")
         val ctx = requireContext()
+        val promptManager = PromptManager.getInstance(ctx)
         val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_system_prompt, null)
         val promptInput = dialogView.findViewById<TextInputEditText>(R.id.promptInput)
         val btnReset = dialogView.findViewById<Button>(R.id.btnResetPrompt)
 
-        val currentPrompt = settingsManager.getLLMAgentCustomPrompt(language)
+        val currentPrompt = promptManager.getCurrent(PromptManager.PromptType.LLM_AGENT, language)
+            ?: settingsManager.getLLMAgentCustomPrompt(language)
             ?: if (language == "en") {
                 LLMAgentPrompts.getDefaultEnglishPromptTemplate()
             } else {
@@ -1229,6 +1270,7 @@ class SettingsFragment : Fragment() {
             .setPositiveButton("保存") { _, _ ->
                 val newPrompt = promptInput.text?.toString() ?: ""
                 if (newPrompt.isNotBlank()) {
+                    promptManager.saveNewVersion(PromptManager.PromptType.LLM_AGENT, language, newPrompt)
                     settingsManager.saveLLMAgentCustomPrompt(language, newPrompt)
                     if (language == "en") {
                         LLMAgentPrompts.setCustomEnglishPrompt(newPrompt)
@@ -1236,6 +1278,11 @@ class SettingsFragment : Fragment() {
                         LLMAgentPrompts.setCustomChinesePrompt(newPrompt)
                     }
                     Toast.makeText(ctx, "LLM-agent System Prompt 已保存", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNeutralButton("历史版本") { _, _ ->
+                showPromptHistoryDialog(PromptManager.PromptType.LLM_AGENT, language) { restored ->
+                    promptInput.setText(restored)
                 }
             }
             .setNegativeButton("取消", null)
@@ -1246,6 +1293,7 @@ class SettingsFragment : Fragment() {
                 .setTitle("重置为默认")
                 .setMessage("确定要恢复默认的 LLM-agent System Prompt 吗？")
                 .setPositiveButton("确定") { _, _ ->
+                    promptManager.deleteCurrent(PromptManager.PromptType.LLM_AGENT, language)
                     settingsManager.clearLLMAgentCustomPrompt(language)
                     if (language == "en") {
                         LLMAgentPrompts.setCustomEnglishPrompt(null)
@@ -1261,6 +1309,122 @@ class SettingsFragment : Fragment() {
 
         dialog.show()
         dialog.applyPrimaryButtonColors()
+    }
+
+    /**
+     * Shows a dialog for viewing and editing the interpersonal relationship archive.
+     * Content is loaded from disk on an IO thread so it always reflects the latest
+     * state, even if LLMAgent updated the file while the settings screen was open.
+     */
+    private fun showRelationshipsDialog() {
+        val ctx = requireContext()
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_system_prompt, null)
+        val promptInput = dialogView.findViewById<TextInputEditText>(R.id.promptInput)
+        val btnHistory = dialogView.findViewById<Button>(R.id.btnResetPrompt)
+        btnHistory.text = "历史版本"
+
+        promptInput.setText(com.flowmate.autoxiaoer.config.RelationshipContext.getContext())
+
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle("人际关系档案")
+            .setView(dialogView)
+            .setPositiveButton("保存") { _, _ ->
+                val newContent = promptInput.text?.toString() ?: ""
+                if (newContent.isNotBlank()) {
+                    com.flowmate.autoxiaoer.config.RelationshipContext.saveNewVersion(newContent)
+                    Toast.makeText(ctx, "人际关系档案已保存", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .create()
+            .also { dialog ->
+                btnHistory.setOnClickListener {
+                    val history = com.flowmate.autoxiaoer.config.RelationshipContext.getHistory()
+                    if (history.isEmpty()) {
+                        Toast.makeText(ctx, "暂无历史版本", Toast.LENGTH_SHORT).show()
+                        return@setOnClickListener
+                    }
+                    val dateFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                    val labels = history.map { v ->
+                        "v${v.versionNumber}  ${dateFmt.format(Date(v.savedAt))}  (${v.sizeBytes} B)"
+                    }.toTypedArray()
+                    MaterialAlertDialogBuilder(ctx)
+                        .setTitle("关系档案历史版本")
+                        .setItems(labels) { _, idx ->
+                            val selected = history[idx]
+                            val content = com.flowmate.autoxiaoer.config.RelationshipContext
+                                .readHistoryVersion(selected)
+                            if (content == null) {
+                                Toast.makeText(ctx, "无法读取该版本", Toast.LENGTH_SHORT).show()
+                                return@setItems
+                            }
+                            MaterialAlertDialogBuilder(ctx)
+                                .setTitle("v${selected.versionNumber} — 预览")
+                                .setMessage(
+                                    content.take(800) +
+                                        if (content.length > 800) "\n…（已截断）" else ""
+                                )
+                                .setPositiveButton("恢复到编辑器") { _, _ ->
+                                    promptInput.setText(content)
+                                    Toast.makeText(ctx, "已恢复到编辑器，点保存生效", Toast.LENGTH_SHORT).show()
+                                }
+                                .setNegativeButton("取消", null)
+                                .show()
+                        }
+                        .setNegativeButton("取消", null)
+                        .show()
+                }
+                dialog.show()
+                dialog.applyPrimaryButtonColors()
+            }
+    }
+
+    /**
+     * Shows a bottom-sheet style dialog listing archived prompt versions for [type]/[language].
+     * Selecting an item shows a preview with an option to restore it into the editor.
+     *
+     * @param onRestore Called with the restored content so the caller can set it in the editor.
+     */
+    private fun showPromptHistoryDialog(
+        type: PromptManager.PromptType,
+        language: String,
+        onRestore: (String) -> Unit,
+    ) {
+        val ctx = requireContext()
+        val promptManager = PromptManager.getInstance(ctx)
+        val history = promptManager.getHistory(type, language)
+
+        if (history.isEmpty()) {
+            Toast.makeText(ctx, "暂无历史版本", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val dateFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+        val labels = history.map { v ->
+            "v${v.versionNumber}  ${dateFmt.format(Date(v.savedAt))}  (${v.sizeBytes} B)"
+        }.toTypedArray()
+
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle("历史版本")
+            .setItems(labels) { _, idx ->
+                val selected = history[idx]
+                val content = promptManager.readHistoryVersion(selected)
+                if (content == null) {
+                    Toast.makeText(ctx, "无法读取该版本", Toast.LENGTH_SHORT).show()
+                    return@setItems
+                }
+                MaterialAlertDialogBuilder(ctx)
+                    .setTitle("v${selected.versionNumber} — 预览")
+                    .setMessage(content.take(800) + if (content.length > 800) "\n…（已截断）" else "")
+                    .setPositiveButton("恢复到编辑器") { _, _ ->
+                        onRestore(content)
+                        Toast.makeText(ctx, "已恢复到编辑器，点保存生效", Toast.LENGTH_SHORT).show()
+                    }
+                    .setNegativeButton("取消", null)
+                    .show()
+            }
+            .setNegativeButton("取消", null)
+            .show()
     }
 
     // endregion

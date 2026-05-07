@@ -6,6 +6,7 @@ import android.content.IntentFilter
 import android.os.BatteryManager
 import com.flowmate.autoxiaoer.clawbot.ClawBotManager
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
+import com.flowmate.autoxiaoer.config.RelationshipContext
 import com.flowmate.autoxiaoer.history.HistoryManager
 import com.flowmate.autoxiaoer.history.LLMPlanningRound
 import com.flowmate.autoxiaoer.model.ModelClient
@@ -690,9 +691,61 @@ class LLMAgent(
                                 context.addUserMessage(observation)
                             }
 
+                            ACTION_READ_RELATIONSHIPS -> {
+                                val summary = RelationshipContext.getContext()
+                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
+                                val observation = if (isEn) {
+                                    "【Relationships】\n$summary\n\nYou can pass relevant entries as `facts` in `request_brain`."
+                                } else {
+                                    "【人际关系】\n$summary\n\n可将其中相关信息作为 request_brain 的 facts 字段传入。"
+                                }
+                                Logger.i(TAG, "LLMAgent read relationships (${summary.length} chars)")
+                                historyManager?.recordPlanningRound(
+                                    LLMPlanningRound(
+                                        round = round,
+                                        thinking = thinking,
+                                        actionType = ACTION_READ_RELATIONSHIPS,
+                                        message = summary.take(120),
+                                        tokenUsage = roundTokenUsage,
+                                    ),
+                                )
+                                context.addUserMessage(observation)
+                            }
+
+                            ACTION_UPDATE_RELATIONSHIPS -> {
+                                val content = action.relationshipsContent
+                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
+                                if (content.isNullOrBlank()) {
+                                    val err = if (isEn) {
+                                        "update_relationships is missing the required `content` field. Please output the action again."
+                                    } else {
+                                        "update_relationships 缺少 content 字段，请重新输出。"
+                                    }
+                                    context.addUserMessage(err)
+                                } else {
+                                    RelationshipContext.saveNewVersion(content)
+                                    Logger.i(TAG, "LLMAgent updated relationships (${content.length} chars)")
+                                    val observation = if (isEn) {
+                                        "【Relationships Updated】The archive has been saved. The brain will use the new content on its next call."
+                                    } else {
+                                        "【人际关系已更新】档案已保存，大脑下次被调用时将自动使用新内容。"
+                                    }
+                                    historyManager?.recordPlanningRound(
+                                        LLMPlanningRound(
+                                            round = round,
+                                            thinking = thinking,
+                                            actionType = ACTION_UPDATE_RELATIONSHIPS,
+                                            message = content.take(120),
+                                            tokenUsage = roundTokenUsage,
+                                        ),
+                                    )
+                                    context.addUserMessage(observation)
+                                }
+                            }
+
                             else -> {
                                 Logger.w(TAG, "Unknown action type: ${action.type}")
-                                context.addUserMessage("未知的 action type \"${action.type}\"，请使用 execute_subtask、finish、request_user、request_brain、schedule_task、query_scheduled_tasks、update_scheduled_task 或 delete_scheduled_task。")
+                                context.addUserMessage("未知的 action type \"${action.type}\"，请使用 execute_subtask、finish、request_user、request_brain、schedule_task、query_scheduled_tasks、update_scheduled_task、delete_scheduled_task、read_relationships 或 update_relationships。")
                             }
                         }
                     }
@@ -944,6 +997,7 @@ class LLMAgent(
         val updateScheduledTaskParams: UpdateScheduledTaskParams? = null,
         val deleteTaskId: String? = null,
         val brainRequestParams: BrainRequestParams? = null,
+        val relationshipsContent: String? = null,
     )
 
     private data class BrainRequestParams(
@@ -1081,6 +1135,20 @@ class LLMAgent(
                     )
                 }
 
+                ACTION_READ_RELATIONSHIPS -> {
+                    ParsedAction(type = type, message = null, subTask = null)
+                }
+
+                ACTION_UPDATE_RELATIONSHIPS -> {
+                    val content = json.optString("content").ifBlank { null }
+                    ParsedAction(
+                        type = type,
+                        message = null,
+                        subTask = null,
+                        relationshipsContent = content,
+                    )
+                }
+
                 else -> ParsedAction(type = type, message = null, subTask = null)
             }
         } catch (e: Exception) {
@@ -1127,6 +1195,8 @@ class LLMAgent(
         private const val ACTION_QUERY_SCHEDULED_TASKS = "query_scheduled_tasks"
         private const val ACTION_UPDATE_SCHEDULED_TASK = "update_scheduled_task"
         private const val ACTION_DELETE_SCHEDULED_TASK = "delete_scheduled_task"
+        private const val ACTION_READ_RELATIONSHIPS = "read_relationships"
+        private const val ACTION_UPDATE_RELATIONSHIPS = "update_relationships"
 
         /**
          * If a preGeneratedTexts key starts with this prefix the value is treated as a

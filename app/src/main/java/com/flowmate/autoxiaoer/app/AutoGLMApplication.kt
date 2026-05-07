@@ -3,6 +3,10 @@
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
+import com.flowmate.autoxiaoer.config.BrainLLMPrompts
+import com.flowmate.autoxiaoer.config.LLMAgentPrompts
+import com.flowmate.autoxiaoer.config.PromptManager
+import com.flowmate.autoxiaoer.config.RelationshipContext
 import com.flowmate.autoxiaoer.config.SystemPrompts
 import com.flowmate.autoxiaoer.notification.NotificationTriggerManager
 import com.flowmate.autoxiaoer.schedule.ScheduledTaskManager
@@ -39,8 +43,14 @@ class AutoGLMApplication : Application() {
         // Initialize log file manager for file-based logging
         LogFileManager.init(this)
 
+        // Initialize relationship context (must be before any prompt loading)
+        RelationshipContext.init(this)
+
         // Import dev profiles if available (debug builds only)
         importDevProfilesIfNeeded()
+
+        // Migrate legacy pref-based prompts to file storage (one-time, no-op if already done)
+        migrateLegacyPrompts()
 
         // Load custom system prompts if set
         loadCustomSystemPrompts()
@@ -116,23 +126,76 @@ class AutoGLMApplication : Application() {
     }
 
     /**
-     * Loads custom system prompts from settings if they exist.
+     * Loads custom system prompts from settings (or from file storage) if they exist.
      *
-     * Checks for custom Chinese and English system prompts stored in settings
-     * and applies them to the SystemPrompts configuration.
+     * Priority: file storage (PromptManager) → legacy SharedPreferences → built-in default.
+     * After migration, legacy prefs are no longer the source of truth.
      */
     private fun loadCustomSystemPrompts() {
         val settingsManager = SettingsManager.getInstance(this)
+        val promptManager = PromptManager.getInstance(this)
 
-        settingsManager.getCustomSystemPrompt("cn")?.let { prompt ->
-            SystemPrompts.setCustomChinesePrompt(prompt)
-            Logger.d(TAG, "Loaded custom Chinese system prompt")
+        // Phone Agent prompts
+        for (lang in listOf("cn", "en")) {
+            val fromFile = promptManager.getCurrent(PromptManager.PromptType.PHONE_AGENT, lang)
+            val fromPrefs = settingsManager.getCustomSystemPrompt(lang)
+            val active = fromFile ?: fromPrefs
+            if (active != null) {
+                if (lang == "en") SystemPrompts.setCustomEnglishPrompt(active)
+                else SystemPrompts.setCustomChinesePrompt(active)
+                Logger.d(TAG, "Loaded phone-agent prompt [$lang] from ${if (fromFile != null) "file" else "prefs"}")
+            }
         }
 
-        settingsManager.getCustomSystemPrompt("en")?.let { prompt ->
-            SystemPrompts.setCustomEnglishPrompt(prompt)
-            Logger.d(TAG, "Loaded custom English system prompt")
+        // LLM Agent prompts
+        for (lang in listOf("cn", "en")) {
+            val fromFile = promptManager.getCurrent(PromptManager.PromptType.LLM_AGENT, lang)
+            val fromPrefs = settingsManager.getLLMAgentCustomPrompt(lang)
+            val active = fromFile ?: fromPrefs
+            if (active != null) {
+                if (lang == "en") LLMAgentPrompts.setCustomEnglishPrompt(active)
+                else LLMAgentPrompts.setCustomChinesePrompt(active)
+                Logger.d(TAG, "Loaded llm-agent prompt [$lang] from ${if (fromFile != null) "file" else "prefs"}")
+            }
         }
+
+        // Brain LLM prompts
+        for (lang in listOf("cn", "en")) {
+            val fromFile = promptManager.getCurrent(PromptManager.PromptType.BRAIN_LLM, lang)
+            val fromPrefs = settingsManager.getBrainLLMCustomPrompt(lang)
+            val active = fromFile ?: fromPrefs
+            if (active != null) {
+                if (lang == "en") BrainLLMPrompts.setCustomEnglishPrompt(active)
+                else BrainLLMPrompts.setCustomChinesePrompt(active)
+                Logger.d(TAG, "Loaded brain-llm prompt [$lang] from ${if (fromFile != null) "file" else "prefs"}")
+            }
+        }
+    }
+
+    /**
+     * One-time migration: copies legacy SharedPreferences prompts into file storage.
+     * Safe to call on every startup — PromptManager.migrateFromPrefs() is a no-op
+     * when the target file already exists.
+     */
+    private fun migrateLegacyPrompts() {
+        val settingsManager = SettingsManager.getInstance(this)
+        val promptManager = PromptManager.getInstance(this)
+
+        for (lang in listOf("cn", "en")) {
+            promptManager.migrateFromPrefs(
+                PromptManager.PromptType.PHONE_AGENT, lang,
+                settingsManager.getCustomSystemPrompt(lang),
+            )
+            promptManager.migrateFromPrefs(
+                PromptManager.PromptType.LLM_AGENT, lang,
+                settingsManager.getLLMAgentCustomPrompt(lang),
+            )
+            promptManager.migrateFromPrefs(
+                PromptManager.PromptType.BRAIN_LLM, lang,
+                settingsManager.getBrainLLMCustomPrompt(lang),
+            )
+        }
+        Logger.d(TAG, "Legacy prompt migration completed (no-op if already migrated)")
     }
 
     /**

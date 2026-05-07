@@ -1,6 +1,7 @@
 package com.flowmate.autoxiaoer.agent
 
 import com.flowmate.autoxiaoer.config.BrainLLMPrompts
+import com.flowmate.autoxiaoer.config.RelationshipContext
 import com.flowmate.autoxiaoer.model.ChatMessage
 import com.flowmate.autoxiaoer.model.ModelClient
 import com.flowmate.autoxiaoer.model.ModelResult
@@ -72,9 +73,12 @@ class BrainLLM(
             return GenerateResult(text = null, tokenUsage = null)
         }
 
+        // When using a custom prompt, still inject the current relationship context so
+        // user-edited prompts can include {relationships} and get it filled automatically.
         val systemPrompt = if (config.customSystemPrompt.isNotBlank()) {
-            config.customSystemPrompt
+            config.customSystemPrompt.replace("{relationships}", RelationshipContext.getContext())
         } else {
+            // getPrompt() already injects RelationshipContext internally
             BrainLLMPrompts.getPrompt(language)
         }
 

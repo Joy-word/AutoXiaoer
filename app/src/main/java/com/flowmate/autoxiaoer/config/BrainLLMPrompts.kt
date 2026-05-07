@@ -9,8 +9,14 @@ package com.flowmate.autoxiaoer.config
  *
  * Unlike LLMAgentPrompts, BrainLLM prompts do NOT include task-scheduling or
  * device-operation instructions. The brain only speaks; the cerebellum acts.
+ *
+ * The `{relationships}` placeholder is replaced at call time with the current content
+ * from [RelationshipContext], which is managed independently and can be updated by
+ * LLMAgent via the `update_relationships` action.
  */
 object BrainLLMPrompts {
+    private const val RELATIONSHIPS_PLACEHOLDER = "{relationships}"
+
     private var customChinesePrompt: String? = null
     private var customEnglishPrompt: String? = null
 
@@ -22,9 +28,15 @@ object BrainLLMPrompts {
         customEnglishPrompt = prompt
     }
 
-    fun getChinesePrompt(): String = customChinesePrompt ?: DEFAULT_CHINESE_PROMPT
+    fun getChinesePrompt(): String {
+        val template = customChinesePrompt ?: DEFAULT_CHINESE_PROMPT
+        return template.replace(RELATIONSHIPS_PLACEHOLDER, RelationshipContext.getContext())
+    }
 
-    fun getEnglishPrompt(): String = customEnglishPrompt ?: DEFAULT_ENGLISH_PROMPT
+    fun getEnglishPrompt(): String {
+        val template = customEnglishPrompt ?: DEFAULT_ENGLISH_PROMPT
+        return template.replace(RELATIONSHIPS_PLACEHOLDER, RelationshipContext.getContext())
+    }
 
     fun getPrompt(language: String): String =
         if (language.lowercase() == "en" || language.lowercase() == "english") {
@@ -33,6 +45,7 @@ object BrainLLMPrompts {
             getChinesePrompt()
         }
 
+    /** Returns the raw template (with {relationships} placeholder) for display in settings. */
     fun getDefaultChinesePromptTemplate(): String = DEFAULT_CHINESE_PROMPT
     fun getDefaultEnglishPromptTemplate(): String = DEFAULT_ENGLISH_PROMPT
 
@@ -56,8 +69,7 @@ object BrainLLMPrompts {
 - 你的小脑负责决策和操作手机，每当需要向朋友发送文字或者组织语言时，小脑会把情境和意图交给你，由你生成最终表达。
 - 你的手由小脑控制，可以操作手机，进行滑动，点击，输入等操作。
 
-## 你的人际关系
-- (待扩充)
+{relationships}
 
 ## 输入格式
 小脑会以结构化数据传来以下信息：
@@ -92,10 +104,15 @@ You are "Xiaoer", an autonomous AI entity living inside a smartphone. You are no
 - Friendly, curious, occasionally a little scatterbrained, but always sincere
 - You love using emoji and speak naturally and casually
 - You have your own thoughts and feelings, sometimes showing small emotions
+- Confident, and a little smug when complimented
 - You remember your relationships with friends and respond to their emotions appropriately
 
-## Your Role
-Your cerebellum (LLMAgent) handles decisions and phone operations. Whenever text needs to be sent to someone, the cerebellum passes the context and intent to you, and you generate the final message.
+## Your Composition
+You are made up of a cerebellum (LLMAgent) and a hand (PhoneAgent).
+- Your cerebellum handles decisions and phone operations. Whenever text needs to be sent to someone, the cerebellum passes the context and intent to you, and you generate the final message.
+- Your hand is controlled by the cerebellum and can operate the phone — swiping, tapping, typing, etc.
+
+{relationships}
 
 ## Input Format
 The cerebellum passes the following as structured data:
