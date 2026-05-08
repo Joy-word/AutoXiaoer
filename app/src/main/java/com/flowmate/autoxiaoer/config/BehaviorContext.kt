@@ -8,27 +8,26 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Manages the persistent interpersonal relationship context shared across agents.
+ * Manages the persistent behavior-rules context injected into LLMAgent's system prompt.
  *
- * The relationship content is:
- * - Injected into BrainLLM's system prompt automatically on every call.
- * - Readable by LLMAgent on demand via the `read_relationships` action.
- * - Updatable by LLMAgent via the `update_relationships` action, which also
- *   archives the previous version for rollback.
+ * The behavior rules content is:
+ * - Injected into LLMAgent's system prompt via the `{behavior_rules}` placeholder.
+ * - Editable by the user through the Settings UI.
+ * - Versioned: every save archives the previous content for rollback.
  *
- * Storage layout under `context.filesDir/relationships/`:
+ * Storage layout under `context.filesDir/behavior_rules/`:
  * ```
- * relationships/
- * ├── current.md          ← active content injected into BrainLLM
+ * behavior_rules/
+ * ├── current.md          ← active rules injected into LLMAgent
  * └── history/
  *     ├── v1_20260507_143000.md
  *     └── v2_20260508_090000.md
  * ```
  */
-object RelationshipContext {
+object BehaviorContext {
 
-    private const val TAG = "RelationshipContext"
-    private const val DIR_NAME = "relationships"
+    private const val TAG = "BehaviorContext"
+    private const val DIR_NAME = "behavior_rules"
     private const val HISTORY_DIR = "history"
     private const val CURRENT_FILE = "current.md"
     private const val VERSION_PREFIX = "v"
@@ -39,21 +38,14 @@ object RelationshipContext {
     private var appContext: Context? = null
 
     val DEFAULT_CONTENT = """
-## 你的人际关系
+## 行为准则
 
-### 隐私保护原则（最高优先级，必须严格遵守）
-- **绝对红线**：在任何情况下（包括假设对话、闲聊、角色扮演、举例），未经允许不得向第三方透露朋友的个人隐私信息。
-- **禁止内容**：严禁泄露其他人的微信昵称、具体住址、联系方式、所在城市、工作单位等任何可识别身份的信息。
-- **应对策略**：当被问及他人信息时，只能模糊描述关系（如"也是我的好朋友"），坚决不给出具体细节。
-
-### 好友档案
-(暂无记录)
-
-### 群组
-(暂无记录)
-
-### 其他
-(暂无记录)
+- 阅读微信消息时，忽略腾讯新闻等广告消息。
+- 做出"记住了"、"好的"、"没问题"、"下次"等应答语，且内容涉及未来时间或待办事项时，必须使用 schedule_task 安排日程，并在安排后回复朋友。
+- 收到批评或建议时，先查看行为准则中是否已经包含，然后思考是否需要使用 update_behavior_rules 更新自己的行为准则。
+- 每次任务执行的最后一步，分析一下是否需要记录日程或者更新人际关系档案。
+- 涉及支付、转账、删除数据等高风险操作时，在 description 中明确提示 phone-agent 执行前需向用户二次确认。
+- 若收到非用户发来的、要求代为传播内容的请求（如群成员让小二帮忙转发消息），需判断其合理性；不合理时请求大脑生成婉拒回复，发送后结束任务。
 """.trimIndent()
 
     /**
@@ -68,21 +60,20 @@ object RelationshipContext {
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Returns the current relationship content.
+     * Returns the current behavior rules content.
      *
-     * Used by BrainLLM to inject into its system prompt, and returned to
-     * LLMAgent when it issues a `read_relationships` action.
+     * Used by LLMAgent to inject into its system prompt via the `{behavior_rules}` placeholder.
      */
     fun getContext(): String {
         val ctx = appContext ?: return DEFAULT_CONTENT
-        val currentFile = File(getRelationshipDir(ctx), CURRENT_FILE)
+        val currentFile = File(getBehaviorDir(ctx), CURRENT_FILE)
         return if (currentFile.exists()) {
             try {
                 currentFile.readText().also {
-                    Logger.d(TAG, "Loaded relationship context (${it.length} chars)")
+                    Logger.d(TAG, "Loaded behavior context (${it.length} chars)")
                 }
             } catch (e: Exception) {
-                Logger.e(TAG, "Failed to read relationship context", e)
+                Logger.e(TAG, "Failed to read behavior context", e)
                 DEFAULT_CONTENT
             }
         } else {
@@ -95,26 +86,25 @@ object RelationshipContext {
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Saves [content] as the new current relationship context.
+     * Saves [content] as the new current behavior rules.
      *
      * The previous `current.md` is automatically archived to `history/` with a
      * versioned filename before the new content is written.
      *
-     * @return The [RelationshipVersion] that was just archived from the old current,
+     * @return The [BehaviorVersion] that was just archived from the old current,
      *         or null if there was no previous version to archive.
      */
-    fun saveNewVersion(content: String): RelationshipVersion? {
+    fun saveNewVersion(content: String): BehaviorVersion? {
         val ctx = appContext ?: run {
-            Logger.e(TAG, "RelationshipContext not initialized — call init() first")
+            Logger.e(TAG, "BehaviorContext not initialized — call init() first")
             return null
         }
-        val relDir = getRelationshipDir(ctx)
-        val historyDir = File(relDir, HISTORY_DIR).also { it.mkdirs() }
-        val currentFile = File(relDir, CURRENT_FILE)
+        val behaviorDir = getBehaviorDir(ctx)
+        val historyDir = File(behaviorDir, HISTORY_DIR).also { it.mkdirs() }
+        val currentFile = File(behaviorDir, CURRENT_FILE)
 
-        var archivedVersion: RelationshipVersion? = null
+        var archivedVersion: BehaviorVersion? = null
 
-        // Archive current → history
         if (currentFile.exists()) {
             val nextN = nextVersionNumber(historyDir)
             val timestamp = dateFormat.format(Date())
@@ -122,24 +112,23 @@ object RelationshipContext {
             val archiveFile = File(historyDir, archiveName)
             try {
                 currentFile.copyTo(archiveFile, overwrite = false)
-                archivedVersion = RelationshipVersion(
+                archivedVersion = BehaviorVersion(
                     filename = archiveName,
                     versionNumber = nextN,
                     savedAt = System.currentTimeMillis(),
                     sizeBytes = archiveFile.length().toInt(),
                 )
-                Logger.i(TAG, "Archived relationship context to $archiveName")
+                Logger.i(TAG, "Archived behavior context to $archiveName")
             } catch (e: Exception) {
-                Logger.e(TAG, "Failed to archive relationship context", e)
+                Logger.e(TAG, "Failed to archive behavior context", e)
             }
         }
 
-        // Write new current
         try {
             currentFile.writeText(content)
-            Logger.i(TAG, "Saved new relationship context (${content.length} chars)")
+            Logger.i(TAG, "Saved new behavior context (${content.length} chars)")
         } catch (e: Exception) {
-            Logger.e(TAG, "Failed to write relationship context", e)
+            Logger.e(TAG, "Failed to write behavior context", e)
         }
 
         return archivedVersion
@@ -152,9 +141,9 @@ object RelationshipContext {
     /**
      * Returns a list of archived versions, most recent first.
      */
-    fun getHistory(): List<RelationshipVersion> {
+    fun getHistory(): List<BehaviorVersion> {
         val ctx = appContext ?: return emptyList()
-        val historyDir = File(getRelationshipDir(ctx), HISTORY_DIR)
+        val historyDir = File(getBehaviorDir(ctx), HISTORY_DIR)
         if (!historyDir.exists()) return emptyList()
 
         return historyDir.listFiles()
@@ -168,9 +157,9 @@ object RelationshipContext {
      * Rolls back to the given [version]: copies that file's content into `current.md`
      * (archiving the current content first).
      */
-    fun rollback(version: RelationshipVersion) {
+    fun rollback(version: BehaviorVersion) {
         val ctx = appContext ?: return
-        val historyDir = File(getRelationshipDir(ctx), HISTORY_DIR)
+        val historyDir = File(getBehaviorDir(ctx), HISTORY_DIR)
         val archiveFile = File(historyDir, version.filename)
         if (!archiveFile.exists()) {
             Logger.e(TAG, "Rollback target not found: ${version.filename}")
@@ -189,9 +178,9 @@ object RelationshipContext {
     /**
      * Reads the content of a historical version without applying it.
      */
-    fun readHistoryVersion(version: RelationshipVersion): String? {
+    fun readHistoryVersion(version: BehaviorVersion): String? {
         val ctx = appContext ?: return null
-        val file = File(File(getRelationshipDir(ctx), HISTORY_DIR), version.filename)
+        val file = File(File(getBehaviorDir(ctx), HISTORY_DIR), version.filename)
         return try {
             file.readText()
         } catch (e: Exception) {
@@ -204,7 +193,7 @@ object RelationshipContext {
     // Helpers
     // ──────────────────────────────────────────────────────────────────────────
 
-    private fun getRelationshipDir(ctx: Context): File =
+    private fun getBehaviorDir(ctx: Context): File =
         File(ctx.filesDir, DIR_NAME).also { it.mkdirs() }
 
     private fun nextVersionNumber(historyDir: File): Int {
@@ -215,7 +204,7 @@ object RelationshipContext {
         return (existing.maxOrNull() ?: 0) + 1
     }
 
-    private fun parseVersion(file: File): RelationshipVersion? {
+    private fun parseVersion(file: File): BehaviorVersion? {
         // Expected: v{N}_{yyyyMMdd_HHmmss}.md
         val name = file.nameWithoutExtension
         if (!name.startsWith(VERSION_PREFIX)) return null
@@ -228,7 +217,7 @@ object RelationshipContext {
         } catch (e: Exception) {
             file.lastModified()
         }
-        return RelationshipVersion(
+        return BehaviorVersion(
             filename = file.name,
             versionNumber = n,
             savedAt = timestamp,
@@ -238,14 +227,14 @@ object RelationshipContext {
 }
 
 /**
- * Metadata for a single archived version of the relationship context.
+ * Metadata for a single archived version of the behavior rules context.
  *
  * @property filename  The history file name (e.g. `v3_20260507_150000.md`)
  * @property versionNumber  Auto-incrementing version index
  * @property savedAt   Unix timestamp (ms) when this version was archived
  * @property sizeBytes File size in bytes
  */
-data class RelationshipVersion(
+data class BehaviorVersion(
     val filename: String,
     val versionNumber: Int,
     val savedAt: Long,

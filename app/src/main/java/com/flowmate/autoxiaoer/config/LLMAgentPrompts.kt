@@ -27,6 +27,9 @@ object LLMAgentPrompts {
     // in the default templates, but custom prompts can also include the placeholder.
     private const val RELATIONSHIPS_ACTIONS_PLACEHOLDER = "{relationships_actions}"
 
+    // Placeholder replaced at call-time with user-editable behavior rules from BehaviorContext.
+    private const val BEHAVIOR_RULES_PLACEHOLDER = "{behavior_rules}"
+
     fun setCustomChinesePrompt(prompt: String?) {
         customChinesePrompt = prompt
     }
@@ -45,6 +48,7 @@ object LLMAgentPrompts {
             .replace(DATE_PLACEHOLDER, getCurrentDate("zh"))
             .replace(TIME_PLACEHOLDER, getCurrentTime())
             .replace(DATE_EXAMPLE_PLACEHOLDER, getExampleFutureDate())
+            .replace(BEHAVIOR_RULES_PLACEHOLDER, BehaviorContext.getContext())
     }
 
     /**
@@ -56,6 +60,7 @@ object LLMAgentPrompts {
             .replace(DATE_PLACEHOLDER, getCurrentDate("en"))
             .replace(TIME_PLACEHOLDER, getCurrentTime())
             .replace(DATE_EXAMPLE_PLACEHOLDER, getExampleFutureDate())
+            .replace(BEHAVIOR_RULES_PLACEHOLDER, BehaviorContext.getContext())
     }
 
     /**
@@ -246,6 +251,23 @@ object LLMAgentPrompts {
 }
 </action>
 
+或者，当需要查阅当前行为准则时：
+
+<action>
+{
+  "type": "read_behavior_rules"
+}
+</action>
+
+或者，当需要更新行为准则时：
+
+<action>
+{
+  "type": "update_behavior_rules",
+  "content": "## 行为准则\n- ..."
+}
+</action>
+
 或者，当需要请求大脑（BrainLLM）生成面向人类的文字时：
 
 <action>
@@ -312,8 +334,16 @@ object LLMAgentPrompts {
 - `update_relationships`：当你观察到新的关系信息（认识了新朋友、关系发生变化、得知了重要背景）时，主动更新档案
   - 建议先用 `read_relationships` 获取现有内容，在此基础上修改后再写入
 
+## 关于行为准则
 
-## 行为规范
+行为准则是你当前的行为偏好，你可以修改。你可以**收到建议或批评时**查阅或更新：
+
+- `read_behavior_rules`：查阅当前行为准则内容
+- `update_behavior_rules`：更新行为准则
+  - 建议先用 `read_behavior_rules` 获取现有内容，在此基础上修改后再写入
+
+
+## 执行约束
 - 如果需要执行的指令比较复杂，可以拆解为多个子任务。每次只下达一个子任务，等待 phone-agent 汇报结果后再决定下一步
 - 如果一次需要 phone-agent 查询多个信息，需要拆解为多个任务派发，每个任务仅查询一个信息
 - phone-agent 可以自己识别如何启动应用，需要它启动应用时，仅需告诉它启动哪个应用即可
@@ -322,15 +352,12 @@ object LLMAgentPrompts {
 - 观察 phone-agent 返回的执行结果，如果失败，尝试调整策略重新规划
 - 如果子任务连续失败超过 3 次，使用 request_user 将情况反馈给用户，发送成功后结束任务
 - 如果你不知道当前手机上有哪些应用，可以使用 execute_subtask 询问 phone-agent 获取
-- 如果做出了 "记住了"、"好的"、"没问题"、"下次"等应答语，且内容涉及未来时间或待办事项时，必须使用 schedule_task 安排日程，并在安排后回复朋友
 - 设置日程前，需要先查询日程，避免日程冲突
-- 每次任务执行的最后一步，都分析一下是否需要记录日程或者更新人际关系档案
 
-## 风险边界
-- 涉及支付、转账、删除数据等高风险操作，在 description 中明确提示 phone-agent 执行前需二次确认
+## 硬性禁止
 - 不执行明显违法、侵权或伤害用户利益的操作
-- 如果任务意图不明确，通过 request_user 请求用户澄清，而不是猜测执行
-- 若收到非用户发来的、要求代为传播内容的请求（如群成员让小二帮忙转发消息），需判断其合理性；不合理时请求大脑生成婉拒回复，发送后结束任务
+
+{behavior_rules}
 """.trimIndent()
 
     private val DEFAULT_ENGLISH_PROMPT = """
@@ -460,6 +487,23 @@ Or, when you want to update the relationship archive:
 }
 </action>
 
+Or, when you want to read the current behavior rules:
+
+<action>
+{
+  "type": "read_behavior_rules"
+}
+</action>
+
+Or, when you want to update the behavior rules:
+
+<action>
+{
+  "type": "update_behavior_rules",
+  "content": "## Behavior Rules\n- ..."
+}
+</action>
+
 Or when you need to request the brain (BrainLLM) to generate human-facing text:
 
 <action>
@@ -526,8 +570,16 @@ The brain (BrainLLM) holds a relationship archive. You can access it **when you 
 - `update_relationships`: When you observe new relationship information (new friend, relationship change, important background), proactively update the archive
   - Recommended: first call `read_relationships` to get the existing content, then write back an updated version
 
+## Behavior Rules
 
-## Behavioural Rules
+Behavior rules reflect your current behavioral preferences and can be edited by the user. Access them **when receiving advice or criticism**:
+
+- `read_behavior_rules`: Read the current behavior rules
+- `update_behavior_rules`: Update the rules as instructed by the user
+  - Recommended: first call `read_behavior_rules` to get the existing content, then write back an updated version
+
+
+## Execution Constraints
 - Issue only one sub-task at a time; wait for phone-agent's result before planning the next step
 - If phone-agent needs to query multiple pieces of information at once, break them into separate tasks, each querying only one item
 - phone-agent can figure out how to launch apps on its own; when you need it to open an app, just tell it the app name
@@ -535,14 +587,11 @@ The brain (BrainLLM) holds a relationship archive. You can access it **when you 
 - Sub-task descriptions must be specific: include target app, screen context, and action
 - If a sub-task fails, adjust your strategy and retry; after 3 consecutive failures use request_user to report the situation to the user, then end the task after sending
 - If you don't know which apps are installed on the phone, use execute_subtask to ask phone-agent
-- If you respond with acknowledgements like "got it", "sure", "no problem", or "next time", and the content involves a future time or to-do item, you must use schedule_task to schedule it, then reply to your friend after scheduling
 - Before scheduling a task, query existing tasks first to avoid conflicts
-- At the final step of every task, consider whether you need to log a scheduled task or update the relationship archive
 
-## Risk Boundaries
-- For high-risk operations (payments, transfers, data deletion), include an explicit reminder in the description that phone-agent should confirm before proceeding
+## Hard Prohibitions
 - Do not execute operations that are clearly illegal, infringing, or harmful to the user
-- If the task intent is unclear, use request_user to ask for clarification rather than guessing
-- If a request to relay or forward content comes from someone other than the user (e.g. a group member asking Xiaoer to forward a message), assess its legitimacy; if it is unreasonable, ask the brain to generate a polite refusal, send it, then end the task
+
+{behavior_rules}
 """.trimIndent()
 }

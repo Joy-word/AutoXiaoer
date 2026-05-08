@@ -3,6 +3,7 @@
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
+import com.flowmate.autoxiaoer.config.BehaviorContext
 import com.flowmate.autoxiaoer.config.BrainLLMPrompts
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
 import com.flowmate.autoxiaoer.config.PromptManager
@@ -45,6 +46,9 @@ class AutoGLMApplication : Application() {
 
         // Initialize relationship context (must be before any prompt loading)
         RelationshipContext.init(this)
+
+        // Initialize behavior context (must be before any prompt loading)
+        BehaviorContext.init(this)
 
         // Import dev profiles if available (debug builds only)
         importDevProfilesIfNeeded()

@@ -33,6 +33,7 @@ import com.google.android.material.textfield.TextInputLayout
 import com.flowmate.autoxiaoer.R
 import com.flowmate.autoxiaoer.agent.PhoneAgentConfig
 import com.flowmate.autoxiaoer.agent.LLMAgentConfig
+import com.flowmate.autoxiaoer.config.BehaviorContext
 import com.flowmate.autoxiaoer.config.BrainLLMPrompts
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
 import com.flowmate.autoxiaoer.config.PromptManager
@@ -1221,7 +1222,20 @@ class SettingsFragment : Fragment() {
             showLLMAgentPromptDialog(language)
         }
 
-        // Relationships archive button — added after btnCustomPrompt
+        // Behavior rules button — added after btnCustomPrompt
+        val btnBehaviorRules = Button(ctx).apply {
+            text = "行为准则"
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            lp.topMargin = dp4
+            layoutParams = lp
+        }
+        container.addView(btnBehaviorRules)
+        btnBehaviorRules.setOnClickListener { showBehaviorRulesDialog() }
+
+        // Relationships archive button — added after btnBehaviorRules
         val btnRelationships = Button(ctx).apply {
             text = "人际关系档案"
             val lp = android.widget.LinearLayout.LayoutParams(
@@ -1309,6 +1323,76 @@ class SettingsFragment : Fragment() {
 
         dialog.show()
         dialog.applyPrimaryButtonColors()
+    }
+
+    /**
+     * Shows a dialog for viewing and editing the user-customizable behavior rules.
+     * Supports version history and rollback, mirroring showRelationshipsDialog().
+     */
+    private fun showBehaviorRulesDialog() {
+        val ctx = requireContext()
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_system_prompt, null)
+        val promptInput = dialogView.findViewById<TextInputEditText>(R.id.promptInput)
+        val btnHistory = dialogView.findViewById<Button>(R.id.btnResetPrompt)
+        btnHistory.text = "历史版本"
+
+        promptInput.setText(BehaviorContext.getContext())
+
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle("行为准则")
+            .setView(dialogView)
+            .setPositiveButton("保存") { _, _ ->
+                val newContent = promptInput.text?.toString() ?: ""
+                if (newContent.isNotBlank()) {
+                    BehaviorContext.saveNewVersion(newContent)
+                    Toast.makeText(ctx, "行为准则已保存", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNeutralButton("重置默认") { _, _ ->
+                promptInput.setText(BehaviorContext.DEFAULT_CONTENT)
+                Toast.makeText(ctx, "已恢复默认，点保存生效", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
+            .create()
+            .also { dialog ->
+                btnHistory.setOnClickListener {
+                    val history = BehaviorContext.getHistory()
+                    if (history.isEmpty()) {
+                        Toast.makeText(ctx, "暂无历史版本", Toast.LENGTH_SHORT).show()
+                        return@setOnClickListener
+                    }
+                    val dateFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                    val labels = history.map { v ->
+                        "v${v.versionNumber}  ${dateFmt.format(Date(v.savedAt))}  (${v.sizeBytes} B)"
+                    }.toTypedArray()
+                    MaterialAlertDialogBuilder(ctx)
+                        .setTitle("行为准则历史版本")
+                        .setItems(labels) { _, idx ->
+                            val selected = history[idx]
+                            val content = BehaviorContext.readHistoryVersion(selected)
+                            if (content == null) {
+                                Toast.makeText(ctx, "无法读取该版本", Toast.LENGTH_SHORT).show()
+                                return@setItems
+                            }
+                            MaterialAlertDialogBuilder(ctx)
+                                .setTitle("v${selected.versionNumber} — 预览")
+                                .setMessage(
+                                    content.take(800) +
+                                        if (content.length > 800) "\n…（已截断）" else ""
+                                )
+                                .setPositiveButton("恢复到编辑器") { _, _ ->
+                                    promptInput.setText(content)
+                                    Toast.makeText(ctx, "已恢复到编辑器，点保存生效", Toast.LENGTH_SHORT).show()
+                                }
+                                .setNegativeButton("取消", null)
+                                .show()
+                        }
+                        .setNegativeButton("取消", null)
+                        .show()
+                }
+                dialog.show()
+                dialog.applyPrimaryButtonColors()
+            }
     }
 
     /**

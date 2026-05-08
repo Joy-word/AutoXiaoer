@@ -743,9 +743,61 @@ class LLMAgent(
                                 }
                             }
 
+                            ACTION_READ_BEHAVIOR_RULES -> {
+                                val rules = com.flowmate.autoxiaoer.config.BehaviorContext.getContext()
+                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
+                                val observation = if (isEn) {
+                                    "【Behavior Rules】\n$rules"
+                                } else {
+                                    "【行为准则】\n$rules"
+                                }
+                                Logger.i(TAG, "LLMAgent read behavior rules (${rules.length} chars)")
+                                historyManager?.recordPlanningRound(
+                                    LLMPlanningRound(
+                                        round = round,
+                                        thinking = thinking,
+                                        actionType = ACTION_READ_BEHAVIOR_RULES,
+                                        message = rules.take(120),
+                                        tokenUsage = roundTokenUsage,
+                                    ),
+                                )
+                                context.addUserMessage(observation)
+                            }
+
+                            ACTION_UPDATE_BEHAVIOR_RULES -> {
+                                val content = action.behaviorContent
+                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
+                                if (content.isNullOrBlank()) {
+                                    val err = if (isEn) {
+                                        "update_behavior_rules is missing the required `content` field. Please output the action again."
+                                    } else {
+                                        "update_behavior_rules 缺少 content 字段，请重新输出。"
+                                    }
+                                    context.addUserMessage(err)
+                                } else {
+                                    com.flowmate.autoxiaoer.config.BehaviorContext.saveNewVersion(content)
+                                    Logger.i(TAG, "LLMAgent updated behavior rules (${content.length} chars)")
+                                    val observation = if (isEn) {
+                                        "【Behavior Rules Updated】The rules have been saved and will take effect on the next task."
+                                    } else {
+                                        "【行为准则已更新】准则已保存，下次任务启动时将自动生效。"
+                                    }
+                                    historyManager?.recordPlanningRound(
+                                        LLMPlanningRound(
+                                            round = round,
+                                            thinking = thinking,
+                                            actionType = ACTION_UPDATE_BEHAVIOR_RULES,
+                                            message = content.take(120),
+                                            tokenUsage = roundTokenUsage,
+                                        ),
+                                    )
+                                    context.addUserMessage(observation)
+                                }
+                            }
+
                             else -> {
                                 Logger.w(TAG, "Unknown action type: ${action.type}")
-                                context.addUserMessage("未知的 action type \"${action.type}\"，请使用 execute_subtask、finish、request_user、request_brain、schedule_task、query_scheduled_tasks、update_scheduled_task、delete_scheduled_task、read_relationships 或 update_relationships。")
+                                context.addUserMessage("未知的 action type \"${action.type}\"，请使用 execute_subtask、finish、request_user、request_brain、schedule_task、query_scheduled_tasks、update_scheduled_task、delete_scheduled_task、read_relationships、update_relationships、read_behavior_rules 或 update_behavior_rules。")
                             }
                         }
                     }
@@ -998,6 +1050,7 @@ class LLMAgent(
         val deleteTaskId: String? = null,
         val brainRequestParams: BrainRequestParams? = null,
         val relationshipsContent: String? = null,
+        val behaviorContent: String? = null,
     )
 
     private data class BrainRequestParams(
@@ -1149,6 +1202,20 @@ class LLMAgent(
                     )
                 }
 
+                ACTION_READ_BEHAVIOR_RULES -> {
+                    ParsedAction(type = type, message = null, subTask = null)
+                }
+
+                ACTION_UPDATE_BEHAVIOR_RULES -> {
+                    val content = json.optString("content").ifBlank { null }
+                    ParsedAction(
+                        type = type,
+                        message = null,
+                        subTask = null,
+                        behaviorContent = content,
+                    )
+                }
+
                 else -> ParsedAction(type = type, message = null, subTask = null)
             }
         } catch (e: Exception) {
@@ -1197,6 +1264,8 @@ class LLMAgent(
         private const val ACTION_DELETE_SCHEDULED_TASK = "delete_scheduled_task"
         private const val ACTION_READ_RELATIONSHIPS = "read_relationships"
         private const val ACTION_UPDATE_RELATIONSHIPS = "update_relationships"
+        private const val ACTION_READ_BEHAVIOR_RULES = "read_behavior_rules"
+        private const val ACTION_UPDATE_BEHAVIOR_RULES = "update_behavior_rules"
 
         /**
          * If a preGeneratedTexts key starts with this prefix the value is treated as a
