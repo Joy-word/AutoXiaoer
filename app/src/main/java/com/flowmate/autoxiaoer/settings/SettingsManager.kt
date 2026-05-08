@@ -1015,7 +1015,7 @@ class SettingsManager private constructor(private val context: Context) {
         Logger.d(TAG, "Loading BrainLLM configuration")
         val default = com.flowmate.autoxiaoer.agent.BrainLLMConfig()
         val language = prefs.getString(KEY_LLM_AGENT_LANGUAGE, "cn") ?: "cn"
-        val customPromptKey = if (language.lowercase() == "en") KEY_BRAIN_LLM_CUSTOM_PROMPT_EN else KEY_BRAIN_LLM_CUSTOM_PROMPT_CN
+        val customPromptKey = if (language.lowercase() == "en" || language.lowercase() == "english") KEY_BRAIN_LLM_CUSTOM_PROMPT_EN else KEY_BRAIN_LLM_CUSTOM_PROMPT_CN
         return com.flowmate.autoxiaoer.agent.BrainLLMConfig(
             baseUrl = prefs.getString(KEY_BRAIN_LLM_BASE_URL, default.baseUrl) ?: default.baseUrl,
             apiKey = securePrefs.getString(KEY_BRAIN_LLM_API_KEY, default.apiKey)

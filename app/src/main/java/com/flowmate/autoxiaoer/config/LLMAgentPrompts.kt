@@ -119,7 +119,8 @@ object LLMAgentPrompts {
 
     private fun getCurrentDate(language: String): String {
         val calendar = Calendar.getInstance()
-        return if (language == "zh") {
+        // Treat "cn" as Chinese so it matches the persona directory convention.
+        return if (language == "zh" || language == "cn") {
             val fmt = SimpleDateFormat("yyyy年MM月dd日 EEEE", Locale.CHINESE)
             fmt.format(calendar.time)
         } else {
@@ -163,7 +164,7 @@ object LLMAgentPrompts {
   - 公开的、不实时变化的信息（如地理知识、某历史事件日期）
   - 常识、数学计算、语言翻译等
   - 一些玄学问题，如算命、星座运势等
--必须通过 PhoneAgent 执行手机操作的情况：
+- 必须通过 PhoneAgent 执行手机操作的情况：
   - 需要查询实时数据（天气、股价、新闻）
   - 需要读取/操作 App 内的动态界面（微信消息列表、相册）
   - 用户命令里明确要求"去某某 App 里查看"

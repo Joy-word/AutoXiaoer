@@ -45,49 +45,6 @@
                 android:paddingHorizontal="16dp"
                 android:paddingBottom="32dp">
 
-                <!-- Phone-agent Settings Card -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/phoneAgentSettingsCard"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp"
-                    app:cardBackgroundColor="@color/card_background"
-                    app:cardCornerRadius="16dp"
-                    app:cardElevation="0dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="16dp">
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginBottom="4dp"
-                            android:text="@string/settings_phone_agent_title"
-                            android:textAppearance="?attr/textAppearanceTitleMedium"
-                            android:textColor="@color/text_primary" />
-
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginBottom="12dp"
-                            android:text="@string/settings_phone_agent_description"
-                            android:textAppearance="?attr/textAppearanceBodySmall"
-                            android:textColor="@color/text_secondary" />
-
-                        <Button
-                            android:id="@+id/btnPhoneAgentSettings"
-                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="48dp"
-                            android:text="@string/settings_phone_agent_configure" />
-
-                    </LinearLayout>
-
-                </com.google.android.material.card.MaterialCardView>
-
                 <!-- Persona Settings Card -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/personaSettingsCard"
@@ -212,6 +169,49 @@
                             android:layout_width="wrap_content"
                             android:layout_height="48dp"
                             android:text="配置大脑 (BrainLLM)" />
+
+                    </LinearLayout>
+
+                </com.google.android.material.card.MaterialCardView>
+
+                <!-- Phone-agent Settings Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/phoneAgentSettingsCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    app:cardBackgroundColor="@color/card_background"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="4dp"
+                            android:text="@string/settings_phone_agent_title"
+                            android:textAppearance="?attr/textAppearanceTitleMedium"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="12dp"
+                            android:text="@string/settings_phone_agent_description"
+                            android:textAppearance="?attr/textAppearanceBodySmall"
+                            android:textColor="@color/text_secondary" />
+
+                        <Button
+                            android:id="@+id/btnPhoneAgentSettings"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:text="@string/settings_phone_agent_configure" />
 
                     </LinearLayout>
 

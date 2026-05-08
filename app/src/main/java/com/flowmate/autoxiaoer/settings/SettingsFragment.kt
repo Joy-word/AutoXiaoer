@@ -1000,16 +1000,7 @@ class SettingsFragment : Fragment() {
 
         promptInput.setText(currentPrompt)
 
-        btnReset.setOnClickListener {
-            val defaultPrompt = if (language == "en") {
-                BrainLLMPrompts.getDefaultEnglishPromptTemplate()
-            } else {
-                BrainLLMPrompts.getDefaultChinesePromptTemplate()
-            }
-            promptInput.setText(defaultPrompt)
-        }
-
-        MaterialAlertDialogBuilder(ctx)
+        val brainDialog = MaterialAlertDialogBuilder(ctx)
             .setTitle("大脑 System Prompt")
             .setView(dialogView)
             .setPositiveButton("保存") { _, _ ->
@@ -1030,7 +1021,28 @@ class SettingsFragment : Fragment() {
             }
             .setNegativeButton("取消", null)
             .create()
-            .also { it.show(); it.applyPrimaryButtonColors() }
+
+        btnReset.setOnClickListener {
+            MaterialAlertDialogBuilder(ctx)
+                .setTitle("重置为默认")
+                .setMessage("确定要恢复默认的大脑 System Prompt 吗？")
+                .setPositiveButton("确定") { _, _ ->
+                    promptManager.deleteCurrent(PromptManager.PromptType.BRAIN_LLM, language)
+                    settingsManager.clearBrainLLMCustomPrompt(language)
+                    if (language == "en") {
+                        BrainLLMPrompts.setCustomEnglishPrompt(null)
+                    } else {
+                        BrainLLMPrompts.setCustomChinesePrompt(null)
+                    }
+                    Toast.makeText(ctx, "已恢复默认大脑 System Prompt", Toast.LENGTH_SHORT).show()
+                    brainDialog.dismiss()
+                }
+                .setNegativeButton("取消", null)
+                .showWithPrimaryButtons()
+        }
+
+        brainDialog.show()
+        brainDialog.applyPrimaryButtonColors()
     }
 
     private fun showLLMAgentSettingsDialog() {
