@@ -76,9 +76,9 @@ class BrainLLM(
         // When using a custom prompt, still inject the current relationship context so
         // user-edited prompts can include {relationships} and get it filled automatically.
         val systemPrompt = if (config.customSystemPrompt.isNotBlank()) {
-            config.customSystemPrompt.replace("{relationships}", RelationshipContext.getContext())
+            BrainLLMPrompts.applySubstitutions(config.customSystemPrompt, language)
         } else {
-            // getPrompt() already injects RelationshipContext internally
+            // getPrompt() already injects RelationshipContext and PersonaContext internally
             BrainLLMPrompts.getPrompt(language)
         }
 

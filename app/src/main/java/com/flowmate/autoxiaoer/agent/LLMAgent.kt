@@ -885,7 +885,7 @@ class LLMAgent(
 
     private fun buildSystemPrompt(): String {
         return if (config.customSystemPrompt.isNotBlank()) {
-            config.customSystemPrompt
+            LLMAgentPrompts.applySubstitutions(config.customSystemPrompt, config.language)
         } else {
             LLMAgentPrompts.getPrompt(config.language)
         }

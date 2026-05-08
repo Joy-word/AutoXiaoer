@@ -79,6 +79,21 @@ object LLMAgentPrompts {
         }
 
     /**
+     * Applies all runtime substitutions to an arbitrary [template] string.
+     *
+     * Used by [LLMAgent] when a custom system prompt is stored in [LLMAgentConfig]:
+     * the custom string is treated as a template and all known placeholders are
+     * replaced the same way as in [getChinesePrompt] / [getEnglishPrompt].
+     */
+    fun applySubstitutions(template: String, language: String): String =
+        template
+            .replace(NAME_PLACEHOLDER, PersonaContext.getName())
+            .replace(DATE_PLACEHOLDER, getCurrentDate(language))
+            .replace(TIME_PLACEHOLDER, getCurrentTime())
+            .replace(DATE_EXAMPLE_PLACEHOLDER, getExampleFutureDate())
+            .replace(BEHAVIOR_RULES_PLACEHOLDER, BehaviorContext.getContext())
+
+    /**
      * Returns the raw default Chinese prompt template (with placeholders intact) for display
      * in settings. Users can keep or remove `{relationships_actions}` when editing.
      */

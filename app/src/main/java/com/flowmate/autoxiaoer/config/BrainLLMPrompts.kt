@@ -50,6 +50,17 @@ object BrainLLMPrompts {
             getChinesePrompt()
         }
 
+    /**
+     * Applies all runtime substitutions ({persona}, {relationships}) to an arbitrary [template].
+     *
+     * Used by [BrainLLM] when a custom system prompt is stored in [BrainLLMConfig],
+     * ensuring persona and relationship context is always injected.
+     */
+    fun applySubstitutions(template: String, language: String): String =
+        template
+            .replace(PERSONA_PLACEHOLDER, PersonaContext.getContext(language))
+            .replace(RELATIONSHIPS_PLACEHOLDER, RelationshipContext.getContext())
+
     /** Returns the raw template (with placeholders) for display in settings. */
     fun getDefaultChinesePromptTemplate(): String = DEFAULT_CHINESE_PROMPT
     fun getDefaultEnglishPromptTemplate(): String = DEFAULT_ENGLISH_PROMPT
