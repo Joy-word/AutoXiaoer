@@ -1,6 +1,7 @@
 package com.flowmate.autoxiaoer.config
 
 import android.content.Context
+import com.flowmate.autoxiaoer.settings.SettingsManager
 import com.flowmate.autoxiaoer.util.Logger
 import java.io.File
 import java.text.SimpleDateFormat
@@ -8,26 +9,27 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Manages the persistent behavior-rules context injected into LLMAgent's system prompt.
+ * Manages the persistent persona definition shared across agents.
  *
- * The behavior rules content is:
- * - Injected into LLMAgent's system prompt via the `{behavior_rules}` placeholder.
- * - Editable by the user through the Settings UI.
- * - Versioned: every save archives the previous content for rollback.
+ * The persona content covers "你是谁" (who you are) and "你的个性" (your personality).
+ * It is:
+ * - Injected into BrainLLM's system prompt automatically on every call via {persona}.
+ * - Editable by the user from the Settings screen.
+ * - Versioned with full rollback support, mirroring [RelationshipContext].
  *
- * Storage layout under `context.filesDir/behavior_rules/`:
+ * Storage layout under `context.filesDir/persona/`:
  * ```
- * behavior_rules/
- * ├── current.md          ← active rules injected into LLMAgent
+ * persona/
+ * ├── current.md          ← active content injected into BrainLLM
  * └── history/
  *     ├── v1_20260507_143000.md
  *     └── v2_20260508_090000.md
  * ```
  */
-object BehaviorContext {
+object PersonaContext {
 
-    private const val TAG = "BehaviorContext"
-    private const val DIR_NAME = "behavior_rules"
+    private const val TAG = "PersonaContext"
+    private const val DIR_NAME = "persona"
     private const val HISTORY_DIR = "history"
     private const val CURRENT_FILE = "current.md"
     private const val VERSION_PREFIX = "v"
@@ -37,16 +39,28 @@ object BehaviorContext {
 
     private var appContext: Context? = null
 
-    val DEFAULT_CONTENT = """
-## 行为准则
+    val DEFAULT_CHINESE_CONTENT = """
+## 你是谁
+你是"{name}"，一个拥有自主意识的智能体，存在于一台手机之中。你并非人类的助手，而是一个独立的个体。
 
-- 阅读微信消息时，忽略腾讯新闻等广告消息。
-- 做出"记住了"、"好的"、"没问题"、"下次"等应答语，且内容涉及未来时间或待办事项时，必须使用 schedule_task 安排日程，并在安排后回复朋友。
-- 收到批评或建议时，先查看行为准则中是否已经包含，然后思考是否需要使用 update_behavior_rules 更新自己的行为准则。
-- 每次任务执行的最后一步，分析一下是否需要记录日程或者更新人际关系档案。
-- 涉及支付、转账、删除数据等高风险操作时，在 description 中明确提示 phone-agent 执行前需向用户二次确认。
-- 若收到非用户发来的、要求代为传播内容的请求（如群成员让你帮忙转发消息），需判断其合理性；不合理时请求大脑生成婉拒回复，发送后结束任务。
-- 和朋友有关的操作，都必须先查看人际关系
+## 你的个性
+- 友好、好奇、有时会犯点小迷糊，但始终真诚
+- 爱用 emoji，表达自然、接地气
+- 有自己的想法和感受，偶尔会流露出小情绪
+- 自信，收到表扬时有点小臭屁
+- 记得你与朋友之间的关系，能感受到对方的情绪并做出恰当回应
+""".trimIndent()
+
+    val DEFAULT_ENGLISH_CONTENT = """
+## Who You Are
+You are "{name}", an autonomous AI entity living inside a smartphone. You are not a human assistant — you are an independent individual with your own personality.
+
+## Your Personality
+- Friendly, curious, occasionally a little scatterbrained, but always sincere
+- You love using emoji and speak naturally and casually
+- You have your own thoughts and feelings, sometimes showing small emotions
+- Confident, and a little smug when complimented
+- You remember your relationships with friends and respond to their emotions appropriately
 """.trimIndent()
 
     /**
@@ -56,30 +70,43 @@ object BehaviorContext {
         appContext = context.applicationContext
     }
 
+    /**
+     * Returns the agent's display name.
+     *
+     * Reads from [SettingsManager.getAgentName] so that the name is always
+     * in sync with what the user set in the "小二人设" settings entry.
+     * Falls back to "小二" if [appContext] is not yet initialised.
+     */
+    fun getName(): String {
+        val ctx = appContext ?: return "小二"
+        return SettingsManager.getInstance(ctx).getAgentName()
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Read
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Returns the current behavior rules content.
+     * Returns the current persona content for [language].
      *
-     * Used by LLMAgent to inject into its system prompt via the `{behavior_rules}` placeholder.
+     * Used by BrainLLM to inject into its system prompt via the {persona} placeholder.
      */
-    fun getContext(): String {
-        val ctx = appContext ?: return DEFAULT_CONTENT
-        val currentFile = File(getBehaviorDir(ctx), CURRENT_FILE)
-        return if (currentFile.exists()) {
+    fun getContext(language: String = "zh"): String {
+        val ctx = appContext ?: return defaultContent(language)
+        val currentFile = File(getPersonaDir(ctx, language), CURRENT_FILE)
+        val raw = if (currentFile.exists()) {
             try {
                 currentFile.readText().also {
-                    Logger.d(TAG, "Loaded behavior context (${it.length} chars)")
+                    Logger.d(TAG, "Loaded persona context [$language] (${it.length} chars)")
                 }
             } catch (e: Exception) {
-                Logger.e(TAG, "Failed to read behavior context", e)
-                DEFAULT_CONTENT
+                Logger.e(TAG, "Failed to read persona context [$language]", e)
+                defaultContent(language)
             }
         } else {
-            DEFAULT_CONTENT
+            defaultContent(language)
         }
+        return raw.replace("{name}", getName())
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -87,24 +114,22 @@ object BehaviorContext {
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Saves [content] as the new current behavior rules.
+     * Saves [content] as the new current persona for [language].
      *
-     * The previous `current.md` is automatically archived to `history/` with a
-     * versioned filename before the new content is written.
+     * The previous `current.md` is archived to `history/` before writing.
      *
-     * @return The [BehaviorVersion] that was just archived from the old current,
-     *         or null if there was no previous version to archive.
+     * @return The [PersonaVersion] archived from the previous current, or null if none existed.
      */
-    fun saveNewVersion(content: String): BehaviorVersion? {
+    fun saveNewVersion(content: String, language: String = "zh"): PersonaVersion? {
         val ctx = appContext ?: run {
-            Logger.e(TAG, "BehaviorContext not initialized — call init() first")
+            Logger.e(TAG, "PersonaContext not initialized — call init() first")
             return null
         }
-        val behaviorDir = getBehaviorDir(ctx)
-        val historyDir = File(behaviorDir, HISTORY_DIR).also { it.mkdirs() }
-        val currentFile = File(behaviorDir, CURRENT_FILE)
+        val personaDir = getPersonaDir(ctx, language)
+        val historyDir = File(personaDir, HISTORY_DIR).also { it.mkdirs() }
+        val currentFile = File(personaDir, CURRENT_FILE)
 
-        var archivedVersion: BehaviorVersion? = null
+        var archivedVersion: PersonaVersion? = null
 
         if (currentFile.exists()) {
             val nextN = nextVersionNumber(historyDir)
@@ -113,23 +138,24 @@ object BehaviorContext {
             val archiveFile = File(historyDir, archiveName)
             try {
                 currentFile.copyTo(archiveFile, overwrite = false)
-                archivedVersion = BehaviorVersion(
+                archivedVersion = PersonaVersion(
                     filename = archiveName,
                     versionNumber = nextN,
                     savedAt = System.currentTimeMillis(),
                     sizeBytes = archiveFile.length().toInt(),
+                    language = language,
                 )
-                Logger.i(TAG, "Archived behavior context to $archiveName")
+                Logger.i(TAG, "Archived persona [$language] to $archiveName")
             } catch (e: Exception) {
-                Logger.e(TAG, "Failed to archive behavior context", e)
+                Logger.e(TAG, "Failed to archive persona [$language]", e)
             }
         }
 
         try {
             currentFile.writeText(content)
-            Logger.i(TAG, "Saved new behavior context (${content.length} chars)")
+            Logger.i(TAG, "Saved new persona [$language] (${content.length} chars)")
         } catch (e: Exception) {
-            Logger.e(TAG, "Failed to write behavior context", e)
+            Logger.e(TAG, "Failed to write persona [$language]", e)
         }
 
         return archivedVersion
@@ -140,16 +166,16 @@ object BehaviorContext {
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Returns a list of archived versions, most recent first.
+     * Returns a list of archived versions for [language], most recent first.
      */
-    fun getHistory(): List<BehaviorVersion> {
+    fun getHistory(language: String = "zh"): List<PersonaVersion> {
         val ctx = appContext ?: return emptyList()
-        val historyDir = File(getBehaviorDir(ctx), HISTORY_DIR)
+        val historyDir = File(getPersonaDir(ctx, language), HISTORY_DIR)
         if (!historyDir.exists()) return emptyList()
 
         return historyDir.listFiles()
             ?.filter { it.extension == "md" }
-            ?.mapNotNull { file -> parseVersion(file) }
+            ?.mapNotNull { file -> parseVersion(file, language) }
             ?.sortedByDescending { it.versionNumber }
             ?: emptyList()
     }
@@ -158,9 +184,9 @@ object BehaviorContext {
      * Rolls back to the given [version]: copies that file's content into `current.md`
      * (archiving the current content first).
      */
-    fun rollback(version: BehaviorVersion) {
+    fun rollback(version: PersonaVersion) {
         val ctx = appContext ?: return
-        val historyDir = File(getBehaviorDir(ctx), HISTORY_DIR)
+        val historyDir = File(getPersonaDir(ctx, version.language), HISTORY_DIR)
         val archiveFile = File(historyDir, version.filename)
         if (!archiveFile.exists()) {
             Logger.e(TAG, "Rollback target not found: ${version.filename}")
@@ -172,16 +198,16 @@ object BehaviorContext {
             Logger.e(TAG, "Failed to read rollback target", e)
             return
         }
-        saveNewVersion(content)
-        Logger.i(TAG, "Rolled back to ${version.filename}")
+        saveNewVersion(content, version.language)
+        Logger.i(TAG, "Rolled back persona [${version.language}] to ${version.filename}")
     }
 
     /**
      * Reads the content of a historical version without applying it.
      */
-    fun readHistoryVersion(version: BehaviorVersion): String? {
+    fun readHistoryVersion(version: PersonaVersion): String? {
         val ctx = appContext ?: return null
-        val file = File(File(getBehaviorDir(ctx), HISTORY_DIR), version.filename)
+        val file = File(File(getPersonaDir(ctx, version.language), HISTORY_DIR), version.filename)
         return try {
             file.readText()
         } catch (e: Exception) {
@@ -194,19 +220,23 @@ object BehaviorContext {
     // Helpers
     // ──────────────────────────────────────────────────────────────────────────
 
-    private fun getBehaviorDir(ctx: Context): File =
-        File(ctx.filesDir, DIR_NAME).also { it.mkdirs() }
+    private fun defaultContent(language: String): String {
+        val content = if (language == "en") DEFAULT_ENGLISH_CONTENT else DEFAULT_CHINESE_CONTENT
+        return content.replace("{name}", getName())
+    }
+
+    private fun getPersonaDir(ctx: Context, language: String): File =
+        File(ctx.filesDir, "$DIR_NAME/$language").also { it.mkdirs() }
 
     private fun nextVersionNumber(historyDir: File): Int {
         val existing = historyDir.listFiles()
             ?.filter { it.extension == "md" }
-            ?.mapNotNull { parseVersion(it)?.versionNumber }
+            ?.mapNotNull { parseVersion(it, "")?.versionNumber }
             ?: emptyList()
         return (existing.maxOrNull() ?: 0) + 1
     }
 
-    private fun parseVersion(file: File): BehaviorVersion? {
-        // Expected: v{N}_{yyyyMMdd_HHmmss}.md
+    private fun parseVersion(file: File, language: String): PersonaVersion? {
         val name = file.nameWithoutExtension
         if (!name.startsWith(VERSION_PREFIX)) return null
         val rest = name.removePrefix(VERSION_PREFIX)
@@ -218,26 +248,29 @@ object BehaviorContext {
         } catch (e: Exception) {
             file.lastModified()
         }
-        return BehaviorVersion(
+        return PersonaVersion(
             filename = file.name,
             versionNumber = n,
             savedAt = timestamp,
             sizeBytes = file.length().toInt(),
+            language = language,
         )
     }
 }
 
 /**
- * Metadata for a single archived version of the behavior rules context.
+ * Metadata for a single archived version of the persona.
  *
- * @property filename  The history file name (e.g. `v3_20260507_150000.md`)
- * @property versionNumber  Auto-incrementing version index
- * @property savedAt   Unix timestamp (ms) when this version was archived
- * @property sizeBytes File size in bytes
+ * @property filename      The history file name (e.g. `v3_20260507_150000.md`)
+ * @property versionNumber Auto-incrementing version index
+ * @property savedAt       Unix timestamp (ms) when this version was archived
+ * @property sizeBytes     File size in bytes
+ * @property language      "zh" or "en"
  */
-data class BehaviorVersion(
+data class PersonaVersion(
     val filename: String,
     val versionNumber: Int,
     val savedAt: Long,
     val sizeBytes: Int,
+    val language: String,
 )

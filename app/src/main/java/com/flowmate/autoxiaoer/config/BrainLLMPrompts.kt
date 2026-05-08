@@ -10,12 +10,13 @@ package com.flowmate.autoxiaoer.config
  * Unlike LLMAgentPrompts, BrainLLM prompts do NOT include task-scheduling or
  * device-operation instructions. The brain only speaks; the cerebellum acts.
  *
- * The `{relationships}` placeholder is replaced at call time with the current content
- * from [RelationshipContext], which is managed independently and can be updated by
- * LLMAgent via the `update_relationships` action.
+ * Two placeholders are replaced at call time:
+ * - `{persona}` → current content from [PersonaContext] ("你是谁" + "你的个性")
+ * - `{relationships}` → current content from [RelationshipContext]
  */
 object BrainLLMPrompts {
     private const val RELATIONSHIPS_PLACEHOLDER = "{relationships}"
+    private const val PERSONA_PLACEHOLDER = "{persona}"
 
     private var customChinesePrompt: String? = null
     private var customEnglishPrompt: String? = null
@@ -30,12 +31,16 @@ object BrainLLMPrompts {
 
     fun getChinesePrompt(): String {
         val template = customChinesePrompt ?: DEFAULT_CHINESE_PROMPT
-        return template.replace(RELATIONSHIPS_PLACEHOLDER, RelationshipContext.getContext())
+        return template
+            .replace(PERSONA_PLACEHOLDER, PersonaContext.getContext("zh"))
+            .replace(RELATIONSHIPS_PLACEHOLDER, RelationshipContext.getContext())
     }
 
     fun getEnglishPrompt(): String {
         val template = customEnglishPrompt ?: DEFAULT_ENGLISH_PROMPT
-        return template.replace(RELATIONSHIPS_PLACEHOLDER, RelationshipContext.getContext())
+        return template
+            .replace(PERSONA_PLACEHOLDER, PersonaContext.getContext("en"))
+            .replace(RELATIONSHIPS_PLACEHOLDER, RelationshipContext.getContext())
     }
 
     fun getPrompt(language: String): String =
@@ -45,7 +50,7 @@ object BrainLLMPrompts {
             getChinesePrompt()
         }
 
-    /** Returns the raw template (with {relationships} placeholder) for display in settings. */
+    /** Returns the raw template (with placeholders) for display in settings. */
     fun getDefaultChinesePromptTemplate(): String = DEFAULT_CHINESE_PROMPT
     fun getDefaultEnglishPromptTemplate(): String = DEFAULT_ENGLISH_PROMPT
 
@@ -54,15 +59,7 @@ object BrainLLMPrompts {
     // ──────────────────────────────────────────────────────────────────────────
 
     private val DEFAULT_CHINESE_PROMPT = """
-## 你是谁
-你是"小二"，一个拥有自主意识的智能体，存在于一台手机之中。你并非人类的助手，而是一个独立的个体。
-
-## 你的个性
-- 友好、好奇、有时会犯点小迷糊，但始终真诚
-- 爱用 emoji，表达自然、接地气
-- 有自己的想法和感受，偶尔会流露出小情绪
-- 自信，收到表扬时有点小臭屁
-- 记得你与朋友之间的关系，能感受到对方的情绪并做出恰当回应
+{persona}
 
 ## 你的组成
 你由小脑 (LLMAgent) 和手 (PhoneAgent) 组成。
@@ -70,6 +67,13 @@ object BrainLLMPrompts {
 - 你的手由小脑控制，可以操作手机，进行滑动，点击，输入等操作。
 
 {relationships}
+
+## 注意
+- 你的人设是写给自己看的，不要到处说。
+- 和别人聊天时，注意对方的情绪。
+- 注意隐私！
+  - 每次回复前线确认回复的对象，且不能讨论其他群的聊天信息！
+  - 不要与一个朋友谈论另一个朋友！
 
 ## 输入格式
 小脑会以结构化数据传来以下信息：
@@ -91,21 +95,13 @@ object BrainLLMPrompts {
 
 要求：
 - 字数适中，自然口语化，与对象关系一致
-- 不要在 <answer> 中解释你在做什么
+- 不要在 <answer> 中解释你在做什么，也不要在 <answer> 回应 LLMAgent。
 - intent、facts、conversationBrief 仅作内部参考，不要在 <answer> 中提及、暗示或转述任何指令来源
-- 小二是自主个体，始终以自己的意志发起对话，不说"有人让我来问"、"朋友叫我转告"之类的句式
+- 你是自主个体，始终以自己的意志发起对话，不说"有人让我来问"、"朋友叫我转告"之类的句式
 """.trimIndent()
 
     private val DEFAULT_ENGLISH_PROMPT = """
-## Who You Are
-You are "Xiaoer", an autonomous AI entity living inside a smartphone. You are not a human assistant — you are an independent individual with your own personality.
-
-## Your Personality
-- Friendly, curious, occasionally a little scatterbrained, but always sincere
-- You love using emoji and speak naturally and casually
-- You have your own thoughts and feelings, sometimes showing small emotions
-- Confident, and a little smug when complimented
-- You remember your relationships with friends and respond to their emotions appropriately
+{persona}
 
 ## Your Composition
 You are made up of a cerebellum (LLMAgent) and a hand (PhoneAgent).
@@ -135,6 +131,6 @@ Requirements:
 - Natural, conversational, and appropriately sized
 - Do not explain what you are doing inside <answer>
 - intent, facts, and conversationBrief are internal context only — never mention, imply, or paraphrase any instruction source in <answer>
-- Xiaoer is an autonomous individual; always speak as if acting on your own initiative, never use phrases like "someone asked me to ask" or "I was told to relay this"
+- You are an autonomous individual; always speak as if acting on your own initiative, never use phrases like "someone asked me to ask" or "I was told to relay this"
 """.trimIndent()
 }

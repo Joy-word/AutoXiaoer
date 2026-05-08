@@ -88,6 +88,49 @@
 
                 </com.google.android.material.card.MaterialCardView>
 
+                <!-- Persona Settings Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/personaSettingsCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    app:cardBackgroundColor="@color/card_background"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="4dp"
+                            android:text="小二人设"
+                            android:textAppearance="?attr/textAppearanceTitleMedium"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="12dp"
+                            android:text="设置智能体名称、人设、人际关系和行为准则。"
+                            android:textAppearance="?attr/textAppearanceBodySmall"
+                            android:textColor="@color/text_secondary" />
+
+                        <Button
+                            android:id="@+id/btnPersonaSettings"
+                            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                            android:layout_width="wrap_content"
+                            android:layout_height="48dp"
+                            android:text="管理人设" />
+
+                    </LinearLayout>
+
+                </com.google.android.material.card.MaterialCardView>
+
                 <!-- LLM-agent (Brain) Settings Card -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/llmAgentSettingsCard"

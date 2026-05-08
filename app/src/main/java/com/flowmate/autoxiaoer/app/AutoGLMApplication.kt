@@ -7,6 +7,7 @@ import com.flowmate.autoxiaoer.config.BehaviorContext
 import com.flowmate.autoxiaoer.config.BrainLLMPrompts
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
 import com.flowmate.autoxiaoer.config.PromptManager
+import com.flowmate.autoxiaoer.config.PersonaContext
 import com.flowmate.autoxiaoer.config.RelationshipContext
 import com.flowmate.autoxiaoer.config.SystemPrompts
 import com.flowmate.autoxiaoer.notification.NotificationTriggerManager
@@ -46,6 +47,9 @@ class AutoGLMApplication : Application() {
 
         // Initialize relationship context (must be before any prompt loading)
         RelationshipContext.init(this)
+
+        // Initialize persona context (must be before any prompt loading)
+        PersonaContext.init(this)
 
         // Initialize behavior context (must be before any prompt loading)
         BehaviorContext.init(this)

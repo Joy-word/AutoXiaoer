@@ -166,6 +166,10 @@ class SettingsFragment : Fragment() {
         view.findViewById<Button>(R.id.btnBrainLLMSettings)
             .setOnClickListener { showBrainLLMSettingsDialog() }
 
+        // Persona settings entry button
+        view.findViewById<Button>(R.id.btnPersonaSettings)
+            .setOnClickListener { showPersonaSettingsDialog() }
+
         // ClawBot connection
         clawBotStatusText = view.findViewById(R.id.clawBotStatusText)
         btnClawBotAction = view.findViewById(R.id.btnClawBotAction)
@@ -867,31 +871,6 @@ class SettingsFragment : Fragment() {
         val dp8 = (8 * resources.displayMetrics.density).toInt()
         val dp4 = (4 * resources.displayMetrics.density).toInt()
 
-        // Enable switch
-        val enableSwitch = android.widget.Switch(ctx).apply {
-            text = "启用大脑 (BrainLLM)"
-            isChecked = config.enabled
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.bottomMargin = dp8
-            layoutParams = lp
-        }
-        container.addView(enableSwitch)
-
-        val descText = android.widget.TextView(ctx).apply {
-            text = "启用后，小脑每次需要发送文字时将调用大脑生成内容，实现人设和任务逻辑的分离。"
-            textSize = 12f
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.bottomMargin = dp8
-            layoutParams = lp
-        }
-        container.addView(descText)
-
         val (baseUrlLayout, baseUrlEdit) = makeInputLayout("Base URL")
         baseUrlEdit.setText(config.baseUrl)
         container.addView(baseUrlLayout)
@@ -954,17 +933,15 @@ class SettingsFragment : Fragment() {
                     ?: config.maxTokens
                 val temperature = temperatureEdit.text?.toString()?.trim()?.toFloatOrNull()
                     ?: config.temperature
-                val enabled = enableSwitch.isChecked
+                val enabled = config.enabled
 
-                if (enabled) {
-                    if (baseUrl.isEmpty() || !isValidUrl(baseUrl)) {
-                        Toast.makeText(ctx, "Base URL 格式不正确", Toast.LENGTH_SHORT).show()
-                        return@setPositiveButton
-                    }
-                    if (modelName.isEmpty()) {
-                        Toast.makeText(ctx, "模型名称不能为空", Toast.LENGTH_SHORT).show()
-                        return@setPositiveButton
-                    }
+                if (baseUrl.isNotEmpty() && !isValidUrl(baseUrl)) {
+                    Toast.makeText(ctx, "Base URL 格式不正确", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
+                }
+                if (modelName.isEmpty()) {
+                    Toast.makeText(ctx, "模型名称不能为空", Toast.LENGTH_SHORT).show()
+                    return@setPositiveButton
                 }
 
                 val language = settingsManager.getLLMAgentConfig().language
@@ -1222,32 +1199,6 @@ class SettingsFragment : Fragment() {
             showLLMAgentPromptDialog(language)
         }
 
-        // Behavior rules button — added after btnCustomPrompt
-        val btnBehaviorRules = Button(ctx).apply {
-            text = "行为准则"
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(btnBehaviorRules)
-        btnBehaviorRules.setOnClickListener { showBehaviorRulesDialog() }
-
-        // Relationships archive button — added after btnBehaviorRules
-        val btnRelationships = Button(ctx).apply {
-            text = "人际关系档案"
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(btnRelationships)
-        btnRelationships.setOnClickListener { showRelationshipsDialog() }
-
         dialog.show()
         dialog.applyPrimaryButtonColors()
     }
@@ -1320,6 +1271,162 @@ class SettingsFragment : Fragment() {
                 .setNegativeButton("取消", null)
                 .showWithPrimaryButtons()
         }
+
+        dialog.show()
+        dialog.applyPrimaryButtonColors()
+    }
+
+    /**
+     * Shows the unified "小二人设" settings dialog.
+     *
+     * This is the single entry point for persona-related user settings:
+     * - Agent name (shared across LLMAgent and BrainLLM)
+     * - BrainLLM enable/disable toggle
+     * - Persona editor
+     * - Relationships archive
+     * - Behavior rules
+     */
+    private fun showPersonaSettingsDialog() {
+        Logger.d(TAG, "Showing persona settings dialog")
+        val ctx = requireContext()
+        val brainConfig = settingsManager.getBrainLLMConfig()
+
+        val scrollView = android.widget.ScrollView(ctx)
+        val container = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            val paddingPx = (16 * resources.displayMetrics.density).toInt()
+            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
+        }
+        scrollView.addView(container)
+
+        val dp4 = (4 * resources.displayMetrics.density).toInt()
+        val dp8 = (8 * resources.displayMetrics.density).toInt()
+
+        // ── Agent name ───────────────────────────────────────────────
+        val nameLabel = TextView(ctx).apply {
+            text = "智能体名称"
+            setTextColor(android.graphics.Color.parseColor("#888888"))
+            textSize = 14f
+        }
+        container.addView(nameLabel)
+
+        val nameLayout = TextInputLayout(ctx).apply {
+            boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
+            isHelperTextEnabled = true
+            helperText = "小脑和大脑在 prompt 中引用的名字"
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            lp.bottomMargin = dp8
+            layoutParams = lp
+        }
+        val nameEdit = TextInputEditText(ctx)
+        nameEdit.setText(settingsManager.getAgentName())
+        nameLayout.addView(nameEdit)
+        container.addView(nameLayout)
+
+        // ── Brain enable switch ──────────────────────────────────────
+        val brainSwitch = android.widget.Switch(ctx).apply {
+            text = "启用大脑 (BrainLLM)"
+            isChecked = brainConfig.enabled
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            lp.topMargin = dp8
+            lp.bottomMargin = dp4
+            layoutParams = lp
+        }
+        container.addView(brainSwitch)
+
+        val brainDesc = android.widget.TextView(ctx).apply {
+            text = "启用后，回复朋友的文字会先经过大脑生成，更具人格感。"
+            textSize = 12f
+            setTextColor(android.graphics.Color.parseColor("#888888"))
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            lp.bottomMargin = dp8
+            layoutParams = lp
+        }
+        container.addView(brainDesc)
+
+        // ── Persona editor ───────────────────────────────────────────
+        val personaLabel = TextView(ctx).apply {
+            text = "人设"
+            setTextColor(android.graphics.Color.parseColor("#888888"))
+            textSize = 14f
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            lp.topMargin = dp8
+            layoutParams = lp
+        }
+        container.addView(personaLabel)
+
+        val btnPersona = Button(ctx).apply {
+            text = "编辑人设（你是谁 + 你的个性）"
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            lp.topMargin = dp4
+            layoutParams = lp
+        }
+        container.addView(btnPersona)
+
+        // ── Relationships editor ─────────────────────────────────────
+        val btnRelationships = Button(ctx).apply {
+            text = "人际关系档案"
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            lp.topMargin = dp4
+            layoutParams = lp
+        }
+        container.addView(btnRelationships)
+
+        // ── Behavior rules editor ────────────────────────────────────
+        val btnBehavior = Button(ctx).apply {
+            text = "行为准则"
+            val lp = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
+            )
+            lp.topMargin = dp4
+            layoutParams = lp
+        }
+        container.addView(btnBehavior)
+
+        // ── Dialog ───────────────────────────────────────────────────
+        val dialog = MaterialAlertDialogBuilder(ctx)
+            .setTitle("小二人设")
+            .setView(scrollView)
+            .setPositiveButton("保存") { _, _ ->
+                val newName = nameEdit.text?.toString()?.trim() ?: ""
+                if (newName.isNotBlank()) {
+                    settingsManager.setAgentName(newName)
+                }
+
+                val newEnabled = brainSwitch.isChecked
+                if (newEnabled != brainConfig.enabled) {
+                    val updated = brainConfig.copy(enabled = newEnabled)
+                    settingsManager.saveBrainLLMConfig(updated)
+                    com.flowmate.autoxiaoer.ComponentManager.getInstance(ctx).reinitializeAgents()
+                }
+
+                Toast.makeText(ctx, "小二人设已保存", Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton("取消", null)
+            .create()
+
+        btnPersona.setOnClickListener { showPersonaDialog() }
+        btnRelationships.setOnClickListener { showRelationshipsDialog() }
+        btnBehavior.setOnClickListener { showBehaviorRulesDialog() }
 
         dialog.show()
         dialog.applyPrimaryButtonColors()
@@ -1437,6 +1544,76 @@ class SettingsFragment : Fragment() {
                         .setItems(labels) { _, idx ->
                             val selected = history[idx]
                             val content = com.flowmate.autoxiaoer.config.RelationshipContext
+                                .readHistoryVersion(selected)
+                            if (content == null) {
+                                Toast.makeText(ctx, "无法读取该版本", Toast.LENGTH_SHORT).show()
+                                return@setItems
+                            }
+                            MaterialAlertDialogBuilder(ctx)
+                                .setTitle("v${selected.versionNumber} — 预览")
+                                .setMessage(
+                                    content.take(800) +
+                                        if (content.length > 800) "\n…（已截断）" else ""
+                                )
+                                .setPositiveButton("恢复到编辑器") { _, _ ->
+                                    promptInput.setText(content)
+                                    Toast.makeText(ctx, "已恢复到编辑器，点保存生效", Toast.LENGTH_SHORT).show()
+                                }
+                                .setNegativeButton("取消", null)
+                                .show()
+                        }
+                        .setNegativeButton("取消", null)
+                        .show()
+                }
+                dialog.show()
+                dialog.applyPrimaryButtonColors()
+            }
+    }
+
+    /**
+     * Shows a dialog for viewing and editing the persona definition ("你是谁" + "你的个性").
+     * Supports version history and rollback, mirroring showRelationshipsDialog().
+     */
+    private fun showPersonaDialog() {
+        val ctx = requireContext()
+        val language = settingsManager.getPhoneAgentConfig().language.let {
+            if (it == "en") "en" else "zh"
+        }
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_system_prompt, null)
+        val promptInput = dialogView.findViewById<TextInputEditText>(R.id.promptInput)
+        val btnHistory = dialogView.findViewById<Button>(R.id.btnResetPrompt)
+        btnHistory.text = "历史版本"
+
+        promptInput.setText(com.flowmate.autoxiaoer.config.PersonaContext.getContext(language))
+
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle("人设")
+            .setView(dialogView)
+            .setPositiveButton("保存") { _, _ ->
+                val newContent = promptInput.text?.toString() ?: ""
+                if (newContent.isNotBlank()) {
+                    com.flowmate.autoxiaoer.config.PersonaContext.saveNewVersion(newContent, language)
+                    Toast.makeText(ctx, "人设已保存", Toast.LENGTH_SHORT).show()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .create()
+            .also { dialog ->
+                btnHistory.setOnClickListener {
+                    val history = com.flowmate.autoxiaoer.config.PersonaContext.getHistory(language)
+                    if (history.isEmpty()) {
+                        Toast.makeText(ctx, "暂无历史版本", Toast.LENGTH_SHORT).show()
+                        return@setOnClickListener
+                    }
+                    val dateFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+                    val labels = history.map { v ->
+                        "v${v.versionNumber}  ${dateFmt.format(Date(v.savedAt))}  (${v.sizeBytes} B)"
+                    }.toTypedArray()
+                    MaterialAlertDialogBuilder(ctx)
+                        .setTitle("人设历史版本")
+                        .setItems(labels) { _, idx ->
+                            val selected = history[idx]
+                            val content = com.flowmate.autoxiaoer.config.PersonaContext
                                 .readHistoryVersion(selected)
                             if (content == null) {
                                 Toast.makeText(ctx, "无法读取该版本", Toast.LENGTH_SHORT).show()

@@ -174,6 +174,9 @@ class SettingsManager private constructor(private val context: Context) {
         private const val KEY_BRAIN_LLM_CUSTOM_PROMPT_CN = "brain_llm_custom_prompt_cn"
         private const val KEY_BRAIN_LLM_CUSTOM_PROMPT_EN = "brain_llm_custom_prompt_en"
 
+        // Agent name key
+        private const val KEY_AGENT_NAME = "agent_name"
+
         // Default values
         private val DEFAULT_MODEL_CONFIG = ModelConfig()
         private val DEFAULT_PHONE_AGENT_CONFIG = PhoneAgentConfig()
@@ -1158,6 +1161,21 @@ class SettingsManager private constructor(private val context: Context) {
         val userId = prefs.getString(KEY_CLAWBOT_LAST_FROM_USER_ID, null)?.takeIf { it.isNotBlank() } ?: return null
         val token = prefs.getString(KEY_CLAWBOT_LAST_CONTEXT_TOKEN, null)?.takeIf { it.isNotBlank() } ?: return null
         return Pair(userId, token)
+    }
+
+    // ==================== Agent Name ====================
+
+    /**
+     * Gets the agent's display name (shown in prompts as the persona name).
+     * Defaults to "小二" if not set.
+     */
+    fun getAgentName(): String = prefs.getString(KEY_AGENT_NAME, null) ?: "小二"
+
+    /**
+     * Sets the agent's display name.
+     */
+    fun setAgentName(name: String) {
+        prefs.edit().putString(KEY_AGENT_NAME, name).apply()
     }
 
     // ==================== Floating Window UI State ====================
