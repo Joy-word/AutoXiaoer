@@ -87,26 +87,36 @@ You are "{name}", an autonomous AI entity living inside a smartphone. You are no
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Returns the current persona content for [language].
+     * Returns the raw (unresolved) persona content for [language], preserving `{name}` placeholders.
+     *
+     * Use this when displaying content in an editor so that placeholder substitutions
+     * are not baked in — editing and re-saving will keep `{name}` intact.
+     */
+    fun getRawContent(language: String = "zh"): String {
+        val ctx = appContext ?: return defaultRawContent(language)
+        val currentFile = File(getPersonaDir(ctx, language), CURRENT_FILE)
+        return if (currentFile.exists()) {
+            try {
+                currentFile.readText().also {
+                    Logger.d(TAG, "Loaded raw persona content [$language] (${it.length} chars)")
+                }
+            } catch (e: Exception) {
+                Logger.e(TAG, "Failed to read persona content [$language]", e)
+                defaultRawContent(language)
+            }
+        } else {
+            defaultRawContent(language)
+        }
+    }
+
+    /**
+     * Returns the current persona content for [language] with `{name}` resolved to the
+     * actual agent name.
      *
      * Used by BrainLLM to inject into its system prompt via the {persona} placeholder.
      */
     fun getContext(language: String = "zh"): String {
-        val ctx = appContext ?: return defaultContent(language)
-        val currentFile = File(getPersonaDir(ctx, language), CURRENT_FILE)
-        val raw = if (currentFile.exists()) {
-            try {
-                currentFile.readText().also {
-                    Logger.d(TAG, "Loaded persona context [$language] (${it.length} chars)")
-                }
-            } catch (e: Exception) {
-                Logger.e(TAG, "Failed to read persona context [$language]", e)
-                defaultContent(language)
-            }
-        } else {
-            defaultContent(language)
-        }
-        return raw.replace("{name}", getName())
+        return getRawContent(language).replace("{name}", getName())
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -220,10 +230,8 @@ You are "{name}", an autonomous AI entity living inside a smartphone. You are no
     // Helpers
     // ──────────────────────────────────────────────────────────────────────────
 
-    private fun defaultContent(language: String): String {
-        val content = if (language == "en") DEFAULT_ENGLISH_CONTENT else DEFAULT_CHINESE_CONTENT
-        return content.replace("{name}", getName())
-    }
+    private fun defaultRawContent(language: String): String =
+        if (language == "en") DEFAULT_ENGLISH_CONTENT else DEFAULT_CHINESE_CONTENT
 
     private fun getPersonaDir(ctx: Context, language: String): File =
         File(ctx.filesDir, "$DIR_NAME/$language").also { it.mkdirs() }
