@@ -1596,7 +1596,7 @@ class SettingsFragment : Fragment() {
         val btnHistory = dialogView.findViewById<Button>(R.id.btnResetPrompt)
         btnHistory.text = "历史版本"
 
-        promptInput.setText(com.flowmate.autoxiaoer.config.PersonaContext.getContext(language))
+        promptInput.setText(com.flowmate.autoxiaoer.config.PersonaContext.getRawContent(language))
 
         MaterialAlertDialogBuilder(ctx)
             .setTitle("人设")
