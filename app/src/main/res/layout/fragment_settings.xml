@@ -380,6 +380,100 @@
 
                 </com.google.android.material.card.MaterialCardView>
 
+                <!-- Data Migration Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/dataMigrationCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    app:cardBackgroundColor="@color/card_background"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="center_vertical"
+                            android:orientation="horizontal">
+
+                            <ImageView
+                                android:layout_width="40dp"
+                                android:layout_height="40dp"
+                                android:contentDescription="Data Migration"
+                                android:src="@drawable/ic_upload"
+                                app:tint="@color/icon_primary" />
+
+                            <LinearLayout
+                                android:layout_width="0dp"
+                                android:layout_height="wrap_content"
+                                android:layout_marginStart="16dp"
+                                android:layout_weight="1"
+                                android:orientation="vertical">
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:text="@string/settings_data_migration"
+                                    android:textColor="@color/text_primary"
+                                    android:textSize="16sp" />
+
+                                <TextView
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content"
+                                    android:layout_marginTop="2dp"
+                                    android:text="@string/settings_data_migration_description"
+                                    android:textColor="@color/text_secondary"
+                                    android:textSize="14sp" />
+
+                            </LinearLayout>
+
+                        </LinearLayout>
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="16dp"
+                            android:orientation="horizontal">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnExportData"
+                                style="@style/Widget.App.Button.Secondary"
+                                android:layout_width="0dp"
+                                android:layout_height="48dp"
+                                android:layout_marginEnd="8dp"
+                                android:layout_weight="1"
+                                android:text="@string/settings_export_data"
+                                app:icon="@drawable/ic_share"
+                                app:iconGravity="textStart"
+                                app:iconPadding="8dp"
+                                app:strokeColor="@color/primary"
+                                app:strokeWidth="1dp" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnImportData"
+                                style="@style/Widget.App.Button.Secondary"
+                                android:layout_width="0dp"
+                                android:layout_height="48dp"
+                                android:layout_weight="1"
+                                android:text="@string/settings_import_data"
+                                app:icon="@drawable/ic_download"
+                                app:iconGravity="textStart"
+                                app:iconPadding="8dp"
+                                app:strokeColor="@color/primary"
+                                app:strokeWidth="1dp" />
+
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                </com.google.android.material.card.MaterialCardView>
+
                 <!-- Debug Logs Card -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"

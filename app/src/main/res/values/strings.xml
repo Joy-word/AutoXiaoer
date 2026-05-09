@@ -10,7 +10,7 @@
     <string name="permissions_center_title">权限状态</string>
     <string name="permissions_summary_default">检查中...</string>
     <string name="permissions_summary_all_granted">全部已授权</string>
-    <string name="permissions_summary_partial">%d/%d 已授权</string>
+    <string name="permissions_summary_partial" formatted="false">%d/%d 已授权</string>
     <string name="permission_action_grant">授权</string>
     <string name="permission_action_enable">启用</string>
     <string name="permission_granted">已授权</string>
@@ -395,6 +395,23 @@
     <string name="notification_trigger_delete_confirm">确定要删除 %s 的通知触发规则吗？</string>
     <string name="notification_trigger_error_select_app">请选择一个 App</string>
     <string name="notification_trigger_error_empty_prompt">请填写任务描述</string>
+
+    <!-- Data Migration -->
+    <string name="settings_data_migration">数据迁移</string>
+    <string name="settings_data_migration_description">导出数据用于迁移到新手机，或从备份文件导入</string>
+    <string name="settings_export_data">导出数据</string>
+    <string name="settings_import_data">导入数据</string>
+    <string name="settings_export_dialog_title">导出数据</string>
+    <string name="settings_export_persona_only">仅人设</string>
+    <string name="settings_export_persona_only_desc">仅导出人设、人际关系、行为准则和系统提示词</string>
+    <string name="settings_export_success">数据已导出，请选择保存位置</string>
+    <string name="settings_export_failed">导出失败</string>
+    <string name="settings_import_dialog_title">导入数据</string>
+    <string name="settings_import_confirm_title">确认导入</string>
+    <string name="settings_import_confirm_message">导入将覆盖当前的人设、提示词和历史记录数据，且无法撤销。\n\nAPI 密钥不会被覆盖。\n\n确定要继续吗？</string>
+    <string name="settings_import_success">数据导入成功，正在重新加载…</string>
+    <string name="settings_import_failed">导入失败：%s</string>
+    <string name="settings_import_invalid_file">无效的备份文件</string>
 
     <!-- Common Actions -->
     <string name="action_edit">编辑</string>

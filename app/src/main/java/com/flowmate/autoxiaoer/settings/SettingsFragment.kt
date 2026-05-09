@@ -1,6 +1,7 @@
 package com.flowmate.autoxiaoer.settings
 
 import android.Manifest
+import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -15,13 +16,16 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.CheckBox
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.Lifecycle
@@ -36,8 +40,11 @@ import com.flowmate.autoxiaoer.agent.LLMAgentConfig
 import com.flowmate.autoxiaoer.config.BehaviorContext
 import com.flowmate.autoxiaoer.config.BrainLLMPrompts
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
+import com.flowmate.autoxiaoer.config.PersonaContext
 import com.flowmate.autoxiaoer.config.PromptManager
 import com.flowmate.autoxiaoer.config.PromptVersion
+import com.flowmate.autoxiaoer.config.RelationshipContext
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -45,6 +52,7 @@ import com.flowmate.autoxiaoer.model.ModelClient
 import com.flowmate.autoxiaoer.model.ModelConfig
 import com.flowmate.autoxiaoer.ui.MainViewModel
 import com.flowmate.autoxiaoer.ui.PermissionStates
+import com.flowmate.autoxiaoer.util.DataMigrationManager
 import com.flowmate.autoxiaoer.util.LogFileManager
 import com.flowmate.autoxiaoer.util.Logger
 import com.flowmate.autoxiaoer.clawbot.ClawBotManager
@@ -52,7 +60,9 @@ import com.flowmate.autoxiaoer.clawbot.ClawBotPollingService
 import com.flowmate.autoxiaoer.clawbot.ClawBotQrLoginDialog
 import com.flowmate.autoxiaoer.util.applyPrimaryButtonColors
 import com.flowmate.autoxiaoer.util.showWithPrimaryButtons
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import rikka.shizuku.Shizuku
 
 /**
@@ -99,6 +109,26 @@ class SettingsFragment : Fragment() {
     private lateinit var logSizeText: TextView
     private lateinit var btnExportLogs: Button
     private lateinit var btnClearLogs: Button
+
+    // Data migration views
+    private lateinit var btnExportData: Button
+    private lateinit var btnImportData: Button
+
+    // File picker result launcher for import
+    private val importFilePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.data?.let { uri -> handleImportFileSelected(uri) }
+        }
+    }
+
+    // Share result launcher for export
+    private val exportShareLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) {
+        // Share completed (fire-and-forget)
+    }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         Logger.d(TAG, "SettingsFragment created")
@@ -161,6 +191,10 @@ class SettingsFragment : Fragment() {
         // LLM-agent settings entry button
         view.findViewById<Button>(R.id.btnLLMAgentSettings)
             .setOnClickListener { showLLMAgentSettingsDialog() }
+
+        // Data migration buttons
+        btnExportData = view.findViewById(R.id.btnExportData)
+        btnImportData = view.findViewById(R.id.btnImportData)
 
         // BrainLLM settings entry button
         view.findViewById<Button>(R.id.btnBrainLLMSettings)
@@ -226,6 +260,10 @@ class SettingsFragment : Fragment() {
 
         btnExportLogs.setOnClickListener { exportDebugLogs() }
         btnClearLogs.setOnClickListener { showClearLogsDialog() }
+
+        // Data migration
+        btnExportData.setOnClickListener { showExportDataDialog() }
+        btnImportData.setOnClickListener { showImportDataDialog() }
 
         btnClawBotAction.setOnClickListener {
             if (ClawBotManager.isConnected(requireContext())) {
@@ -1698,6 +1736,169 @@ class SettingsFragment : Fragment() {
             }
             .setNegativeButton("取消", null)
             .show()
+    }
+
+    // endregion
+
+    // region Data Migration
+
+    /**
+     * Shows the export dialog with a "persona only" checkbox option.
+     */
+    private fun showExportDataDialog() {
+        val ctx = requireContext()
+
+        val container = android.widget.LinearLayout(ctx).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            val dp16 = (16 * resources.displayMetrics.density).toInt()
+            val dp8 = (8 * resources.displayMetrics.density).toInt()
+            setPadding(dp16, dp8, dp16, dp8)
+        }
+
+        val descText = TextView(ctx).apply {
+            text = getString(R.string.settings_export_persona_only_desc)
+            textSize = 14f
+            setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary))
+        }
+        container.addView(descText)
+
+        val checkbox = CheckBox(ctx).apply {
+            text = getString(R.string.settings_export_persona_only)
+            textSize = 16f
+            isChecked = true // default to persona-only
+            val dp16 = (16 * resources.displayMetrics.density).toInt()
+            setPadding(0, dp16, 0, 0)
+        }
+        container.addView(checkbox)
+
+        MaterialAlertDialogBuilder(ctx)
+            .setTitle(getString(R.string.settings_export_dialog_title))
+            .setView(container)
+            .setPositiveButton(getString(R.string.dialog_confirm)) { _, _ ->
+                val personaOnly = checkbox.isChecked
+                performExport(personaOnly)
+            }
+            .setNegativeButton(getString(R.string.dialog_cancel), null)
+            .showWithPrimaryButtons()
+    }
+
+    /**
+     * Executes the export and triggers a share intent for the generated zip file.
+     */
+    private fun performExport(personaOnly: Boolean) {
+        val ctx = requireContext()
+        lifecycleScope.launch {
+            val zipFile = withContext(Dispatchers.IO) {
+                DataMigrationManager.exportData(ctx, personaOnly)
+            }
+            if (zipFile != null) {
+                try {
+                    val uri = FileProvider.getUriForFile(
+                        ctx, "${ctx.packageName}.fileprovider", zipFile
+                    )
+                    val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                        type = "application/zip"
+                        putExtra(Intent.EXTRA_STREAM, uri)
+                        putExtra(Intent.EXTRA_SUBJECT, "小二数据备份")
+                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                    exportShareLauncher.launch(
+                        Intent.createChooser(shareIntent, getString(R.string.settings_export_data))
+                    )
+                    Toast.makeText(ctx, getString(R.string.settings_export_success), Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    Logger.e(TAG, "Failed to share export file", e)
+                    Toast.makeText(ctx, getString(R.string.settings_export_failed), Toast.LENGTH_SHORT).show()
+                }
+            } else {
+                Toast.makeText(ctx, getString(R.string.settings_export_failed), Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    /**
+     * Shows a confirmation dialog before launching the file picker for import.
+     */
+    private fun showImportDataDialog() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(getString(R.string.settings_import_confirm_title))
+            .setMessage(getString(R.string.settings_import_confirm_message))
+            .setPositiveButton(getString(R.string.dialog_confirm)) { _, _ ->
+                launchImportFilePicker()
+            }
+            .setNegativeButton(getString(R.string.dialog_cancel), null)
+            .showWithPrimaryButtons()
+    }
+
+    /**
+     * Launches the system file picker filtered to zip files.
+     */
+    private fun launchImportFilePicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/zip"
+        }
+        importFilePickerLauncher.launch(intent)
+    }
+
+    /**
+     * Handles the file selected by the user for import.
+     *
+     * Copies the file to a temporary location (because the URI permission may not
+     * persist), then delegates to [DataMigrationManager.importData].
+     */
+    private fun handleImportFileSelected(uri: Uri) {
+        val ctx = requireContext()
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    // Copy URI content to a temp file so ZipInputStream can work with it
+                    val tempFile = File(ctx.cacheDir, "import_temp.zip")
+                    ctx.contentResolver.openInputStream(uri)?.use { input ->
+                        tempFile.outputStream().use { output -> input.copyTo(output) }
+                    } ?: return@withContext DataMigrationManager.ImportResult.Failure("无法读取文件")
+
+                    val importResult = DataMigrationManager.importData(ctx, tempFile)
+                    tempFile.delete()
+                    importResult
+                } catch (e: Exception) {
+                    Logger.e(TAG, "Import failed", e)
+                    DataMigrationManager.ImportResult.Failure(e.message ?: "未知错误")
+                }
+            }
+
+            when (result) {
+                is DataMigrationManager.ImportResult.Success -> {
+                    Toast.makeText(ctx, getString(R.string.settings_import_success), Toast.LENGTH_LONG).show()
+                    // Reload contexts so the imported data takes effect immediately
+                    reinitializeAfterImport()
+                }
+                is DataMigrationManager.ImportResult.Failure -> {
+                    Toast.makeText(
+                        ctx,
+                        getString(R.string.settings_import_failed, result.reason),
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
+
+    /**
+     * Re-initialises all context objects and reloads settings after a successful import
+     * so that imported data is reflected without restarting the app.
+     */
+    private fun reinitializeAfterImport() {
+        val ctx = requireContext()
+        // Re-read imported prompt files
+        PersonaContext.init(ctx)
+        RelationshipContext.init(ctx)
+        BehaviorContext.init(ctx)
+        // PromptManager is already lazily initialized, force re-read by creating a fresh instance
+        // SettingsManager reads from SharedPreferences which was already updated by the import
+        // Reload UI settings
+        loadCurrentSettings()
+        Logger.i(TAG, "Re-initialised contexts after import")
     }
 
     // endregion
