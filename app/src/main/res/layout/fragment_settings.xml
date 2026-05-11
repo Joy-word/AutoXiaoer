@@ -277,6 +277,65 @@
 
                 </com.google.android.material.card.MaterialCardView>
 
+                <!-- Data Migration Card -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/dataMigrationCard"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    app:cardBackgroundColor="@color/card_background"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="4dp"
+                            android:text="@string/settings_data_migration"
+                            android:textAppearance="?attr/textAppearanceTitleMedium"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="12dp"
+                            android:text="@string/settings_data_migration_description"
+                            android:textAppearance="?attr/textAppearanceBodySmall"
+                            android:textColor="@color/text_secondary" />
+
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:gravity="start"
+                            android:orientation="horizontal">
+
+                            <Button
+                                android:id="@+id/btnExportData"
+                                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="48dp"
+                                android:layout_marginEnd="8dp"
+                                android:text="@string/settings_export_data" />
+
+                            <Button
+                                android:id="@+id/btnImportData"
+                                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                                android:layout_width="wrap_content"
+                                android:layout_height="48dp"
+                                android:text="@string/settings_import_data" />
+
+                        </LinearLayout>
+
+                    </LinearLayout>
+
+                </com.google.android.material.card.MaterialCardView>
+
                 <!-- Permissions Center Card (Collapsible) -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/permissionsCenterCard"
@@ -301,17 +360,9 @@
                             android:gravity="center_vertical"
                             android:orientation="horizontal">
 
-                            <ImageView
-                                android:layout_width="40dp"
-                                android:layout_height="40dp"
-                                android:contentDescription="Permissions"
-                                android:src="@drawable/ic_check_circle"
-                                app:tint="@color/icon_primary" />
-
                             <LinearLayout
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
-                                android:layout_marginStart="16dp"
                                 android:layout_weight="1"
                                 android:orientation="vertical">
 
@@ -380,100 +431,6 @@
 
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Data Migration Card -->
-                <com.google.android.material.card.MaterialCardView
-                    android:id="@+id/dataMigrationCard"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="12dp"
-                    app:cardBackgroundColor="@color/card_background"
-                    app:cardCornerRadius="16dp"
-                    app:cardElevation="0dp">
-
-                    <LinearLayout
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:orientation="vertical"
-                        android:padding="16dp">
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
-
-                            <ImageView
-                                android:layout_width="40dp"
-                                android:layout_height="40dp"
-                                android:contentDescription="Data Migration"
-                                android:src="@drawable/ic_upload"
-                                app:tint="@color/icon_primary" />
-
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="16dp"
-                                android:layout_weight="1"
-                                android:orientation="vertical">
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/settings_data_migration"
-                                    android:textColor="@color/text_primary"
-                                    android:textSize="16sp" />
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="2dp"
-                                    android:text="@string/settings_data_migration_description"
-                                    android:textColor="@color/text_secondary"
-                                    android:textSize="14sp" />
-
-                            </LinearLayout>
-
-                        </LinearLayout>
-
-                        <LinearLayout
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="16dp"
-                            android:orientation="horizontal">
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnExportData"
-                                style="@style/Widget.App.Button.Secondary"
-                                android:layout_width="0dp"
-                                android:layout_height="48dp"
-                                android:layout_marginEnd="8dp"
-                                android:layout_weight="1"
-                                android:text="@string/settings_export_data"
-                                app:icon="@drawable/ic_share"
-                                app:iconGravity="textStart"
-                                app:iconPadding="8dp"
-                                app:strokeColor="@color/primary"
-                                app:strokeWidth="1dp" />
-
-                            <com.google.android.material.button.MaterialButton
-                                android:id="@+id/btnImportData"
-                                style="@style/Widget.App.Button.Secondary"
-                                android:layout_width="0dp"
-                                android:layout_height="48dp"
-                                android:layout_weight="1"
-                                android:text="@string/settings_import_data"
-                                app:icon="@drawable/ic_download"
-                                app:iconGravity="textStart"
-                                app:iconPadding="8dp"
-                                app:strokeColor="@color/primary"
-                                app:strokeWidth="1dp" />
-
-                        </LinearLayout>
-
-                    </LinearLayout>
-
-                </com.google.android.material.card.MaterialCardView>
-
                 <!-- Debug Logs Card -->
                 <com.google.android.material.card.MaterialCardView
                     android:layout_width="match_parent"
@@ -489,69 +446,40 @@
                         android:orientation="vertical"
                         android:padding="16dp">
 
-                        <LinearLayout
+                        <TextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:gravity="center_vertical"
-                            android:orientation="horizontal">
+                            android:layout_marginBottom="4dp"
+                            android:text="@string/settings_debug_logs"
+                            android:textAppearance="?attr/textAppearanceTitleMedium"
+                            android:textColor="@color/text_primary" />
 
-                            <ImageView
-                                android:layout_width="40dp"
-                                android:layout_height="40dp"
-                                android:contentDescription="Debug"
-                                android:src="@drawable/ic_bug_report"
-                                app:tint="@color/icon_primary" />
-
-                            <LinearLayout
-                                android:layout_width="0dp"
-                                android:layout_height="wrap_content"
-                                android:layout_marginStart="16dp"
-                                android:layout_weight="1"
-                                android:orientation="vertical">
-
-                                <TextView
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:text="@string/settings_debug_logs"
-                                    android:textColor="@color/text_primary"
-                                    android:textSize="16sp" />
-
-                                <TextView
-                                    android:id="@+id/logSizeText"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="wrap_content"
-                                    android:layout_marginTop="2dp"
-                                    android:text="@string/settings_debug_logs_description"
-                                    android:textColor="@color/text_secondary"
-                                    android:textSize="14sp" />
-
-                            </LinearLayout>
-
-                        </LinearLayout>
+                        <TextView
+                            android:id="@+id/logSizeText"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="12dp"
+                            android:text="@string/settings_debug_logs_description"
+                            android:textAppearance="?attr/textAppearanceBodySmall"
+                            android:textColor="@color/text_secondary" />
 
                         <LinearLayout
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:layout_marginTop="16dp"
+                            android:gravity="start"
                             android:orientation="horizontal">
 
-                            <com.google.android.material.button.MaterialButton
+                            <Button
                                 android:id="@+id/btnExportLogs"
-                                style="@style/Widget.App.Button.Secondary"
-                                android:layout_width="0dp"
+                                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                                android:layout_width="wrap_content"
                                 android:layout_height="48dp"
                                 android:layout_marginEnd="8dp"
-                                android:layout_weight="1"
-                                android:text="@string/settings_export_logs"
-                                app:icon="@drawable/ic_share"
-                                app:iconGravity="textStart"
-                                app:iconPadding="8dp"
-                                app:strokeColor="@color/primary"
-                                app:strokeWidth="1dp" />
+                                android:text="@string/settings_export_logs" />
 
-                            <com.google.android.material.button.MaterialButton
+                            <Button
                                 android:id="@+id/btnClearLogs"
-                                style="@style/Widget.App.Button.Text.Secondary"
+                                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                                 android:layout_width="wrap_content"
                                 android:layout_height="48dp"
                                 android:text="@string/settings_clear_logs" />
