@@ -1766,9 +1766,12 @@ class SettingsFragment : Fragment() {
             text = getString(R.string.settings_export_persona_only)
             textSize = 16f
             isChecked = true // default to persona-only
-            val dp16 = (16 * resources.displayMetrics.density).toInt()
-            setPadding(0, dp16, 0, 0)
         }
+        val dp16 = (16 * resources.displayMetrics.density).toInt()
+        checkbox.layoutParams = android.widget.LinearLayout.LayoutParams(
+            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp16 }
         container.addView(checkbox)
 
         MaterialAlertDialogBuilder(ctx)
