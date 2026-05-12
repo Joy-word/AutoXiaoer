@@ -1795,6 +1795,19 @@ class SettingsFragment : Fragment() {
                 DataMigrationManager.exportData(ctx, personaOnly)
             }
             if (zipFile != null) {
+                // Always save a copy to the Downloads directory first
+                val savedPath = withContext(Dispatchers.IO) {
+                    DataMigrationManager.saveToDownloads(ctx, zipFile)
+                }
+                if (savedPath != null) {
+                    Toast.makeText(
+                        ctx,
+                        "已保存到: $savedPath",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+
+                // Also try to launch the share sheet (useful on real devices)
                 try {
                     val uri = FileProvider.getUriForFile(
                         ctx, "${ctx.packageName}.fileprovider", zipFile
@@ -1808,9 +1821,11 @@ class SettingsFragment : Fragment() {
                     exportShareLauncher.launch(
                         Intent.createChooser(shareIntent, getString(R.string.settings_export_data))
                     )
-                    Toast.makeText(ctx, getString(R.string.settings_export_success), Toast.LENGTH_LONG).show()
                 } catch (e: Exception) {
-                    Logger.e(TAG, "Failed to share export file", e)
+                    Logger.e(TAG, "Share intent failed (file already saved to Downloads)", e)
+                }
+
+                if (savedPath == null) {
                     Toast.makeText(ctx, getString(R.string.settings_export_failed), Toast.LENGTH_SHORT).show()
                 }
             } else {

@@ -1,7 +1,12 @@
 package com.flowmate.autoxiaoer.util
 
+import android.content.ContentValues
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import com.flowmate.autoxiaoer.BuildConfig
 import com.flowmate.autoxiaoer.settings.SettingsManager
 import org.json.JSONArray
@@ -9,6 +14,7 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -106,6 +112,50 @@ object DataMigrationManager {
         zipFile
     } catch (e: Exception) {
         Logger.e(TAG, "Export failed", e)
+        null
+    }
+
+    /**
+     * Copies the exported zip file to the system Downloads directory so it can be
+     * accessed via a file manager or adb.
+     *
+     * On Android 10+ (API 29+) uses [MediaStore] which requires no extra permissions.
+     * On older versions falls back to [Environment.getExternalStoragePublicDirectory].
+     *
+     * @return The display-friendly path where the file was saved, or null on failure.
+     */
+    fun saveToDownloads(context: Context, zipFile: File): String? = try {
+        val fileName = zipFile.name
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            val resolver = context.contentResolver
+            val contentValues = ContentValues().apply {
+                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
+                put(MediaStore.Downloads.MIME_TYPE, "application/zip")
+                put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+            }
+            val uri: Uri? = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+            if (uri != null) {
+                resolver.openOutputStream(uri)?.use { output ->
+                    zipFile.inputStream().use { input -> input.copyTo(output) }
+                }
+                Logger.i(TAG, "Saved to Downloads via MediaStore: $fileName")
+                // Return a user-friendly path
+                "/sdcard/Download/$fileName"
+            } else {
+                Logger.e(TAG, "MediaStore insert returned null")
+                null
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            downloadsDir.mkdirs()
+            val target = File(downloadsDir, fileName)
+            zipFile.copyTo(target, overwrite = true)
+            Logger.i(TAG, "Saved to Downloads: ${target.absolutePath}")
+            target.absolutePath
+        }
+    } catch (e: IOException) {
+        Logger.e(TAG, "Failed to save to Downloads", e)
         null
     }
 
