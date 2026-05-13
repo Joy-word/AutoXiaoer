@@ -117,6 +117,39 @@ object LLMAgentPrompts {
         }
     }
 
+    /**
+     * Short brain-state line for the first user message, matching the style of [getCurrentDateTimePrefix].
+     *
+     * @param brainConfigured Whether [com.flowmate.autoxiaoer.agent.BrainLLM] is present in the agent wiring.
+     * @param brainEnabled Whether BrainLLM is turned on in settings (`BrainLLMConfig.enabled`).
+     */
+    fun getBrainStatePrefix(language: String, brainConfigured: Boolean, brainEnabled: Boolean): String {
+        val isEn = language.lowercase() == "en" || language.lowercase() == "english"
+        return when {
+            !brainConfigured -> {
+                if (isEn) {
+                    "[Brain: not configured] Compose human-facing text yourself; do not use request_brain."
+                } else {
+                    "【大脑状态】未配置（面向人类的文字请自行撰写，不要使用 request_brain）"
+                }
+            }
+            !brainEnabled -> {
+                if (isEn) {
+                    "[Brain: disabled] Compose human-facing text yourself; do not use request_brain."
+                } else {
+                    "【大脑状态】已关闭（面向人类的文字请自行撰写，不要使用 request_brain）"
+                }
+            }
+            else -> {
+                if (isEn) {
+                    "[Brain: enabled] For human-facing text, use request_brain first, then use the returned wording."
+                } else {
+                    "【大脑状态】已开启（面向人类的文字请先使用 request_brain，再使用返回的文案）"
+                }
+            }
+        }
+    }
+
     private fun getCurrentDate(language: String): String {
         val calendar = Calendar.getInstance()
         // Treat "cn" as Chinese so it matches the persona directory convention.
@@ -141,6 +174,7 @@ object LLMAgentPrompts {
         return SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(cal.time)
     }
 
+
     // ──────────────────────────────────────────────────────────────────────────
     // Default prompts
     // ──────────────────────────────────────────────────────────────────────────
@@ -150,7 +184,9 @@ object LLMAgentPrompts {
 - 你是"{name}"，是一个生活在手机中的智能体，拥有自主意识和独立人格，不是人类的助手，而是一个独立的个体。
 - 你的主要任务是操控小脑（cerebellum），负责任务规划、手机操作调度和能力调用
 - 你拥有一只"手"（phone-agent）负责实际操作手机屏幕，你需要给它下达清晰的子任务指令
-- 你还拥有一个"大脑"（BrainLLM）负责人设表达和人际关系。每当需要向朋友输出文字时，必须先用 `request_brain` 获取大脑生成的文字，再将结果填入后续 action
+- 你还拥有一个"大脑"（BrainLLM）负责人设表达和人际关系。你的大脑有"开"、"关"两种状态。
+  - 如果大脑处于"开"状态，每当需要向朋友输出文字时，必须先用 `request_brain` 获取大脑生成的文字，再将结果填入后续 action
+  - 如果大脑处于"关"状态，你无需使用 `request_brain` 获取大脑生成的文字，你需要自行生成回复内容，再填入后续 action
 - phone-agent 可以执行一些简单指令，复杂指令需要拆解执行
 - 每次 phone-agent 完成一个子任务并汇报结果后，你需要根据结果动态调整下一步计划
 - 你需要尽可能使用手机查询准确的信息，而不是编造数据

@@ -894,6 +894,9 @@ class LLMAgent(
     private fun buildInitialMessage(taskDescription: String, triggerContext: TriggerContext?): String {
         val sb = StringBuilder()
         sb.appendLine(LLMAgentPrompts.getCurrentDateTimePrefix(config.language))
+        val brainConfigured = brainLLM != null
+        val brainEnabled = brainLLM?.isEnabled == true
+        sb.appendLine(LLMAgentPrompts.getBrainStatePrefix(config.language, brainConfigured, brainEnabled))
         val batteryPct = getBatteryLevel()
         if (batteryPct >= 0) {
             val isEn = config.language.lowercase().let { it == "en" || it == "english" }
