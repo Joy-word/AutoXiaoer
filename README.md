@@ -275,6 +275,7 @@ Shizuku 是本应用的核心依赖，用于执行屏幕点击、滑动等操作
 <table>
   <tr>
     <td><img src="pictures/交流群.jpg" width="100%"/></td>
+    <td><img src="pictures/微信联系.png" width="100%"/></td>
   </tr>
 </table>
 
