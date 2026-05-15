@@ -3,7 +3,7 @@ package com.flowmate.autoxiaoer.agent
 /**
  * Configuration for [BrainLLM].
  *
- * Fully independent from [LLMAgentConfig] (小脑) — can point to a different provider,
+ * Fully independent from [LLMAgentConfig] (控制者) — can point to a different provider,
  * a different model, and uses its own system prompt.
  *
  * @property baseUrl API base URL (OpenAI-compatible /chat/completions endpoint)

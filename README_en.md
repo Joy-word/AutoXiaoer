@@ -40,7 +40,7 @@ Auto Xiao'er is a native Android application deeply modified from [AutoGLM For A
 
 - 🚀 **No Computer Required**: Runs directly on the phone without ADB connection
 - 🎯 **Seamless Integration with Social Apps**: Vision-based operation works with any social app installed on your phone
-- 🤖 **Dual-Agent Collaboration**: LLM + vision model for smarter task execution
+- 🤖 **Dual Agent + Optional Persona**: **Controller** (LLM Agent) + **Executor** (Phone Agent) collaborate on planning and screen actions; optional **Expresser** (BrainLLM) handles persona-driven wording and interpersonal expression for friends/users, decoupled from task planning
 - ⏰ **Scheduled Tasks**: Supports timed task execution with repeat modes, auto wake screen
 - 🔔 **Notification Triggers**: Monitors specified app notifications and auto-triggers preset tasks
 - 📶 **WeChat Remote Control**: Connect via WeChat QR code scan to control Xiao'er remotely
@@ -62,6 +62,8 @@ Auto Xiao'er is a native Android application deeply modified from [AutoGLM For A
 - ✅ **Scheduled Tasks**: Preset tasks to execute automatically at designated times, supporting one-time and repetitive tasks
 - ✅ **Notification Triggers**: Monitor specific app notifications to automatically trigger corresponding tasks
 - ✅ **WeChat Remote Control (ClawBot)**: Connect via WeChat QR code scan, send commands remotely and receive task execution results
+- ✅ **Persona Separation**: The **Controller** (LLM Agent) focuses on task breakdown and tool dispatch; when **Expresser** (BrainLLM) is configured separately, it generates natural-language messages to friends or users, with persona and relationship context on the expresser side while the controller can stay in a neutral scheduling voice
+- ✅ **Expresser Wording (BrainLLM)**: When enabled, outgoing text can be polished via `request_brain` using persona and relationship archives; can use a different provider/model from the controller, e.g. a text model better at dialogue and role-play
 
 ### User Interface
 
@@ -162,14 +164,15 @@ After opening the app, grant the following permissions in order:
 
 Go to "Settings" page and configure the AI model API.
 
-This app uses a **dual-model, dual-agent architecture**:
+This app uses a **dual-model, dual-agent architecture**, with an optional standalone **Expresser (BrainLLM)**:
 
 | Role | Responsibility | Recommended Model |
 | ---- | -------------- | ----------------- |
-| **LLM Agent (Planning)** | Receives user tasks, performs high-level planning via ReAct loop, breaks complex tasks into sub-tasks | Pure text LLM (e.g. GLM-4, DeepSeek) |
-| **Phone Agent (Execution)** | Awaits sub-tasks, analyzes screenshots and executes actions | Vision model with image understanding (e.g. autoglm-phone) |
+| **LLM Agent (Controller)** | Receives user tasks, performs high-level planning via ReAct loop, breaks complex tasks into sub-tasks | Pure text LLM (e.g. GLM-4.7, DeepSeek) |
+| **Phone Agent (Executor)** | Awaits sub-tasks, analyzes screenshots and executes actions | Vision model with image understanding (e.g. autoglm-phone) |
+| **BrainLLM (Expresser · optional)** | Persona expression, relationships, and human-facing wording; when enabled, outgoing messages can be generated solely by the expresser | Pure text LLM (same or different provider as the controller; models strong at role-play and dialogue, e.g. doubao-seed-2.0) |
 
-> The two agents are configured independently and can point to different providers.
+> Phone Agent (Executor) and LLM Agent (Controller) APIs are always configured independently; the **Expresser** is a third independent endpoint, off by default and participates in wording once enabled in Settings.
 
 **Phone Agent Configuration (Vision Model)**
 
@@ -191,9 +194,9 @@ This app uses a **dual-model, dual-agent architecture**:
 
 After configuration, tap "Test Connection" to verify the settings.
 
-**LLM Agent Configuration (Planning LLM)**
+**LLM Agent Configuration (Controller · Planning LLM)**
 
-Go to Settings → LLM Agent Configuration to set up the pure-text large language model used for planning:
+Go to Settings → LLM Agent Configuration to set up the pure-text large language model for the controller:
 
 | Setting             | Description                                                    |
 | ------------------- | -------------------------------------------------------------- |
@@ -201,9 +204,24 @@ Go to Settings → LLM Agent Configuration to set up the pure-text large languag
 | Model               | Pure text model, e.g. `glm-4-plus`, `deepseek-chat`           |
 | API Key             | API key for the corresponding service                          |
 | Max Planning Steps  | Maximum ReAct iterations for the LLM loop, default 20         |
-| Custom System Prompt| Overrides the built-in planning prompt to tune behaviour       |
+| Custom System Prompt| Overrides the built-in controller prompt to tune behaviour       |
 
 > 💡 LLM Agent config is strictly independent from Phone Agent config — any OpenAI-compatible text model can be used.
+
+**BrainLLM Configuration (Expresser)**
+
+Go to Settings → **Configure Expresser (BrainLLM)** (or use the expresser toggle under persona settings) for the wording model that works with persona and relationship archives. Fully decoupled from **LLM Agent (Controller)** — different Base URL, model, and API key are supported.
+
+| Setting | Description |
+| ------- | ----------- |
+| **Enable Expresser** | When off, human-facing text is generated by the controller model; when on, the controller must obtain expresser output via `request_brain` before filling send-related actions |
+| **Base URL** | OpenAI-compatible API root (`/chat/completions`) |
+| **Model** | Pure text model name (e.g. `glm-4-plus`) |
+| **API Key** | API key for this service (can differ from controller and Phone Agent) |
+| **Max Tokens / Temperature** | Limits expresser output length and sampling randomness |
+| **Custom System Prompt** | When set, overrides the built-in expresser prompt for persona and speaking style |
+
+> 💡 Persona, relationships, and behavior rules are maintained under **Manage Persona**; expresser prompts work with them for **control vs. wording separation**.
 
 <table>
   <tr>
@@ -218,6 +236,8 @@ Any model service can be used as long as it meets the following requirements:
 1. **API Format Compatible**: Provides OpenAI-compatible `/chat/completions` endpoint
 2. **Multi-modal Support**: Supports `image_url` format for image input
 3. **Image Understanding**: Can analyze screenshots and understand UI elements
+
+Requirements **2 and 3 apply only to Phone Agent (Executor · vision model)**. **LLM Agent (Controller)** and **BrainLLM (Expresser)** only need requirement 1 (standard text chat); multimodal is not required.
 
 > ⚠️ **Note**: Non-AutoGLM models may require custom system prompts to output the correct action command format. You can customize system prompts in Settings → Advanced Settings.
 

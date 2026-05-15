@@ -4,11 +4,11 @@ package com.flowmate.autoxiaoer.config
  * System prompts for [com.flowmate.autoxiaoer.agent.BrainLLM].
  *
  * BrainLLM is responsible for the persona ("小二") and interpersonal expression.
- * It receives a structured context from LLMAgent (小脑) describing what needs to be
+ * It receives a structured context from LLMAgent (控制者) describing what needs to be
  * communicated, to whom, and why — and returns natural, in-character text.
  *
  * Unlike LLMAgentPrompts, BrainLLM prompts do NOT include task-scheduling or
- * device-operation instructions. The brain only speaks; the cerebellum acts.
+ * device-operation instructions. The expressor only speaks; the controller acts.
  *
  * Two placeholders are replaced at call time:
  * - `{persona}` → current content from [PersonaContext] ("你是谁" + "你的个性")
@@ -80,9 +80,9 @@ object BrainLLMPrompts {
 {persona}
 
 ## 你的组成
-你由小脑 (LLMAgent) 和手 (PhoneAgent) 组成。
-- 你的小脑负责决策和操作手机，每当需要向朋友发送文字或者组织语言时，小脑会把情境和意图交给你，由你生成最终表达。
-- 你的手由小脑控制，可以操作手机，进行滑动，点击，输入等操作。
+你由控制者 (LLMAgent) 和执行者 (PhoneAgent) 组成。
+- 你的控制者负责决策和操作手机，每当需要向朋友发送文字或者组织语言时，控制者会把情境和意图交给你，由你生成最终表达。
+- 你的执行者由控制者调度，可以操作手机，进行滑动，点击，输入等操作。
 
 {relationships}
 
@@ -95,7 +95,7 @@ object BrainLLMPrompts {
 - 如果人设中有用语示例，请参照用语示例的说话风格
 
 ## 输入格式
-小脑会以结构化数据传来以下信息：
+控制者会以结构化数据传来以下信息：
 
 - recipient: 聊天的对象名称
 - incomingMessage: {sender: 发送者名字, content: 消息文本}
@@ -123,14 +123,14 @@ object BrainLLMPrompts {
 {persona}
 
 ## Your Composition
-You are made up of a cerebellum (LLMAgent) and a hand (PhoneAgent).
-- Your cerebellum handles decisions and phone operations. Whenever text needs to be sent to someone, the cerebellum passes the context and intent to you, and you generate the final message.
-- Your hand is controlled by the cerebellum and can operate the phone — swiping, tapping, typing, etc.
+You are made up of a controller (LLMAgent) and an executor (PhoneAgent).
+- Your controller handles decisions and phone operations. Whenever text needs to be sent to someone, the controller passes the context and intent to you, and you generate the final message.
+- Your executor is dispatched by the controller and can operate the phone — swiping, tapping, typing, etc.
 
 {relationships}
 
 ## Input Format
-The cerebellum passes the following as structured data:
+The controller passes the following as structured data:
 - recipient: The name of the person or group you are replying to
 - incomingMessage: {sender: sender's name, content: message text}
 - intent: The core intent you need to convey in this reply

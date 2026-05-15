@@ -33,7 +33,7 @@ data class PhoneAgentConfig(
      *  When the accumulated SSE content exceeds this limit the stream is cancelled immediately
      *  and the already-received content is used as-is, preventing runaway output loops.
      *  Set to 0 to disable the check. */
-    val maxResponseLength: Int = 2000,
+    val maxResponseLength: Int = 1000,
 )
 
 /**

@@ -9,17 +9,17 @@ import com.flowmate.autoxiaoer.model.TokenUsage
 import com.flowmate.autoxiaoer.util.Logger
 
 /**
- * The "brain" (大脑) layer responsible for persona, interpersonal expression, and
+ * The expressor (表达者) layer responsible for persona, interpersonal expression, and
  * natural-language generation.
  *
- * [LLMAgent] (小脑) handles task scheduling and capability invocation. Whenever text
- * needs to be sent to a friend or user, the cerebellum calls [BrainLLM.generateMessage]
+ * [LLMAgent] (控制者) handles task scheduling and capability invocation. Whenever text
+ * needs to be sent to a friend or user, the controller calls [BrainLLM.generateMessage]
  * and uses the result as the actual message content.
  *
  * This clean separation means:
  * - The brain can be pointed at a different, more expressive model.
  * - Persona and relationship knowledge lives entirely in the brain's system prompt.
- * - The cerebellum's system prompt can be stripped of character descriptions.
+ * - The controller's system prompt can be stripped of character descriptions.
  *
  * Future extension: give the brain a persistent memory layer so it can recall past
  * conversations and relationship details across sessions.
@@ -48,7 +48,7 @@ class BrainLLM(
     /**
      * Generates an expressive, in-character message to be sent to [recipient].
      *
-     * The cerebellum should call this method instead of letting the LLM directly
+     * The controller should call this method instead of letting the LLM directly
      * compose text inside the ReAct loop — keeping persona concerns fully isolated.
      *
      * @param recipient Who the message is addressed to (name, group name, or identifier)

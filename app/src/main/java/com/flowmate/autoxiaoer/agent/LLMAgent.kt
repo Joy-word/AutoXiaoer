@@ -73,7 +73,7 @@ interface LLMAgentListener {
 }
 
 /**
- * The "cerebellum" (小脑) layer of the two-agent architecture.
+ * The controller (控制者) layer of the two-agent architecture.
  *
  * [LLMAgent] implements a simple ReAct loop:
  *   1. **Think** — call the LLM to reason about the current state and decide on a sub-task
@@ -82,7 +82,7 @@ interface LLMAgentListener {
  *
  * When [brainLLM] is provided and enabled, the LLM is expected to issue a "request_brain"
  * action before sending any human-facing text. The brain generates the final wording and
- * returns it to the cerebellum, which then fills it into the subsequent "request_user" or
+ * returns it to the controller, which then fills it into the subsequent "request_user" or
  * "execute_subtask" (preGeneratedTexts) action. Persona and interpersonal expression remain
  * fully isolated from task logic this way.
  *
@@ -646,34 +646,34 @@ class LLMAgent(
                                     brainText != null -> {
                                         // Brain responded successfully
                                         if (isEn) {
-                                            "[Brain Result]\n$brainText\n\nPlease place the above content into the next action (request_user's message, or the corresponding value in preGeneratedTexts)."
+                                            "[Expressor Result]\n$brainText\n\nPlease place the above content into the next action (request_user's message, or the corresponding value in preGeneratedTexts)."
                                         } else {
-                                            "【大脑生成结果】\n$brainText\n\n请将以上内容填入后续 action（request_user 的 message 或 preGeneratedTexts 的对应 value）。"
+                                            "【表达者生成结果】\n$brainText\n\n请将以上内容填入后续 action（request_user 的 message 或 preGeneratedTexts 的对应 value）。"
                                         }
                                     }
                                     brainLLM == null -> {
                                         // Brain not configured
                                         if (isEn) {
-                                            "[Brain Not Available] Brain is not configured. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
+                                            "[Expressor Not Available] Expressor is not configured. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
                                         } else {
-                                            "【大脑未启用】大脑未配置。请你根据以下意图自行生成回复内容，再填入后续 action。\n【意图】${params.intent}"
+                                            "【表达者未启用】表达者未配置。请你根据以下意图自行生成回复内容，再填入后续 action。\n【意图】${params.intent}"
                                         }
                                     }
                                     !brainLLM.isEnabled -> {
                                         // Brain is configured but disabled in settings
                                         if (isEn) {
-                                            "[Brain Disabled] Brain is configured but currently disabled. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
+                                            "[Expressor Disabled] Expressor is configured but currently disabled. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
                                         } else {
-                                            "【大脑已禁用】大脑已配置但当前未启用。请你根据以下意图自行生成回复内容，再填入后续 action。\n【意图】${params.intent}"
+                                            "【表达者已禁用】表达者已配置但当前未启用。请你根据以下意图自行生成回复内容，再填入后续 action。\n【意图】${params.intent}"
                                         }
                                     }
                                     else -> {
                                         // Brain is enabled but call failed
                                         Logger.w(TAG, "BrainLLM call failed for request_brain")
                                         if (isEn) {
-                                            "[Brain Disconnected] The brain failed to respond. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
+                                            "[Expressor Disconnected] The expressor failed to respond. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
                                         } else {
-                                            "【大脑断联】大脑未能响应。请你根据以下意图自行生成回复内容，再填入后续 action。\n【意图】${params.intent}"
+                                            "【表达者断联】表达者未能响应。请你根据以下意图自行生成回复内容，再填入后续 action。\n【意图】${params.intent}"
                                         }
                                     }
                                 }
@@ -726,9 +726,9 @@ class LLMAgent(
                                     RelationshipContext.saveNewVersion(content)
                                     Logger.i(TAG, "LLMAgent updated relationships (${content.length} chars)")
                                     val observation = if (isEn) {
-                                        "【Relationships Updated】The archive has been saved. The brain will use the new content on its next call."
+                                        "【Relationships Updated】The archive has been saved. The expressor will use the new content on its next call."
                                     } else {
-                                        "【人际关系已更新】档案已保存，大脑下次被调用时将自动使用新内容。"
+                                        "【人际关系已更新】档案已保存，表达者下次被调用时将自动使用新内容。"
                                     }
                                     historyManager?.recordPlanningRound(
                                         LLMPlanningRound(
@@ -835,7 +835,7 @@ class LLMAgent(
      * [brainLLM] to generate the actual text.  Non-brain keys are left unchanged.
      *
      * If [brainLLM] is null / disabled, the original [subTask] is returned as-is so the
-     * cerebellum-generated text (the key's value) is used directly.
+     * controller-generated text (the key's value) is used directly.
      */
     private suspend fun resolveSubTaskTexts(
         subTask: SubTask,

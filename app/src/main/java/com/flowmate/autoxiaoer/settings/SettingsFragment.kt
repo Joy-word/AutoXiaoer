@@ -948,7 +948,7 @@ class SettingsFragment : Fragment() {
 
         // Custom system prompt button
         val btnCustomPrompt = Button(ctx).apply {
-            text = "编辑大脑 System Prompt"
+            text = getString(R.string.settings_brain_llm_prompt_edit)
             val lp = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -959,7 +959,7 @@ class SettingsFragment : Fragment() {
         container.addView(btnCustomPrompt)
 
         val dialog = MaterialAlertDialogBuilder(ctx)
-            .setTitle("BrainLLM 设置（大脑）")
+            .setTitle(getString(R.string.settings_brain_llm_dialog_title))
             .setView(scrollView)
             .setPositiveButton("保存") { _, _ ->
                 val baseUrl = baseUrlEdit.text?.toString()?.trim() ?: ""
@@ -994,7 +994,7 @@ class SettingsFragment : Fragment() {
                 )
                 settingsManager.saveBrainLLMConfig(newConfig)
                 com.flowmate.autoxiaoer.ComponentManager.getInstance(ctx).reinitializeAgents()
-                Toast.makeText(ctx, "BrainLLM 设置已保存", Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, getString(R.string.settings_brain_llm_saved), Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("取消", null)
             .create()
@@ -1039,7 +1039,7 @@ class SettingsFragment : Fragment() {
         promptInput.setText(currentPrompt)
 
         val brainDialog = MaterialAlertDialogBuilder(ctx)
-            .setTitle("大脑 System Prompt")
+            .setTitle(getString(R.string.settings_brain_llm_prompt_title))
             .setView(dialogView)
             .setPositiveButton("保存") { _, _ ->
                 val prompt = promptInput.text?.toString() ?: ""
@@ -1049,7 +1049,7 @@ class SettingsFragment : Fragment() {
                     BrainLLMPrompts.run {
                         if (language == "en") setCustomEnglishPrompt(prompt) else setCustomChinesePrompt(prompt)
                     }
-                    Toast.makeText(ctx, "大脑 System Prompt 已保存", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, getString(R.string.settings_brain_llm_prompt_saved), Toast.LENGTH_SHORT).show()
                 }
             }
             .setNeutralButton("历史版本") { _, _ ->
@@ -1063,7 +1063,7 @@ class SettingsFragment : Fragment() {
         btnReset.setOnClickListener {
             MaterialAlertDialogBuilder(ctx)
                 .setTitle("重置为默认")
-                .setMessage("确定要恢复默认的大脑 System Prompt 吗？")
+                .setMessage(getString(R.string.settings_brain_llm_prompt_reset_confirm))
                 .setPositiveButton("确定") { _, _ ->
                     promptManager.deleteCurrent(PromptManager.PromptType.BRAIN_LLM, language)
                     settingsManager.clearBrainLLMCustomPrompt(language)
@@ -1072,7 +1072,7 @@ class SettingsFragment : Fragment() {
                     } else {
                         BrainLLMPrompts.setCustomChinesePrompt(null)
                     }
-                    Toast.makeText(ctx, "已恢复默认大脑 System Prompt", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, getString(R.string.settings_brain_llm_prompt_reset_done), Toast.LENGTH_SHORT).show()
                     brainDialog.dismiss()
                 }
                 .setNegativeButton("取消", null)
@@ -1181,7 +1181,7 @@ class SettingsFragment : Fragment() {
 
         // Custom system prompt button
         val btnCustomPrompt = Button(ctx).apply {
-            text = "编辑自定义 System Prompt"
+            text = getString(R.string.settings_llm_agent_prompt_edit)
             val lp = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -1192,7 +1192,7 @@ class SettingsFragment : Fragment() {
         container.addView(btnCustomPrompt)
 
         val dialog = MaterialAlertDialogBuilder(ctx)
-            .setTitle("LLM-agent 设置（小脑）")
+            .setTitle(getString(R.string.settings_llm_agent_dialog_title))
             .setView(scrollView)
             .setPositiveButton("保存") { _, _ ->
                 val baseUrl = baseUrlEdit.text?.toString()?.trim() ?: ""
@@ -1230,7 +1230,7 @@ class SettingsFragment : Fragment() {
                 settingsManager.saveLLMAgentConfig(newConfig)
                 // Reinitialize so the new config takes effect immediately without an app restart.
                 com.flowmate.autoxiaoer.ComponentManager.getInstance(ctx).reinitializeAgents()
-                Toast.makeText(ctx, "LLM-agent 设置已保存", Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, getString(R.string.settings_llm_agent_saved), Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton("取消", null)
             .create()
@@ -1363,7 +1363,7 @@ class SettingsFragment : Fragment() {
         val nameLayout = TextInputLayout(ctx).apply {
             boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
             isHelperTextEnabled = true
-            helperText = "小脑和大脑在 prompt 中引用的名字"
+            helperText = getString(R.string.settings_persona_agent_name_helper)
             val lp = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -1378,7 +1378,7 @@ class SettingsFragment : Fragment() {
 
         // ── Brain enable switch ──────────────────────────────────────
         val brainSwitch = android.widget.Switch(ctx).apply {
-            text = "启用大脑 (BrainLLM)"
+            text = getString(R.string.settings_persona_enable_expressor)
             isChecked = brainConfig.enabled
             val lp = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
@@ -1391,7 +1391,7 @@ class SettingsFragment : Fragment() {
         container.addView(brainSwitch)
 
         val brainDesc = android.widget.TextView(ctx).apply {
-            text = "启用后，回复朋友的文字会先经过大脑生成，更具人格感。"
+            text = getString(R.string.settings_persona_enable_expressor_desc)
             textSize = 12f
             setTextColor(android.graphics.Color.parseColor("#888888"))
             val lp = android.widget.LinearLayout.LayoutParams(

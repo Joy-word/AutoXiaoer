@@ -51,7 +51,7 @@ data class HistoryStep(
  * @property subTaskSuccess Whether the sub-task executed successfully, or null if not applicable
  * @property subTaskStepCount Number of PhoneAgent steps the sub-task consumed, or null
  * @property message Finish or request_user message, or null
- * @property tokenUsage Token consumption for the LLMAgent (cerebellum) call in this round, or null if unavailable
+ * @property tokenUsage Token consumption for the LLMAgent (controller) call in this round, or null if unavailable
  * @property brainTokenUsage Token consumption for the BrainLLM call in this round (only set for
  *   [actionType] == "request_brain"), or null if unavailable or not applicable
  */
