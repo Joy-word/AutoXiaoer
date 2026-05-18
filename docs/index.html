@@ -244,67 +244,107 @@
         <p class="section-label">Gallery</p>
         <h2 id="shots-title" class="section-title">界面一览</h2>
         <p class="section-lead">Material Design 原生体验，悬浮窗实时看进度。</p>
-        <div class="shot-strip">
-          <a
-            href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_1.jpg"
-            target="_blank"
-            rel="noopener noreferrer"
-            ><img
-              src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_1.jpg"
-              alt="截图 1"
-              loading="lazy"
-              decoding="async"
-          /></a>
-          <a
-            href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_2.jpg"
-            target="_blank"
-            rel="noopener noreferrer"
-            ><img
-              src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_2.jpg"
-              alt="截图 2"
-              loading="lazy"
-              decoding="async"
-          /></a>
-          <a
-            href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_3.jpg"
-            target="_blank"
-            rel="noopener noreferrer"
-            ><img
-              src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_3.jpg"
-              alt="截图 3"
-              loading="lazy"
-              decoding="async"
-          /></a>
-          <a
-            href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_4.jpg"
-            target="_blank"
-            rel="noopener noreferrer"
-            ><img
-              src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_4.jpg"
-              alt="截图 4"
-              loading="lazy"
-              decoding="async"
-          /></a>
-          <a
-            href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_5.jpg"
-            target="_blank"
-            rel="noopener noreferrer"
-            ><img
-              src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_5.jpg"
-              alt="截图 5"
-              loading="lazy"
-              decoding="async"
-          /></a>
-          <a
-            href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_6.jpg"
-            target="_blank"
-            rel="noopener noreferrer"
-            ><img
-              src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_6.jpg"
-              alt="截图 6"
-              loading="lazy"
-              decoding="async"
-          /></a>
+        <div
+          class="shot-carousel"
+          data-shot-carousel
+          aria-roledescription="轮播"
+          aria-label="应用界面截图轮播"
+        >
+          <div class="shot-carousel-viewport">
+            <div class="shot-carousel-track" role="list">
+              <div class="shot-carousel-slide" role="listitem">
+                <a
+                  href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_1.jpg"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  ><img
+                    src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_1.jpg"
+                    alt="应用截图 1"
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+              </div>
+              <div class="shot-carousel-slide" role="listitem">
+                <a
+                  href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_2.jpg"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  ><img
+                    src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_2.jpg"
+                    alt="应用截图 2"
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+              </div>
+              <div class="shot-carousel-slide" role="listitem">
+                <a
+                  href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_3.jpg"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  ><img
+                    src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_3.jpg"
+                    alt="应用截图 3"
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+              </div>
+              <div class="shot-carousel-slide" role="listitem">
+                <a
+                  href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_4.jpg"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  ><img
+                    src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_4.jpg"
+                    alt="应用截图 4"
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+              </div>
+              <div class="shot-carousel-slide" role="listitem">
+                <a
+                  href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_5.jpg"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  ><img
+                    src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_5.jpg"
+                    alt="应用截图 5"
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+              </div>
+              <div class="shot-carousel-slide" role="listitem">
+                <a
+                  href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_6.jpg"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  ><img
+                    src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_6.jpg"
+                    alt="应用截图 6"
+                    loading="lazy"
+                    decoding="async"
+                /></a>
+              </div>
+            </div>
+            <button
+              type="button"
+              class="shot-carousel-arrow shot-carousel-prev"
+              aria-label="上一张截图"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              class="shot-carousel-arrow shot-carousel-next"
+              aria-label="下一张截图"
+            >
+              ›
+            </button>
+          </div>
+          <div class="shot-carousel-dots" aria-label="选择截图"></div>
+          <p class="shot-carousel-hint">
+            点击图片可在新标签打开原图 · 移动端支持左右滑动切换
+          </p>
+          <div class="sr-only" aria-live="polite" data-carousel-live></div>
         </div>
       </div>
     </section>
@@ -343,5 +383,6 @@
     </nav>
     <p>Auto 小二 — Developed by Heuo</p>
   </footer>
+  <script src="carousel.js" defer></script>
 </body>
 </html>

@@ -430,36 +430,134 @@ section {
   grid-column: 1 / -1;
 }
 
-/* —— 截图 —— */
+/* —— 截图轮播 —— */
 
 .shots {
   border-top: 1px solid var(--border);
 }
 
-.shot-strip {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-  gap: 0.75rem;
+.shot-carousel {
+  max-width: min(480px, 96vw);
+  margin-inline: auto;
 }
 
-.shot-strip a {
-  display: block;
-  border-radius: 10px;
+.shot-carousel-viewport {
+  position: relative;
   overflow: hidden;
+  border-radius: 16px;
   border: 1px solid var(--border);
-  transition: transform 0.15s, box-shadow 0.15s;
+  background: rgba(0, 0, 0, 0.35);
+  touch-action: pan-y pinch-zoom;
 }
 
-.shot-strip a:hover {
-  transform: scale(1.02);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+.shot-carousel-track {
+  display: flex;
+  transition: transform 0.38s cubic-bezier(0.33, 1, 0.68, 1);
+  will-change: transform;
 }
 
-.shot-strip img {
+@media (prefers-reduced-motion: reduce) {
+  .shot-carousel-track {
+    transition: none;
+  }
+}
+
+.shot-carousel-slide {
+  flex: 0 0 100%;
   width: 100%;
-  height: auto;
+  min-width: 0;
+}
+
+.shot-carousel-slide a {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  outline-offset: 4px;
+}
+
+.shot-carousel-slide a:focus-visible {
+  outline: 2px solid var(--accent);
+}
+
+.shot-carousel-slide img {
   display: block;
-  vertical-align: middle;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  max-height: min(660px, 80vh);
+  margin-inline: auto;
+  object-fit: contain;
+  user-select: none;
+}
+
+.shot-carousel-arrow {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  z-index: 2;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(12, 15, 20, 0.72);
+  color: var(--text);
+  font-size: 1.35rem;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.shot-carousel-arrow:hover {
+  background: rgba(240, 160, 70, 0.35);
+  color: #1a1208;
+}
+
+.shot-carousel-prev {
+  left: 0.5rem;
+}
+
+.shot-carousel-next {
+  right: 0.5rem;
+}
+
+.shot-carousel-dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.45rem;
+  margin-top: 1rem;
+}
+
+.shot-carousel-dot {
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  cursor: pointer;
+  transition: transform 0.12s, background 0.12s;
+}
+
+.shot-carousel-dot:hover {
+  background: rgba(255, 255, 255, 0.45);
+}
+
+.shot-carousel-dot[aria-current="true"] {
+  background: var(--accent);
+  transform: scale(1.2);
+}
+
+.shot-carousel-hint {
+  margin: 0.85rem 0 0;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--text-muted);
 }
 
 /* —— 底部 CTA —— */
