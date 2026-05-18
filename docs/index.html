@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Auto 小二 — 纯端侧智能体，住在手机里的伙伴</title>
+  <meta
+    name="description"
+    content="Auto 小二是运行在 Android 上的开源智能体应用，用语言操控手机完成任务，支持定时、通知触发与微信远程触发。"
+  />
+  <meta property="og:title" content="Auto 小二" />
+  <meta
+    property="og:description"
+    content="纯端侧智能体，住在手机里的伙伴。"
+  />
+  <meta property="og:type" content="website" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-nav">
+    <a href="#top" class="brand">
+      <img
+        src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/okxiaoer.png"
+        alt=""
+        width="38"
+        height="38"
+        decoding="async"
+      />
+      <span>Auto 小二</span>
+    </a>
+    <nav class="nav-links" aria-label="页面导航">
+      <a href="#features">功能优势</a>
+      <a href="#how">快速上手</a>
+      <a href="#scenarios">使用场景</a>
+      <a href="#shots">界面一览</a>
+      <a class="btn btn-primary" href="#download">立即下载</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero wrap" aria-labelledby="hero-title">
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <h1 id="hero-title">Auto 小二</h1>
+          <p class="hero-tagline">纯端侧智能体，住在手机里的伙伴。</p>
+          <div class="hero-cta" id="download">
+            <a
+              class="btn btn-primary"
+              href="https://github.com/Joy-word/AutoXiaoer/releases"
+              rel="noopener noreferrer"
+              >下载 APK（Releases）</a
+            >
+            <a
+              class="btn btn-secondary"
+              href="https://github.com/Joy-word/AutoXiaoer"
+              rel="noopener noreferrer"
+              >查看源码</a
+            >
+            <a
+              class="btn btn-ghost"
+              href="https://www.bilibili.com/video/BV1S7dWBWE3S"
+              rel="noopener noreferrer"
+              >视频介绍</a
+            >
+          </div>
+          <p class="hero-note">
+            开源 · MIT · Android 7.0+ · 需要 <a href="https://shizuku.rikka.app/">Shizuku</a> 与自有模型 API
+          </p>
+        </div>
+        <div class="hero-visual" aria-hidden="true">
+          <div class="hero-phone">
+            <img
+              src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_1_cut.jpg"
+              alt="应用截图预览"
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="features" class="features" aria-labelledby="features-title">
+      <div class="wrap">
+        <p class="section-label">Capabilities</p>
+        <h2 id="features-title" class="section-title">为什么是「小二」</h2>
+        <p class="section-lead">
+          像人一样通过界面理解与操作界面；主动计划未来任务；有自我迭代能力的成长型智能体。
+        </p>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">📱</div>
+            <h3>纯端侧运行</h3>
+            <p>
+              App 独立完成规划与触控，无需通过电脑或 ADB 连线，出门在外同样可用。
+            </p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">🎭</div>
+            <h3>百变小二</h3>
+            <p>
+              基于双 Agent + 人设 LLM 架构，自由定义人设，把「执行任务」与「对人说话」分得清清楚楚。
+            </p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">👁️</div>
+            <h3>视觉理解，真机操作</h3>
+            <p>
+              看图识屏后再点击、滑动、输入，适配你手机里已安装的各类应用。
+            </p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">⏰</div>
+            <h3>定时与通知唤醒</h3>
+            <p>
+              按日历重复执行预设任务；也可在指定 App 推送到达时自动开跑流水线。
+            </p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">💬</div>
+            <h3>微信远程（ClawBot）</h3>
+            <p>
+              扫码绑定后可从微信投递指令，也是你与小二的专属连接通道。
+            </p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon" aria-hidden="true">🔌</div>
+            <h3>OpenAI 兼容端点</h3>
+            <p>
+              不同模块的模型可分别配置；支持多配置切换与自定义 Prompt。
+            </p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="how" class="steps" aria-labelledby="how-title">
+      <div class="wrap">
+        <p class="section-label">How it works</p>
+        <h2 id="how-title" class="section-title">三步上手</h2>
+        <p class="section-lead">
+          从装好依赖到发出第一条自然语言任务，只需几分钟。详细图文见仓库 README。
+        </p>
+        <div class="steps-list">
+          <article class="step-card">
+            <h3>安装并启动 Shizuku</h3>
+            <p>
+              通过无线调试等方式授权，让本机拥有执行点击、滑动等操作的能力。
+            </p>
+          </article>
+          <article class="step-card">
+            <h3>安装 Auto 小二并授权</h3>
+            <p>
+              从 Releases 安装 APK，按引导打开悬浮窗、Shizuku、输入法等必要权限。
+            </p>
+          </article>
+          <article class="step-card">
+            <h3>配置模型，开始说话</h3>
+            <p>
+              填入兼容 OpenAI 格式的 API；为「控制者」与「执行者」选好模型后即可下任务。
+            </p>
+          </article>
+        </div>
+        <p class="section-lead" style="margin-top: 1.5rem; margin-bottom: 0">
+          <a
+            href="https://github.com/Joy-word/AutoXiaoer/blob/main/README.md"
+            rel="noopener noreferrer"
+            >阅读完整安装与排错指南 →</a
+          >
+        </p>
+      </div>
+    </section>
+
+    <section id="scenarios" class="scenarios" aria-labelledby="scenarios-title">
+      <div class="wrap">
+        <p class="section-label">Use cases</p>
+        <h2 id="scenarios-title" class="section-title">可以怎么玩</h2>
+        <p class="section-lead">
+          以下为能力示意，实际效果因机型、应用版本与模型而异。
+        </p>
+        <div class="scenario-grid">
+          <article class="scenario-card">
+            <div class="scenario-chat">
+              <div class="role">你</div>
+              <div>「今天出门要带伞吗？」</div>
+            </div>
+            <div class="scenario-result">
+              <h4>本地自动化</h4>
+              <ul>
+                <li>打开天气 APP，查询对应城市的天气</li>
+                <li>回复天气与带伞建议</li>
+              </ul>
+            </div>
+            <p class="scenario-caption">自如的操作手机上的 APP，帮你获取想要的信息。</p>
+          </article>
+          <article class="scenario-card">
+            <div class="scenario-chat">
+              <div class="role">定时任务</div>
+              <div>「每天晚上 10:30 在“小二管家”群里提醒大家睡觉。」</div>
+            </div>
+            <div class="scenario-result">
+              <h4>到点执行</h4>
+              <ul>
+                <li>支持一次性 / 重复规则</li>
+                <li>可配合亮屏与后台策略</li>
+              </ul>
+            </div>
+            <p class="scenario-caption">把「记得去做」交给住在手机里的小二。</p>
+          </article>
+          <article class="scenario-card">
+            <div class="scenario-chat">
+              <div class="role">通知触发</div>
+              <div>「收到微信消息时，查看并回复。」</div>
+            </div>
+            <div class="scenario-result">
+              <h4>事件驱动</h4>
+              <ul>
+                <li>监听指定包名通知</li>
+                <li>触发预设事件</li>
+              </ul>
+            </div>
+            <p class="scenario-caption">小二也可以有自己的朋友圈。</p>
+          </article>
+          <article class="scenario-card">
+            <div class="scenario-chat">
+              <div class="role">微信 · ClawBot</div>
+              <div>「无聊的时候发一句“给我讲个笑话吧”」</div>
+            </div>
+            <div class="scenario-result">
+              <h4>远程执行</h4>
+              <ul>
+                <li>扫码绑定后远程下指令</li>
+                <li>手机端仍负责真实执行</li>
+              </ul>
+            </div>
+            <p class="scenario-caption">手机不在身边，但小二一直在。</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="shots" class="shots" aria-labelledby="shots-title">
+      <div class="wrap">
+        <p class="section-label">Gallery</p>
+        <h2 id="shots-title" class="section-title">界面一览</h2>
+        <p class="section-lead">Material Design 原生体验，悬浮窗实时看进度。</p>
+        <div class="shot-strip">
+          <a
+            href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_1.jpg"
+            target="_blank"
+            rel="noopener noreferrer"
+            ><img
+              src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_1.jpg"
+              alt="截图 1"
+              loading="lazy"
+              decoding="async"
+          /></a>
+          <a
+            href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_2.jpg"
+            target="_blank"
+            rel="noopener noreferrer"
+            ><img
+              src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_2.jpg"
+              alt="截图 2"
+              loading="lazy"
+              decoding="async"
+          /></a>
+          <a
+            href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_3.jpg"
+            target="_blank"
+            rel="noopener noreferrer"
+            ><img
+              src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_3.jpg"
+              alt="截图 3"
+              loading="lazy"
+              decoding="async"
+          /></a>
+          <a
+            href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_4.jpg"
+            target="_blank"
+            rel="noopener noreferrer"
+            ><img
+              src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_4.jpg"
+              alt="截图 4"
+              loading="lazy"
+              decoding="async"
+          /></a>
+          <a
+            href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_5.jpg"
+            target="_blank"
+            rel="noopener noreferrer"
+            ><img
+              src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_5.jpg"
+              alt="截图 5"
+              loading="lazy"
+              decoding="async"
+          /></a>
+          <a
+            href="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_6.jpg"
+            target="_blank"
+            rel="noopener noreferrer"
+            ><img
+              src="https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/screenshot_6.jpg"
+              alt="截图 6"
+              loading="lazy"
+              decoding="async"
+          /></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="final-cta wrap" aria-labelledby="cta-title">
+      <h2 id="cta-title">准备好让伙伴住进手机了吗？</h2>
+      <p>开源可审计，欢迎提 Issue 与 PR 一起完善小二。</p>
+      <div class="final-buttons">
+        <a
+          class="btn btn-primary"
+          href="https://github.com/Joy-word/AutoXiaoer/releases"
+          rel="noopener noreferrer"
+          >前往 Releases 下载</a
+        >
+        <a
+          class="btn btn-ghost"
+          href="https://space.bilibili.com/7090735/lists/7991306"
+          rel="noopener noreferrer"
+          >关注开发日记</a
+        >
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <nav aria-label="页脚链接">
+      <a href="https://github.com/Joy-word/AutoXiaoer/blob/main/LICENSE"
+        >MIT License</a
+      >
+      <a href="https://github.com/Luokavin/AutoGLM-For-Android"
+        >AutoGLM For Android</a
+      >
+      <a href="https://github.com/zai-org/Open-AutoGLM" rel="noopener noreferrer"
+        >Open-AutoGLM</a
+      >
+    </nav>
+    <p>Auto 小二 — Developed by Heuo</p>
+  </footer>
+</body>
+</html>
