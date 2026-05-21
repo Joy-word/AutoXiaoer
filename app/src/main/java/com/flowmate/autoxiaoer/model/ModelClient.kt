@@ -304,7 +304,12 @@ data class ChunkChoice(val delta: Delta = Delta())
  *
  */
 @Serializable
-data class Delta(val content: String? = null)
+data class Delta(
+    val content: String? = null,
+    /** Reasoning stream from models that split thinking into a separate delta field (e.g. GLM). */
+    @SerialName("reasoning_content") val reasoningContent: String? = null,
+    val reasoning: String? = null,
+)
 
 /**
  * Sealed class representing network errors.
@@ -473,7 +478,25 @@ class ModelClient(private val config: ModelConfig) {
                         .build()
 
                 val contentBuilder = StringBuilder()
+                val reasoningBuilder = StringBuilder()
                 var lastTokenUsage: TokenUsage? = null
+
+                fun buildSuccessResponse(
+                    rawContent: String,
+                    totalTime: Long,
+                ): ModelResponse {
+                    val reasoningSideChannel = reasoningBuilder.toString()
+                    val (thinking, action) =
+                        ModelResponseParser.parseThinkingAndAction(rawContent, reasoningSideChannel)
+                    return ModelResponse(
+                        thinking = thinking,
+                        action = action,
+                        rawContent = rawContent,
+                        timeToFirstToken = timeToFirstToken,
+                        totalTime = totalTime,
+                        tokenUsage = lastTokenUsage,
+                    )
+                }
 
                 suspendCancellableCoroutine<ModelResult> { continuation ->
                     val eventSourceFactory = EventSources.createFactory(client)
@@ -488,26 +511,19 @@ class ModelClient(private val config: ModelConfig) {
                                 if (data == "[DONE]") {
                                     val totalTime = System.currentTimeMillis() - startTime
                                     val rawContent = contentBuilder.toString()
-                                    val (thinking, action) = ModelResponseParser.parseThinkingAndAction(rawContent)
 
                                     Logger.logNetworkResponse(HTTP_STATUS_OK, totalTime)
                                     Logger.d(
                                         TAG,
-                                        "Response complete: ${rawContent.length} chars, TTFT=${timeToFirstToken}ms, usage=$lastTokenUsage",
+                                        "Response complete: content=${rawContent.length} chars, " +
+                                            "reasoning=${reasoningBuilder.length} chars, " +
+                                            "TTFT=${timeToFirstToken}ms, usage=$lastTokenUsage",
                                     )
 
-                                    val response =
-                                        ModelResponse(
-                                            thinking = thinking,
-                                            action = action,
-                                            rawContent = rawContent,
-                                            timeToFirstToken = timeToFirstToken,
-                                            totalTime = totalTime,
-                                            tokenUsage = lastTokenUsage,
-                                        )
-
                                     if (continuation.isActive) {
-                                        continuation.resume(ModelResult.Success(response))
+                                        continuation.resume(
+                                            ModelResult.Success(buildSuccessResponse(rawContent, totalTime)),
+                                        )
                                     }
                                     return
                                 }
@@ -520,18 +536,17 @@ class ModelClient(private val config: ModelConfig) {
                                         lastTokenUsage = chunk.usage
                                     }
 
-                                    val content =
-                                        chunk.choices
-                                            .firstOrNull()
-                                            ?.delta
-                                            ?.content
+                                    val delta = chunk.choices.firstOrNull()?.delta
+                                    val content = delta?.content
+                                    val reasoningChunk = delta?.reasoningContent ?: delta?.reasoning
 
-                                    if (content != null) {
+                                    if (content != null || reasoningChunk != null) {
                                         if (timeToFirstToken == null) {
                                             timeToFirstToken = System.currentTimeMillis() - startTime
                                             Logger.d(TAG, "First token received after ${timeToFirstToken}ms")
                                         }
-                                        contentBuilder.append(content)
+                                        content?.let { contentBuilder.append(it) }
+                                        reasoningChunk?.let { reasoningBuilder.append(it) }
 
                                         // Stream truncation: cancel immediately when content exceeds limit
                                         if (maxContentLength > 0 && contentBuilder.length > maxContentLength) {
@@ -540,19 +555,9 @@ class ModelClient(private val config: ModelConfig) {
                                             Logger.w(TAG, "Response truncated at ${rawContent.length} chars (limit: $maxContentLength)")
                                             eventSource.cancel()
                                             currentEventSource = null
-                                            val (thinking, action) = ModelResponseParser.parseThinkingAndAction(rawContent)
                                             if (continuation.isActive) {
                                                 continuation.resume(
-                                                    ModelResult.Success(
-                                                        ModelResponse(
-                                                            thinking = thinking,
-                                                            action = action,
-                                                            rawContent = rawContent,
-                                                            timeToFirstToken = timeToFirstToken,
-                                                            totalTime = totalTime,
-                                                            tokenUsage = lastTokenUsage,
-                                                        ),
-                                                    ),
+                                                    ModelResult.Success(buildSuccessResponse(rawContent, totalTime)),
                                                 )
                                             }
                                             return
@@ -570,18 +575,10 @@ class ModelClient(private val config: ModelConfig) {
                                     val totalTime = System.currentTimeMillis() - startTime
                                     val rawContent = contentBuilder.toString()
 
-                                    if (rawContent.isNotEmpty()) {
-                                        val (thinking, action) = ModelResponseParser.parseThinkingAndAction(rawContent)
-                                        val response =
-                                            ModelResponse(
-                                                thinking = thinking,
-                                                action = action,
-                                                rawContent = rawContent,
-                                                timeToFirstToken = timeToFirstToken,
-                                                totalTime = totalTime,
-                                                tokenUsage = lastTokenUsage,
-                                            )
-                                        continuation.resume(ModelResult.Success(response))
+                                    if (rawContent.isNotEmpty() || reasoningBuilder.isNotEmpty()) {
+                                        continuation.resume(
+                                            ModelResult.Success(buildSuccessResponse(rawContent, totalTime)),
+                                        )
                                     } else {
                                         Logger.logNetworkError("Empty response received")
                                         continuation.resume(

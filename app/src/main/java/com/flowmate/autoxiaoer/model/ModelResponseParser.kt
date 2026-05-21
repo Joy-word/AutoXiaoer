@@ -20,33 +20,77 @@ object ModelResponseParser {
      * @param content The raw response content to parse
      * @return Pair of (thinking, action) strings
      */
-    fun parseThinkingAndAction(content: String): Pair<String, String> {
-        // Clean up the content by removing all XML-style tags
-        val cleanContent =
-            content
-                .replace(Regex("""<think>\s*"""), "")
-                .replace(Regex("""\s*</think>"""), "")
-                .replace(Regex("""<answer>\s*"""), "")
-                .replace(Regex("""\s*</answer>"""), "")
-                .trim()
+    fun parseThinkingAndAction(content: String, reasoningSideChannel: String = ""): Pair<String, String> {
+        val taggedThinking = extractTaggedThinking(content)
 
-        // Find action using bracket-aware matching to handle nested parentheses
-        val doAction = findActionWithBalancedParens(cleanContent, "do")
-        val finishAction = findActionWithBalancedParens(cleanContent, "finish")
+        // LLMAgent: <action>{json}</action>
+        val llmActionBlock = extractTaggedBlock(content, "action")?.trim()
+        if (llmActionBlock != null) {
+            val thinking =
+                resolveThinking(
+                    taggedThinking = taggedThinking,
+                    fallbackBeforeTag = content.substringBefore("<action>").trim(),
+                    reasoningSideChannel = reasoningSideChannel,
+                )
+            return Pair(thinking, llmActionBlock)
+        }
 
-        // Find the earliest action match
+        // PhoneAgent: do()/finish() inside <answer> or bare text
+        val answerBlock = extractTaggedBlock(content, "answer")?.trim()
+        val actionSearchText = answerBlock ?: stripPhoneAgentWrapperTags(content)
+
+        val doAction = findActionWithBalancedParens(actionSearchText, "do")
+        val finishAction = findActionWithBalancedParens(actionSearchText, "finish")
         val actionMatch =
             listOfNotNull(doAction, finishAction)
                 .minByOrNull { it.first }
 
         return if (actionMatch != null) {
-            val thinking = cleanContent.substring(0, actionMatch.first).trim()
             val action = actionMatch.second.trim()
+            val thinking =
+                resolveThinking(
+                    taggedThinking = taggedThinking,
+                    fallbackBeforeTag = actionSearchText.substring(0, actionMatch.first).trim(),
+                    reasoningSideChannel = reasoningSideChannel,
+                )
             Pair(thinking, action)
         } else {
-            // No action found, entire content is thinking
-            Pair(cleanContent, "")
+            val thinking =
+                resolveThinking(
+                    taggedThinking = taggedThinking,
+                    fallbackBeforeTag = actionSearchText,
+                    reasoningSideChannel = reasoningSideChannel,
+                )
+            Pair(thinking, "")
         }
+    }
+
+    /** Reads thinking from known XML tags, then optional side-channel / plain-text fallbacks. */
+    private fun extractTaggedThinking(content: String): String {
+        for (tag in TAGGED_THINKING_NAMES) {
+            val block = extractTaggedBlock(content, tag)?.trim()
+            if (!block.isNullOrBlank()) return block
+        }
+        return ""
+    }
+
+    private fun resolveThinking(
+        taggedThinking: String,
+        fallbackBeforeTag: String,
+        reasoningSideChannel: String,
+    ): String =
+        taggedThinking.ifBlank { fallbackBeforeTag }
+            .ifBlank { reasoningSideChannel.trim() }
+
+    private fun stripPhoneAgentWrapperTags(content: String): String {
+        var stripped = content
+        for (tag in TAGGED_THINKING_NAMES) {
+            stripped = stripped.replace(Regex("""<$tag>[\s\S]*?</$tag>"""), "")
+        }
+        return stripped
+            .replace(Regex("""<answer>\s*"""), "")
+            .replace(Regex("""\s*</answer>"""), "")
+            .trim()
     }
 
     /**
@@ -166,6 +210,26 @@ object ModelResponseParser {
     }
 
     /**
+     * Extracts LLMAgent reasoning from a response that uses
+     * `<think>...</think>` and `<action>...</action>`.
+     *
+     * Tries the thinking tag first, then falls back to any text before `<action>`.
+     */
+    fun parseLlmAgentThinking(content: String, reasoningSideChannel: String = ""): String {
+        val tagged = extractTaggedThinking(content)
+        if (tagged.isNotBlank()) return tagged
+
+        val actionStart = content.indexOf("<action>")
+        val beforeAction = if (actionStart > 0) content.substring(0, actionStart).trim() else ""
+        return beforeAction.ifBlank { reasoningSideChannel.trim() }
+    }
+
+    /**
+     * Returns the inner text of the first `<action>...</action>` block for LLMAgent, or null if absent.
+     */
+    fun parseLlmAgentActionBlock(content: String): String? = extractTaggedBlock(content, "action")?.trim()
+
+    /**
      * Returns the inner text of the first `<tag>...</tag>` block, or null if absent.
      */
     internal fun extractTaggedBlock(text: String, tag: String): String? {
@@ -176,4 +240,6 @@ object ModelResponseParser {
         if (start == -1 || end == -1 || end <= start) return null
         return text.substring(start + open.length, end)
     }
+
+    private val TAGGED_THINKING_NAMES = listOf("redacted_thinking", "thinking", "think")
 }

@@ -166,6 +166,8 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
         private val thinkingToggle: LinearLayout = itemView.findViewById(R.id.thinkingToggle)
         private val thinkingToggleIcon: ImageView = itemView.findViewById(R.id.thinkingToggleIcon)
         private val thinkingText: TextView = itemView.findViewById(R.id.thinkingText)
+        private val actionSection: LinearLayout = itemView.findViewById(R.id.actionSection)
+        private val actionDescriptionText: TextView = itemView.findViewById(R.id.actionDescriptionText)
         private val subTaskSection: LinearLayout = itemView.findViewById(R.id.subTaskSection)
         private val subTaskDescription: TextView = itemView.findViewById(R.id.subTaskDescription)
         private val messageText: TextView = itemView.findViewById(R.id.messageText)
@@ -199,6 +201,13 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
                 }
             } else {
                 thinkingSection.visibility = View.GONE
+            }
+
+            if (round.actionDescription.isNotBlank()) {
+                actionSection.visibility = View.VISIBLE
+                actionDescriptionText.text = round.actionDescription
+            } else {
+                actionSection.visibility = View.GONE
             }
 
             // Sub-task description

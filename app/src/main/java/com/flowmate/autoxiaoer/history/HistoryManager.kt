@@ -528,6 +528,7 @@ class HistoryManager private constructor(private val context: Context) {
             put("round", planningRound.round)
             put("timestamp", planningRound.timestamp)
             put("thinking", planningRound.thinking)
+            put("actionDescription", planningRound.actionDescription)
             put("actionType", planningRound.actionType)
             put("subTaskDescription", planningRound.subTaskDescription)
             put("subTaskId", planningRound.subTaskId)
@@ -552,6 +553,7 @@ class HistoryManager private constructor(private val context: Context) {
             round = roundJson.getInt("round"),
             timestamp = roundJson.getLong("timestamp"),
             thinking = roundJson.getString("thinking"),
+            actionDescription = roundJson.optString("actionDescription", ""),
             actionType = roundJson.getString("actionType"),
             subTaskDescription = roundJson.optString("subTaskDescription").takeIf { it.isNotEmpty() },
             subTaskId = roundJson.optInt("subTaskId").takeIf { roundJson.has("subTaskId") && !roundJson.isNull("subTaskId") },

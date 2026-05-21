@@ -44,6 +44,7 @@ data class HistoryStep(
  * @property round Sequential planning round number (1-based)
  * @property timestamp Unix timestamp when the round was recorded
  * @property thinking LLM's reasoning/thinking text for this round
+ * @property actionDescription Raw JSON/text inside the model's `<action>...</action>` block
  * @property actionType One of "execute_subtask", "finish", "request_user", or "unknown"
  * @property subTaskDescription Description of the sub-task dispatched, or null if not applicable
  * @property subTaskId Transient ID of the sub-task, or null if not applicable
@@ -59,6 +60,7 @@ data class LLMPlanningRound(
     val round: Int,
     val timestamp: Long = System.currentTimeMillis(),
     val thinking: String,
+    val actionDescription: String = "",
     val actionType: String,
     val subTaskDescription: String? = null,
     val subTaskId: Int? = null,

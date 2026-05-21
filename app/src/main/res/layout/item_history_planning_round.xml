@@ -115,6 +115,36 @@
 
         </LinearLayout>
 
+        <!-- Action block (<action> tag content) -->
+        <LinearLayout
+            android:id="@+id/actionSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/history_action_label"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/actionDescriptionText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/thinking_background"
+                android:padding="10dp"
+                android:textColor="@color/step_llm_agent_action"
+                android:textSize="12sp"
+                android:fontFamily="monospace"
+                android:lineSpacingMultiplier="1.2" />
+
+        </LinearLayout>
+
         <!-- Sub-task description (for execute_subtask) -->
         <LinearLayout
             android:id="@+id/subTaskSection"

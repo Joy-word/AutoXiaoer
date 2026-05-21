@@ -10,6 +10,7 @@ import com.flowmate.autoxiaoer.config.RelationshipContext
 import com.flowmate.autoxiaoer.history.HistoryManager
 import com.flowmate.autoxiaoer.history.LLMPlanningRound
 import com.flowmate.autoxiaoer.model.ModelClient
+import com.flowmate.autoxiaoer.model.ModelResponseParser
 import com.flowmate.autoxiaoer.model.ModelResult
 import com.flowmate.autoxiaoer.model.TokenUsage
 import com.flowmate.autoxiaoer.schedule.RepeatType
@@ -275,8 +276,10 @@ class LLMAgent(
 
                     is ModelResult.Success -> {
                         val response = modelResult.response
-                        // val thinking = extractThinking(response.rawContent)
-                        val thinking = response.thinking
+                        val thinking =
+                            response.thinking.ifBlank {
+                                ModelResponseParser.parseLlmAgentThinking(response.rawContent)
+                            }
                         val roundTokenUsage = response.tokenUsage
                         Logger.d(TAG, "LLM thinking: ${thinking.take(200)}")
                         listener?.onThinkingUpdate(thinking)
@@ -292,6 +295,9 @@ class LLMAgent(
                             continue
                         }
 
+                        val actionDescription =
+                            ModelResponseParser.parseLlmAgentActionBlock(response.rawContent).orEmpty()
+
                         // ── Act ────────────────────────────────────────────────
                         when (action.type) {
                             ACTION_FINISH -> {
@@ -301,6 +307,7 @@ class LLMAgent(
                                     LLMPlanningRound(
                                         round = round,
                                         thinking = thinking,
+                                        actionDescription = actionDescription,
                                         actionType = ACTION_FINISH,
                                         message = "【任务完成】$msg",
                                         tokenUsage = roundTokenUsage,
@@ -328,6 +335,7 @@ class LLMAgent(
                                         LLMPlanningRound(
                                             round = round,
                                             thinking = thinking,
+                                            actionDescription = actionDescription,
                                             actionType = ACTION_REQUEST_USER,
                                             message = "【ClawBot 未连接】已将提醒内容显示在悬浮窗，任务结束。",
                                             tokenUsage = roundTokenUsage,
@@ -378,6 +386,7 @@ class LLMAgent(
                                     LLMPlanningRound(
                                         round = round,
                                         thinking = thinking,
+                                        actionDescription = actionDescription,
                                         actionType = ACTION_REQUEST_USER,
                                         message = sendResultObservation,
                                         tokenUsage = roundTokenUsage,
@@ -430,6 +439,7 @@ class LLMAgent(
                                         round = round,
                                         timestamp = planningRoundTimestamp,
                                         thinking = thinking,
+                                        actionDescription = actionDescription,
                                         actionType = ACTION_EXECUTE_SUBTASK,
                                         subTaskDescription = resolvedSubTask.description,
                                         subTaskId = resolvedSubTask.id,
@@ -484,6 +494,7 @@ class LLMAgent(
                                     LLMPlanningRound(
                                         round = round,
                                         thinking = thinking,
+                                        actionDescription = actionDescription,
                                         actionType = ACTION_SCHEDULE_TASK,
                                         message = observation,
                                         tokenUsage = roundTokenUsage,
@@ -529,6 +540,7 @@ class LLMAgent(
                                     LLMPlanningRound(
                                         round = round,
                                         thinking = thinking,
+                                        actionDescription = actionDescription,
                                         actionType = ACTION_QUERY_SCHEDULED_TASKS,
                                         message = observation,
                                         tokenUsage = roundTokenUsage,
@@ -577,6 +589,7 @@ class LLMAgent(
                                     LLMPlanningRound(
                                         round = round,
                                         thinking = thinking,
+                                        actionDescription = actionDescription,
                                         actionType = ACTION_UPDATE_SCHEDULED_TASK,
                                         message = observation,
                                         tokenUsage = roundTokenUsage,
@@ -618,6 +631,7 @@ class LLMAgent(
                                     LLMPlanningRound(
                                         round = round,
                                         thinking = thinking,
+                                        actionDescription = actionDescription,
                                         actionType = ACTION_DELETE_SCHEDULED_TASK,
                                         message = observation,
                                         tokenUsage = roundTokenUsage,
@@ -683,6 +697,7 @@ class LLMAgent(
                                     LLMPlanningRound(
                                         round = round,
                                         thinking = thinking,
+                                        actionDescription = actionDescription,
                                         actionType = ACTION_REQUEST_BRAIN,
                                         message = observation,
                                         tokenUsage = roundTokenUsage,
@@ -705,6 +720,7 @@ class LLMAgent(
                                     LLMPlanningRound(
                                         round = round,
                                         thinking = thinking,
+                                        actionDescription = actionDescription,
                                         actionType = ACTION_READ_RELATIONSHIPS,
                                         message = observation,
                                         tokenUsage = roundTokenUsage,
@@ -735,6 +751,7 @@ class LLMAgent(
                                         LLMPlanningRound(
                                             round = round,
                                             thinking = thinking,
+                                            actionDescription = actionDescription,
                                             actionType = ACTION_UPDATE_RELATIONSHIPS,
                                             message = observation,
                                             tokenUsage = roundTokenUsage,
@@ -757,6 +774,7 @@ class LLMAgent(
                                     LLMPlanningRound(
                                         round = round,
                                         thinking = thinking,
+                                        actionDescription = actionDescription,
                                         actionType = ACTION_READ_BEHAVIOR_RULES,
                                         message = observation,
                                         tokenUsage = roundTokenUsage,
@@ -787,6 +805,7 @@ class LLMAgent(
                                         LLMPlanningRound(
                                             round = round,
                                             thinking = thinking,
+                                            actionDescription = actionDescription,
                                             actionType = ACTION_UPDATE_BEHAVIOR_RULES,
                                             message = observation,
                                             tokenUsage = roundTokenUsage,
@@ -1073,7 +1092,7 @@ class LLMAgent(
      */
     private fun parseAction(rawContent: String): ParsedAction? {
         return try {
-            val actionBlock = extractBlock(rawContent, "action") ?: return null
+            val actionBlock = ModelResponseParser.parseLlmAgentActionBlock(rawContent) ?: return null
             val json = JSONObject(actionBlock.trim())
             val type = json.optString("type").ifBlank { return null }
 
@@ -1226,33 +1245,6 @@ class LLMAgent(
             Logger.w(TAG, "Failed to parse LLM action JSON: ${e.message}")
             null
         }
-    }
-
-    /**
-     * Extracts the LLM's thinking text from the raw response.
-     *
-     * Tries <think>...</think> first (extended thinking models).
-     * Falls back to any text before the <action> block so there is always something to show.
-     */
-    private fun extractThinking(rawContent: String): String {
-        val fromThinkTag = extractBlock(rawContent, "think")?.trim()
-        if (!fromThinkTag.isNullOrBlank()) return fromThinkTag
-
-        // Fallback: text before <action>
-        val actionStart = rawContent.indexOf("<action>")
-        return if (actionStart > 0) rawContent.substring(0, actionStart).trim() else ""
-    }
-
-    /**
-     * Extracts the content between `<tag>` and `</tag>` (first occurrence).
-     */
-    private fun extractBlock(text: String, tag: String): String? {
-        val open = "<$tag>"
-        val close = "</$tag>"
-        val start = text.indexOf(open)
-        val end = text.indexOf(close)
-        if (start == -1 || end == -1 || end <= start) return null
-        return text.substring(start + open.length, end)
     }
 
     companion object {

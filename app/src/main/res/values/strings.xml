@@ -247,6 +247,7 @@
     <string name="history_success">成功</string>
     <string name="history_failed">失败</string>
     <string name="history_thinking_label">思考过程</string>
+    <string name="history_action_label">操作指令</string>
     <string name="history_original">原图</string>
     <string name="history_annotated">标注</string>
     <string name="history_clear_all">清空历史</string>

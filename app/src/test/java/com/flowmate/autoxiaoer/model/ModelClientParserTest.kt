@@ -1,6 +1,7 @@
 ﻿package com.flowmate.autoxiaoer.model
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -403,6 +404,91 @@ The button is not visible yet.
 
         // Then
         assertEquals("", message)
+    }
+
+    // ==================== LLMAgent format ====================
+
+    @Test
+    fun `parseLlmAgentThinking_redactedThinkingTag_extractsContent`() {
+        val content = """
+            <think>
+            1. 【任务全貌】完成微信回复
+            2. 【已完成】打开微信
+            3. 【待完成】发送消息
+            </think>
+            <action>
+            {"type":"execute_subtask","subtask":{"description":"发送消息"}}
+            </action>
+        """.trimIndent()
+
+        val thinking = ModelResponseParser.parseLlmAgentThinking(content)
+
+        assertTrue(thinking.contains("【任务全貌】"))
+        assertTrue(thinking.contains("【待完成】"))
+        assertFalse(thinking.contains("<action>"))
+    }
+
+    @Test
+    fun `parseLlmAgentThinking_noThinkingTag_usesTextBeforeAction`() {
+        val content = """
+            简要推理：先打开微信
+            <action>{"type":"finish","message":"完成"}</action>
+        """.trimIndent()
+
+        val thinking = ModelResponseParser.parseLlmAgentThinking(content)
+
+        assertEquals("简要推理：先打开微信", thinking)
+    }
+
+    @Test
+    fun `parseLlmAgentThinking_onlyActionBlock_returnsEmpty`() {
+        val content = """<action>{"type":"finish","message":"完成"}</action>"""
+
+        val thinking = ModelResponseParser.parseLlmAgentThinking(content)
+
+        assertEquals("", thinking)
+    }
+
+    @Test
+    fun `parseThinkingAndAction_taggedThinkingAndAnswerBlock_separatesCorrectly`() {
+        val content = """
+            <think>
+            需要先打开微信。
+            </think>
+            <answer>
+            do(action="Tap", element=[500, 300])
+            </answer>
+        """.trimIndent()
+
+        val (thinking, action) = ModelResponseParser.parseThinkingAndAction(content)
+
+        assertTrue(thinking.contains("需要先打开微信"))
+        assertEquals("""do(action="Tap", element=[500, 300])""", action)
+    }
+
+    @Test
+    fun `parseThinkingAndAction_reasoningSideChannel_usedWhenContentHasOnlyAnswer`() {
+        val content = """<answer>do(action="Tap", element=[1, 2])</answer>"""
+        val sideChannel = "1. 分析屏幕\n2. 点击按钮"
+
+        val (thinking, action) = ModelResponseParser.parseThinkingAndAction(content, sideChannel)
+
+        assertEquals(sideChannel, thinking)
+        assertTrue(action.startsWith("do("))
+    }
+
+    @Test
+    fun `parseLlmAgentActionBlock_extractsJson`() {
+        val content = """
+            <think>思考</think>
+            <action>
+            {"type":"finish","message":"完成"}
+            </action>
+        """.trimIndent()
+
+        val action = ModelResponseParser.parseLlmAgentActionBlock(content)
+
+        assertEquals("""{"type":"finish","message":"完成"}""", action)
     }
 
     // ==================== Edge Cases ====================
