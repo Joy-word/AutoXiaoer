@@ -45,6 +45,9 @@ class HistoryManager private constructor(private val context: Context) {
     /** Currently recording task, null if no task is being recorded. */
     private var currentTask: TaskHistory? = null
 
+    /** Steps buffered before the next [recordPlanningRound] or [completeTask] flush. */
+    private val pendingSteps = mutableListOf<HistoryStep>()
+
     /** Base64-encoded screenshot data for the current step. */
     private var currentScreenshotBase64: String? = null
 
@@ -76,6 +79,7 @@ class HistoryManager private constructor(private val context: Context) {
     fun startTask(taskDescription: String): TaskHistory {
         val task = TaskHistory(taskDescription = taskDescription)
         currentTask = task
+        pendingSteps.clear()
         Logger.d(TAG, "Started recording task: ${task.id}")
         return task
     }
@@ -178,7 +182,7 @@ class HistoryManager private constructor(private val context: Context) {
                 tokenUsage = tokenUsage,
             )
 
-        task.steps.add(step)
+        pendingSteps.add(step)
         Logger.d(TAG, "Recorded step $stepNumber for task ${task.id}")
 
         // Clear current screenshot
@@ -195,8 +199,10 @@ class HistoryManager private constructor(private val context: Context) {
      */
     fun recordPlanningRound(round: LLMPlanningRound) {
         val task = currentTask ?: return
-        task.planningRounds.add(round)
-        Logger.d(TAG, "Recorded LLM planning round ${round.round} for task ${task.id}")
+        val steps = pendingSteps.toMutableList()
+        pendingSteps.clear()
+        task.planningRounds.add(round.copy(steps = steps))
+        Logger.d(TAG, "Recorded LLM planning round ${round.round} for task ${task.id} with ${steps.size} steps")
     }
 
     /**
@@ -214,11 +220,13 @@ class HistoryManager private constructor(private val context: Context) {
         val task = currentTask ?: return@withContext
 
         // Don't save tasks with no recorded activity at all
-        if (task.steps.isEmpty() && task.planningRounds.isEmpty()) {
+        if (task.planningRounds.isEmpty() && pendingSteps.isEmpty()) {
             Logger.d(TAG, "Skipping empty task ${task.id}")
             currentTask = null
             return@withContext
         }
+
+        flushPendingSteps(task)
 
         task.endTime = System.currentTimeMillis()
         task.success = success
@@ -372,7 +380,25 @@ class HistoryManager private constructor(private val context: Context) {
     }
 
     /**
+     * Flushes buffered steps into a direct-execution planning round (PhoneAgent-only tasks).
+     */
+    private fun flushPendingSteps(task: TaskHistory) {
+        if (pendingSteps.isEmpty()) return
+        task.planningRounds.add(
+            LLMPlanningRound(
+                round = task.planningRounds.size + 1,
+                actionType = ACTION_DIRECT_EXECUTION,
+                thinking = "",
+                steps = pendingSteps.toMutableList(),
+            ),
+        )
+        pendingSteps.clear()
+    }
+
+    /**
      * Saves a task's metadata to JSON file.
+     *
+     * Steps are nested under each planning round; there is no top-level steps array.
      *
      * @param task Task history to save
      */
@@ -389,60 +415,9 @@ class HistoryManager private constructor(private val context: Context) {
                 put("success", task.success)
                 put("completionMessage", task.completionMessage)
 
-                val stepsArray = JSONArray()
-                task.steps.forEach { step ->
-                    stepsArray.put(
-                        JSONObject().apply {
-                            put("stepNumber", step.stepNumber)
-                            put("timestamp", step.timestamp)
-                            put("thinking", step.thinking)
-                            put("actionDescription", step.actionDescription)
-                            put("screenshotPath", step.screenshotPath)
-                            put("annotatedScreenshotPath", step.annotatedScreenshotPath)
-                            put("success", step.success)
-                            put("message", step.message)
-                            step.tokenUsage?.let { usage ->
-                                put("tokenUsage", JSONObject().apply {
-                                    put("promptTokens", usage.promptTokens)
-                                    put("completionTokens", usage.completionTokens)
-                                    put("totalTokens", usage.totalTokens)
-                                })
-                            }
-                        },
-                    )
-                }
-                put("steps", stepsArray)
-
                 val planningRoundsArray = JSONArray()
                 task.planningRounds.forEach { planningRound ->
-                    planningRoundsArray.put(
-                        JSONObject().apply {
-                            put("round", planningRound.round)
-                            put("timestamp", planningRound.timestamp)
-                            put("thinking", planningRound.thinking)
-                            put("actionType", planningRound.actionType)
-                            put("subTaskDescription", planningRound.subTaskDescription)
-                            put("subTaskId", planningRound.subTaskId)
-                            put("observation", planningRound.observation)
-                            put("subTaskSuccess", planningRound.subTaskSuccess)
-                            put("subTaskStepCount", planningRound.subTaskStepCount)
-                            put("message", planningRound.message)
-                            planningRound.tokenUsage?.let { usage ->
-                                put("tokenUsage", JSONObject().apply {
-                                    put("promptTokens", usage.promptTokens)
-                                    put("completionTokens", usage.completionTokens)
-                                    put("totalTokens", usage.totalTokens)
-                                })
-                            }
-                            planningRound.brainTokenUsage?.let { usage ->
-                                put("brainTokenUsage", JSONObject().apply {
-                                    put("promptTokens", usage.promptTokens)
-                                    put("completionTokens", usage.completionTokens)
-                                    put("totalTokens", usage.totalTokens)
-                                })
-                            }
-                        },
-                    )
+                    planningRoundsArray.put(planningRoundToJson(planningRound))
                 }
                 put("planningRounds", planningRoundsArray)
             }
@@ -453,6 +428,8 @@ class HistoryManager private constructor(private val context: Context) {
     /**
      * Loads a task from its JSON metadata file.
      *
+     * Supports the current nested format and migrates legacy top-level steps arrays.
+     *
      * @param taskId Task identifier to load
      * @return Loaded TaskHistory, or null if not found or invalid
      */
@@ -462,73 +439,20 @@ class HistoryManager private constructor(private val context: Context) {
 
         return try {
             val json = JSONObject(metaFile.readText())
-            val steps = mutableListOf<HistoryStep>()
-
-            val stepsArray = json.optJSONArray("steps")
-            if (stepsArray != null) {
-                for (i in 0 until stepsArray.length()) {
-                    val stepJson = stepsArray.getJSONObject(i)
-                    steps.add(
-                        HistoryStep(
-                            stepNumber = stepJson.getInt("stepNumber"),
-                            timestamp = stepJson.getLong("timestamp"),
-                            thinking = stepJson.getString("thinking"),
-                            // Action is not serialized
-                            action = null,
-                            actionDescription = stepJson.getString("actionDescription"),
-                            screenshotPath = stepJson.optString("screenshotPath").takeIf { it.isNotEmpty() },
-                            annotatedScreenshotPath =
-                            stepJson
-                                .optString("annotatedScreenshotPath")
-                                .takeIf { it.isNotEmpty() },
-                            success = stepJson.getBoolean("success"),
-                            message = stepJson.optString("message").takeIf { it.isNotEmpty() },
-                            tokenUsage = stepJson.optJSONObject("tokenUsage")?.let { u ->
-                                TokenUsage(
-                                    promptTokens = u.getInt("promptTokens"),
-                                    completionTokens = u.getInt("completionTokens"),
-                                    totalTokens = u.getInt("totalTokens"),
-                                )
-                            },
-                        ),
-                    )
-                }
-            }
 
             val planningRounds = mutableListOf<LLMPlanningRound>()
             val planningRoundsArray = json.optJSONArray("planningRounds")
             if (planningRoundsArray != null) {
                 for (i in 0 until planningRoundsArray.length()) {
-                    val roundJson = planningRoundsArray.getJSONObject(i)
-                    planningRounds.add(
-                        LLMPlanningRound(
-                            round = roundJson.getInt("round"),
-                            timestamp = roundJson.getLong("timestamp"),
-                            thinking = roundJson.getString("thinking"),
-                            actionType = roundJson.getString("actionType"),
-                            subTaskDescription = roundJson.optString("subTaskDescription").takeIf { it.isNotEmpty() },
-                            subTaskId = roundJson.optInt("subTaskId").takeIf { roundJson.has("subTaskId") && !roundJson.isNull("subTaskId") },
-                            observation = roundJson.optString("observation").takeIf { it.isNotEmpty() },
-                            subTaskSuccess = if (roundJson.has("subTaskSuccess") && !roundJson.isNull("subTaskSuccess")) roundJson.getBoolean("subTaskSuccess") else null,
-                            subTaskStepCount = roundJson.optInt("subTaskStepCount").takeIf { roundJson.has("subTaskStepCount") && !roundJson.isNull("subTaskStepCount") },
-                            message = roundJson.optString("message").takeIf { it.isNotEmpty() },
-                            tokenUsage = roundJson.optJSONObject("tokenUsage")?.let { u ->
-                                TokenUsage(
-                                    promptTokens = u.getInt("promptTokens"),
-                                    completionTokens = u.getInt("completionTokens"),
-                                    totalTokens = u.getInt("totalTokens"),
-                                )
-                            },
-                            brainTokenUsage = roundJson.optJSONObject("brainTokenUsage")?.let { u ->
-                                TokenUsage(
-                                    promptTokens = u.getInt("promptTokens"),
-                                    completionTokens = u.getInt("completionTokens"),
-                                    totalTokens = u.getInt("totalTokens"),
-                                )
-                            },
-                        ),
-                    )
+                    planningRounds.add(planningRoundFromJson(planningRoundsArray.getJSONObject(i)))
                 }
+            }
+
+            // Migrate legacy top-level steps into planning rounds
+            val legacyStepsArray = json.optJSONArray("steps")
+            if (legacyStepsArray != null && legacyStepsArray.length() > 0) {
+                val legacySteps = parseStepsArray(legacyStepsArray)
+                migrateLegacySteps(planningRounds, legacySteps)
             }
 
             TaskHistory(
@@ -538,7 +462,6 @@ class HistoryManager private constructor(private val context: Context) {
                 endTime = json.optLong("endTime"),
                 success = json.getBoolean("success"),
                 completionMessage = json.optString("completionMessage").takeIf { it.isNotEmpty() },
-                steps = steps,
                 planningRounds = planningRounds,
             )
         } catch (e: Exception) {
@@ -546,6 +469,149 @@ class HistoryManager private constructor(private val context: Context) {
             null
         }
     }
+
+    /**
+     * Assigns legacy top-level steps to planning rounds that have no nested steps yet.
+     */
+    private fun migrateLegacySteps(
+        planningRounds: MutableList<LLMPlanningRound>,
+        legacySteps: MutableList<HistoryStep>,
+    ) {
+        if (legacySteps.isEmpty()) return
+
+        if (planningRounds.isEmpty()) {
+            planningRounds.add(
+                LLMPlanningRound(
+                    round = 1,
+                    actionType = ACTION_DIRECT_EXECUTION,
+                    thinking = "",
+                    steps = legacySteps,
+                ),
+            )
+            return
+        }
+
+        val updated = planningRounds.map { round ->
+            if (round.steps.isNotEmpty()) {
+                round
+            } else if (round.actionType == "execute_subtask" && round.subTaskStepCount != null && round.subTaskStepCount > 0) {
+                val count = minOf(round.subTaskStepCount, legacySteps.size)
+                if (count > 0) {
+                    val steps = legacySteps.take(count).toMutableList()
+                    repeat(count) { legacySteps.removeAt(0) }
+                    round.copy(steps = steps)
+                } else {
+                    round
+                }
+            } else {
+                round
+            }
+        }.toMutableList()
+
+        planningRounds.clear()
+        planningRounds.addAll(updated)
+
+        if (legacySteps.isNotEmpty()) {
+            planningRounds.add(
+                LLMPlanningRound(
+                    round = planningRounds.size + 1,
+                    actionType = ACTION_DIRECT_EXECUTION,
+                    thinking = "",
+                    steps = legacySteps,
+                ),
+            )
+        }
+    }
+
+    private fun planningRoundToJson(planningRound: LLMPlanningRound): JSONObject =
+        JSONObject().apply {
+            put("round", planningRound.round)
+            put("timestamp", planningRound.timestamp)
+            put("thinking", planningRound.thinking)
+            put("actionType", planningRound.actionType)
+            put("subTaskDescription", planningRound.subTaskDescription)
+            put("subTaskId", planningRound.subTaskId)
+            put("subTaskSuccess", planningRound.subTaskSuccess)
+            put("subTaskStepCount", planningRound.subTaskStepCount)
+            put("message", planningRound.message)
+            planningRound.tokenUsage?.let { put("tokenUsage", tokenUsageToJson(it)) }
+            planningRound.brainTokenUsage?.let { put("brainTokenUsage", tokenUsageToJson(it)) }
+
+            val stepsArray = JSONArray()
+            planningRound.steps.forEach { stepsArray.put(stepToJson(it)) }
+            put("steps", stepsArray)
+        }
+
+    private fun planningRoundFromJson(roundJson: JSONObject): LLMPlanningRound {
+        val steps = roundJson.optJSONArray("steps")?.let { parseStepsArray(it) } ?: mutableListOf()
+        // Legacy meta.json may still have observation; prefer it as message.
+        val message =
+            roundJson.optString("observation").takeIf { it.isNotEmpty() }
+                ?: roundJson.optString("message").takeIf { it.isNotEmpty() }
+        return LLMPlanningRound(
+            round = roundJson.getInt("round"),
+            timestamp = roundJson.getLong("timestamp"),
+            thinking = roundJson.getString("thinking"),
+            actionType = roundJson.getString("actionType"),
+            subTaskDescription = roundJson.optString("subTaskDescription").takeIf { it.isNotEmpty() },
+            subTaskId = roundJson.optInt("subTaskId").takeIf { roundJson.has("subTaskId") && !roundJson.isNull("subTaskId") },
+            subTaskSuccess = if (roundJson.has("subTaskSuccess") && !roundJson.isNull("subTaskSuccess")) roundJson.getBoolean("subTaskSuccess") else null,
+            subTaskStepCount = roundJson.optInt("subTaskStepCount").takeIf { roundJson.has("subTaskStepCount") && !roundJson.isNull("subTaskStepCount") },
+            message = message,
+            tokenUsage = roundJson.optJSONObject("tokenUsage")?.let { tokenUsageFromJson(it) },
+            brainTokenUsage = roundJson.optJSONObject("brainTokenUsage")?.let { tokenUsageFromJson(it) },
+            steps = steps,
+        )
+    }
+
+    private fun stepToJson(step: HistoryStep): JSONObject =
+        JSONObject().apply {
+            put("stepNumber", step.stepNumber)
+            put("timestamp", step.timestamp)
+            put("thinking", step.thinking)
+            put("actionDescription", step.actionDescription)
+            put("screenshotPath", step.screenshotPath)
+            put("annotatedScreenshotPath", step.annotatedScreenshotPath)
+            put("success", step.success)
+            put("message", step.message)
+            step.tokenUsage?.let { put("tokenUsage", tokenUsageToJson(it)) }
+        }
+
+    private fun parseStepsArray(stepsArray: JSONArray): MutableList<HistoryStep> {
+        val steps = mutableListOf<HistoryStep>()
+        for (i in 0 until stepsArray.length()) {
+            steps.add(stepFromJson(stepsArray.getJSONObject(i)))
+        }
+        return steps
+    }
+
+    private fun stepFromJson(stepJson: JSONObject): HistoryStep =
+        HistoryStep(
+            stepNumber = stepJson.getInt("stepNumber"),
+            timestamp = stepJson.getLong("timestamp"),
+            thinking = stepJson.getString("thinking"),
+            action = null,
+            actionDescription = stepJson.getString("actionDescription"),
+            screenshotPath = stepJson.optString("screenshotPath").takeIf { it.isNotEmpty() },
+            annotatedScreenshotPath = stepJson.optString("annotatedScreenshotPath").takeIf { it.isNotEmpty() },
+            success = stepJson.getBoolean("success"),
+            message = stepJson.optString("message").takeIf { it.isNotEmpty() },
+            tokenUsage = stepJson.optJSONObject("tokenUsage")?.let { tokenUsageFromJson(it) },
+        )
+
+    private fun tokenUsageToJson(usage: TokenUsage): JSONObject =
+        JSONObject().apply {
+            put("promptTokens", usage.promptTokens)
+            put("completionTokens", usage.completionTokens)
+            put("totalTokens", usage.totalTokens)
+        }
+
+    private fun tokenUsageFromJson(json: JSONObject): TokenUsage =
+        TokenUsage(
+            promptTokens = json.getInt("promptTokens"),
+            completionTokens = json.getInt("completionTokens"),
+            totalTokens = json.getInt("totalTokens"),
+        )
 
     /**
      * Deletes all files associated with a task.

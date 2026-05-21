@@ -302,7 +302,7 @@ class LLMAgent(
                                         round = round,
                                         thinking = thinking,
                                         actionType = ACTION_FINISH,
-                                        message = msg,
+                                        message = "【任务完成】$msg",
                                         tokenUsage = roundTokenUsage,
                                     ),
                                 )
@@ -329,8 +329,7 @@ class LLMAgent(
                                             round = round,
                                             thinking = thinking,
                                             actionType = ACTION_REQUEST_USER,
-                                            message = msg,
-                                            observation = "【ClawBot 未连接】已将提醒内容显示在悬浮窗，任务结束。",
+                                            message = "【ClawBot 未连接】已将提醒内容显示在悬浮窗，任务结束。",
                                             tokenUsage = roundTokenUsage,
                                         ),
                                     )
@@ -380,8 +379,7 @@ class LLMAgent(
                                         round = round,
                                         thinking = thinking,
                                         actionType = ACTION_REQUEST_USER,
-                                        message = msg,
-                                        observation = sendResultObservation,
+                                        message = sendResultObservation,
                                         tokenUsage = roundTokenUsage,
                                     ),
                                 )
@@ -435,7 +433,7 @@ class LLMAgent(
                                         actionType = ACTION_EXECUTE_SUBTASK,
                                         subTaskDescription = resolvedSubTask.description,
                                         subTaskId = resolvedSubTask.id,
-                                        observation = observation,
+                                        message = observation,
                                         subTaskSuccess = subTaskResult.success,
                                         subTaskStepCount = subTaskResult.stepCount,
                                         tokenUsage = roundTokenUsage,
@@ -481,17 +479,18 @@ class LLMAgent(
                                     "日程记录失败：缺少系统上下文，无法访问任务管理器"
                                 }
 
+                                val observation = "【定时任务操作结果】\n$resultMessage\n\n请根据结果决定下一步操作。"
                                 historyManager?.recordPlanningRound(
                                     LLMPlanningRound(
                                         round = round,
                                         thinking = thinking,
                                         actionType = ACTION_SCHEDULE_TASK,
-                                        message = resultMessage,
+                                        message = observation,
                                         tokenUsage = roundTokenUsage,
                                     ),
                                 )
 
-                                context.addUserMessage("【定时任务操作结果】\n$resultMessage\n\n请根据结果决定下一步操作。")
+                                context.addUserMessage(observation)
                             }
 
                             ACTION_QUERY_SCHEDULED_TASKS -> {
@@ -525,16 +524,17 @@ class LLMAgent(
                                     "日程查询失败：缺少系统上下文"
                                 }
 
+                                val observation = "$resultMessage\n\n请根据上述信息决定下一步操作。"
                                 historyManager?.recordPlanningRound(
                                     LLMPlanningRound(
                                         round = round,
                                         thinking = thinking,
                                         actionType = ACTION_QUERY_SCHEDULED_TASKS,
-                                        message = resultMessage,
+                                        message = observation,
                                         tokenUsage = roundTokenUsage,
                                     ),
                                 )
-                                context.addUserMessage("$resultMessage\n\n请根据上述信息决定下一步操作。")
+                                context.addUserMessage(observation)
                             }
 
                             ACTION_UPDATE_SCHEDULED_TASK -> {
@@ -572,16 +572,17 @@ class LLMAgent(
                                     "日程更新失败：缺少系统上下文"
                                 }
 
+                                val observation = "【日程更新结果】\n$resultMessage\n\n请根据结果决定下一步操作。"
                                 historyManager?.recordPlanningRound(
                                     LLMPlanningRound(
                                         round = round,
                                         thinking = thinking,
                                         actionType = ACTION_UPDATE_SCHEDULED_TASK,
-                                        message = resultMessage,
+                                        message = observation,
                                         tokenUsage = roundTokenUsage,
                                     ),
                                 )
-                                context.addUserMessage("【日程更新结果】\n$resultMessage\n\n请根据结果决定下一步操作。")
+                                context.addUserMessage(observation)
                             }
 
                             ACTION_DELETE_SCHEDULED_TASK -> {
@@ -612,16 +613,17 @@ class LLMAgent(
                                     "日程删除失败：缺少系统上下文"
                                 }
 
+                                val observation = "【日程删除结果】\n$resultMessage\n\n请根据结果决定下一步操作。"
                                 historyManager?.recordPlanningRound(
                                     LLMPlanningRound(
                                         round = round,
                                         thinking = thinking,
                                         actionType = ACTION_DELETE_SCHEDULED_TASK,
-                                        message = resultMessage,
+                                        message = observation,
                                         tokenUsage = roundTokenUsage,
                                     ),
                                 )
-                                context.addUserMessage("【日程删除结果】\n$resultMessage\n\n请根据结果决定下一步操作。")
+                                context.addUserMessage(observation)
                             }
 
                             ACTION_REQUEST_BRAIN -> {
@@ -682,8 +684,7 @@ class LLMAgent(
                                         round = round,
                                         thinking = thinking,
                                         actionType = ACTION_REQUEST_BRAIN,
-                                        message = brainText ?: params.intent,
-                                        observation = observation,
+                                        message = observation,
                                         tokenUsage = roundTokenUsage,
                                         brainTokenUsage = brainGenResult?.tokenUsage,
                                     ),
@@ -705,7 +706,7 @@ class LLMAgent(
                                         round = round,
                                         thinking = thinking,
                                         actionType = ACTION_READ_RELATIONSHIPS,
-                                        message = summary.take(120),
+                                        message = observation,
                                         tokenUsage = roundTokenUsage,
                                     ),
                                 )
@@ -735,7 +736,7 @@ class LLMAgent(
                                             round = round,
                                             thinking = thinking,
                                             actionType = ACTION_UPDATE_RELATIONSHIPS,
-                                            message = content.take(120),
+                                            message = observation,
                                             tokenUsage = roundTokenUsage,
                                         ),
                                     )
@@ -757,7 +758,7 @@ class LLMAgent(
                                         round = round,
                                         thinking = thinking,
                                         actionType = ACTION_READ_BEHAVIOR_RULES,
-                                        message = rules.take(120),
+                                        message = observation,
                                         tokenUsage = roundTokenUsage,
                                     ),
                                 )
@@ -787,7 +788,7 @@ class LLMAgent(
                                             round = round,
                                             thinking = thinking,
                                             actionType = ACTION_UPDATE_BEHAVIOR_RULES,
-                                            message = content.take(120),
+                                            message = observation,
                                             tokenUsage = roundTokenUsage,
                                         ),
                                     )

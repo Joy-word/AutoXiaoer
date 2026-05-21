@@ -164,4 +164,16 @@ object ModelResponseParser {
         // No closing quote found, return what we have
         return result.toString().ifEmpty { null }
     }
+
+    /**
+     * Returns the inner text of the first `<tag>...</tag>` block, or null if absent.
+     */
+    internal fun extractTaggedBlock(text: String, tag: String): String? {
+        val open = "<$tag>"
+        val close = "</$tag>"
+        val start = text.indexOf(open)
+        val end = text.indexOf(close)
+        if (start == -1 || end == -1 || end <= start) return null
+        return text.substring(start + open.length, end)
+    }
 }

@@ -47,13 +47,13 @@ data class HistoryStep(
  * @property actionType One of "execute_subtask", "finish", "request_user", or "unknown"
  * @property subTaskDescription Description of the sub-task dispatched, or null if not applicable
  * @property subTaskId Transient ID of the sub-task, or null if not applicable
- * @property observation Observation text fed back to the LLM after sub-task execution, or null
  * @property subTaskSuccess Whether the sub-task executed successfully, or null if not applicable
  * @property subTaskStepCount Number of PhoneAgent steps the sub-task consumed, or null
- * @property message Finish or request_user message, or null
+ * @property message Action result or feedback text fed back after execution (full text)
  * @property tokenUsage Token consumption for the LLMAgent (controller) call in this round, or null if unavailable
  * @property brainTokenUsage Token consumption for the BrainLLM call in this round (only set for
  *   [actionType] == "request_brain"), or null if unavailable or not applicable
+ * @property steps PhoneAgent execution steps belonging to this round (e.g. sub-task steps)
  */
 data class LLMPlanningRound(
     val round: Int,
@@ -62,13 +62,16 @@ data class LLMPlanningRound(
     val actionType: String,
     val subTaskDescription: String? = null,
     val subTaskId: Int? = null,
-    val observation: String? = null,
     val subTaskSuccess: Boolean? = null,
     val subTaskStepCount: Int? = null,
     val message: String? = null,
     val tokenUsage: TokenUsage? = null,
     val brainTokenUsage: TokenUsage? = null,
+    val steps: MutableList<HistoryStep> = mutableListOf(),
 )
+
+/** Action type for PhoneAgent-only tasks with no LLMAgent planning rounds. */
+const val ACTION_DIRECT_EXECUTION = "direct_execution"
 
 /**
  * Represents a complete task execution history.
@@ -82,8 +85,7 @@ data class LLMPlanningRound(
  * @property endTime Unix timestamp when the task ended, or null if still running
  * @property success Whether the task completed successfully
  * @property completionMessage Optional message describing the completion result
- * @property steps List of all PhoneAgent execution steps in order
- * @property planningRounds List of all LLMAgent planning rounds in order
+ * @property planningRounds List of all planning rounds, each optionally containing PhoneAgent steps
  *
  */
 data class TaskHistory(
@@ -93,20 +95,22 @@ data class TaskHistory(
     var endTime: Long? = null,
     var success: Boolean = false,
     var completionMessage: String? = null,
-    val steps: MutableList<HistoryStep> = mutableListOf(),
     val planningRounds: MutableList<LLMPlanningRound> = mutableListOf(),
 ) {
     /** Duration of the task in milliseconds. */
     val duration: Long
         get() = (endTime ?: System.currentTimeMillis()) - startTime
 
-    /** Number of PhoneAgent steps recorded in this task. */
+    /** Number of PhoneAgent steps recorded across all planning rounds. */
     val stepCount: Int
-        get() = steps.size
+        get() = planningRounds.sumOf { it.steps.size }
 
-    /** Number of LLMAgent planning rounds recorded in this task. */
+    /** Number of planning rounds recorded in this task. */
     val planningRoundCount: Int
         get() = planningRounds.size
+
+    /** All PhoneAgent steps in round order. */
+    fun allSteps(): List<HistoryStep> = planningRounds.flatMap { it.steps }
 }
 
 /**

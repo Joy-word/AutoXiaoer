@@ -22,10 +22,9 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * RecyclerView adapter for history detail with header, LLM planning rounds, and phone agent steps.
+ * RecyclerView adapter for history detail with header, planning rounds, and nested steps.
  *
- * Items from [LLMPlanningRound] and [HistoryStep] are interleaved by timestamp so the
- * timeline reflects the actual execution order.
+ * Each planning round is followed by its PhoneAgent steps in execution order.
  *
  * @param historyManager Manager for loading screenshots
  * @param coroutineScope Scope for launching async operations
@@ -55,27 +54,14 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
     }
 
     /**
-     * Builds [items] by merging planning rounds and phone-agent steps sorted by timestamp.
+     * Builds [items] by expanding each planning round followed by its steps.
      */
     private fun rebuildItems(task: TaskHistory) {
         items.clear()
-        val merged = mutableListOf<Any>()
-        merged.addAll(task.planningRounds)
-        merged.addAll(task.steps)
-        merged.sortWith(Comparator { a, b ->
-            val ta = when (a) {
-                is LLMPlanningRound -> a.timestamp
-                is HistoryStep -> a.timestamp
-                else -> 0L
-            }
-            val tb = when (b) {
-                is LLMPlanningRound -> b.timestamp
-                is HistoryStep -> b.timestamp
-                else -> 0L
-            }
-            ta.compareTo(tb)
-        })
-        items.addAll(merged)
+        for (round in task.planningRounds) {
+            items.add(round)
+            items.addAll(round.steps)
+        }
     }
 
     /**
@@ -183,8 +169,6 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
         private val subTaskSection: LinearLayout = itemView.findViewById(R.id.subTaskSection)
         private val subTaskDescription: TextView = itemView.findViewById(R.id.subTaskDescription)
         private val messageText: TextView = itemView.findViewById(R.id.messageText)
-        private val observationSection: LinearLayout = itemView.findViewById(R.id.observationSection)
-        private val observationText: TextView = itemView.findViewById(R.id.observationText)
         private val tokenUsageText: TextView = itemView.findViewById(R.id.tokenUsageText)
 
         fun bind(round: LLMPlanningRound) {
@@ -225,20 +209,12 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
                 subTaskSection.visibility = View.GONE
             }
 
-            // Message (finish / request_user / schedule operations)
+            // Message (action result / feedback)
             if (!round.message.isNullOrBlank()) {
                 messageText.visibility = View.VISIBLE
                 messageText.text = round.message
             } else {
                 messageText.visibility = View.GONE
-            }
-
-            // Observation
-            if (!round.observation.isNullOrBlank()) {
-                observationSection.visibility = View.VISIBLE
-                observationText.text = round.observation
-            } else {
-                observationSection.visibility = View.GONE
             }
 
             // Token usage
@@ -271,6 +247,11 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
                 "query_scheduled_tasks" -> "查询日程" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
                 "update_scheduled_task" -> "更新日程" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
                 "delete_scheduled_task" -> "删除日程" to ContextCompat.getColor(context, R.color.status_error)
+                "read_relationships" -> "读取人际关系" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
+                "update_relationships" -> "更新人际关系" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
+                "read_behavior_rules" -> "读取行为准则" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
+                "update_behavior_rules" -> "更新行为准则" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
+                ACTION_DIRECT_EXECUTION -> "直接执行" to ContextCompat.getColor(context, R.color.primary)
                 else -> actionType to ContextCompat.getColor(context, R.color.icon_secondary)
             }
         }

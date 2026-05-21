@@ -286,7 +286,7 @@ class HistoryDetailActivity : BaseActivity() {
         var totalHeight = headerHeight + padding * 2
         val screenshotHeights = mutableMapOf<Int, Int>()
 
-        for ((index, step) in task.steps.withIndex()) {
+        for ((index, step) in task.allSteps().withIndex()) {
             totalHeight += stepBaseHeight
             if (step.thinking.isNotBlank()) {
                 val lines = (step.thinking.length / 40) + 1
@@ -379,7 +379,7 @@ class HistoryDetailActivity : BaseActivity() {
         y += 60
 
         // Draw steps
-        for ((index, step) in task.steps.withIndex()) {
+        for ((index, step) in task.allSteps().withIndex()) {
             // Add spacing before each step (except first one uses smaller spacing)
             if (index == 0) {
                 y += 20
