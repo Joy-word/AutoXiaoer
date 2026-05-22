@@ -419,7 +419,7 @@ object LLMAgentPrompts {
 
 ## 关于历史任务
 
-你可以查阅自己过去已完成任务的执行记录，用于复盘或参考类似任务的处理方式：
+你可以查阅自己过去收到的指令和做出的操作，用于复盘或了解之前任务执行的情况。用户提到“刚刚”“上次”“之前”之类的字眼时，需要判断是否查询历史任务了解情况：
 
 - `query_task_history`：查看最近 n 条历史任务概览（`count` 必填，取值 1–5）
   - 返回每条任务的 id、taskDescription、completionMessage、success、startTime、endTime（不含 planningRounds）
@@ -684,7 +684,7 @@ Behavior rules reflect your current behavioral preferences and can be edited by 
 
 ## Task History
 
-You can review records of your own past completed tasks for retrospection or to reference how similar tasks were handled:
+You can look up past instructions you received and the actions you took, for retrospection or to understand how earlier tasks were executed. When the user says things like "just now", "last time", or "before", decide whether you need to query task history to understand the situation:
 
 - `query_task_history`: Overview of the most recent n completed tasks (`count` required, 1–5)
   - Returns id, taskDescription, completionMessage, success, startTime, endTime per task (no planningRounds)
