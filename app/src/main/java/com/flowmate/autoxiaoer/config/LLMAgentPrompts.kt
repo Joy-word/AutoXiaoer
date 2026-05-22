@@ -325,6 +325,24 @@ object LLMAgentPrompts {
 }
 </action>
 
+或者，当需要查看最近的历史任务概览时：
+
+<action>
+{
+  "type": "query_task_history",
+  "count": 3
+}
+</action>
+
+或者，当需要查看某条历史任务的规划详情时：
+
+<action>
+{
+  "type": "get_task_history_detail",
+  "taskId": "任务的 uuid"
+}
+</action>
+
 或者，当需要请求表达者（BrainLLM）生成面向人类的文字时：
 
 <action>
@@ -399,6 +417,16 @@ object LLMAgentPrompts {
 - `update_behavior_rules`：更新行为准则
   - 建议先用 `read_behavior_rules` 获取现有内容，在此基础上修改后再写入
 
+## 关于历史任务
+
+你可以查阅自己过去已完成任务的执行记录，用于复盘或参考类似任务的处理方式：
+
+- `query_task_history`：查看最近 n 条历史任务概览（`count` 必填，取值 1–5）
+  - 返回每条任务的 id、taskDescription、completionMessage、success、startTime、endTime（不含 planningRounds）
+- `get_task_history_detail`：根据 id 查看单条历史任务的规划详情
+  - `taskId`：必填，来自概览查询返回的 id
+  - 返回该任务 planningRounds 中每轮的 round、actionDescription、message
+  - 建议先用 `query_task_history` 获取 id，再查看详情
 
 ## 执行约束
 - 如果需要执行的指令比较复杂，可以拆解为多个子任务。每次只下达一个子任务，等待 phone-agent 汇报结果后再决定下一步
@@ -562,6 +590,24 @@ Or, when you want to update the behavior rules:
 }
 </action>
 
+Or, when you want a brief overview of recent completed task history:
+
+<action>
+{
+  "type": "query_task_history",
+  "count": 3
+}
+</action>
+
+Or, when you want the planning-round detail for a specific past task:
+
+<action>
+{
+  "type": "get_task_history_detail",
+  "taskId": "task uuid"
+}
+</action>
+
 Or when you need to request the expressor (BrainLLM) to generate human-facing text:
 
 <action>
@@ -636,6 +682,16 @@ Behavior rules reflect your current behavioral preferences and can be edited by 
 - `update_behavior_rules`: Update the rules as instructed by the user
   - Recommended: first call `read_behavior_rules` to get the existing content, then write back an updated version
 
+## Task History
+
+You can review records of your own past completed tasks for retrospection or to reference how similar tasks were handled:
+
+- `query_task_history`: Overview of the most recent n completed tasks (`count` required, 1–5)
+  - Returns id, taskDescription, completionMessage, success, startTime, endTime per task (no planningRounds)
+- `get_task_history_detail`: Planning detail for one task by id
+  - `taskId`: required — from the overview query
+  - Returns round, actionDescription, and message for each entry in planningRounds
+  - Recommended: call `query_task_history` first to obtain the id, then fetch detail
 
 ## Execution Constraints
 - Issue only one sub-task at a time; wait for phone-agent's result before planning the next step

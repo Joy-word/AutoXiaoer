@@ -9,6 +9,7 @@ import com.flowmate.autoxiaoer.config.LLMAgentPrompts
 import com.flowmate.autoxiaoer.config.RelationshipContext
 import com.flowmate.autoxiaoer.history.HistoryManager
 import com.flowmate.autoxiaoer.history.LLMPlanningRound
+import com.flowmate.autoxiaoer.history.TaskHistory
 import com.flowmate.autoxiaoer.model.ModelClient
 import com.flowmate.autoxiaoer.model.ModelResponseParser
 import com.flowmate.autoxiaoer.model.ModelResult
@@ -23,6 +24,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -821,9 +823,102 @@ class LLMAgent(
                                 }
                             }
 
+                            ACTION_QUERY_TASK_HISTORY -> {
+                                val count = action.historyQueryCount
+                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
+                                if (count == null) {
+                                    val err = if (isEn) {
+                                        "query_task_history is missing the required `count` field (1–4). Please output the action again."
+                                    } else {
+                                        "query_task_history 缺少 count 字段（取值 1–4），请重新输出。"
+                                    }
+                                    context.addUserMessage(err)
+                                    continue
+                                }
+
+                                val resultMessage = if (historyManager != null) {
+                                    val tasks = historyManager.historyList.value.take(count)
+                                    formatTaskHistoryOverview(tasks, isEn)
+                                } else {
+                                    if (isEn) "Task history query failed: HistoryManager not available" else "历史任务查询失败：未启用历史记录"
+                                }
+
+                                val observation = if (isEn) {
+                                    "$resultMessage\n\nDecide your next action based on the above."
+                                } else {
+                                    "$resultMessage\n\n请根据上述信息决定下一步操作。"
+                                }
+                                Logger.i(TAG, "LLMAgent queried task history overview: count=$count")
+                                historyManager?.recordPlanningRound(
+                                    LLMPlanningRound(
+                                        round = round,
+                                        thinking = thinking,
+                                        actionDescription = actionDescription,
+                                        actionType = ACTION_QUERY_TASK_HISTORY,
+                                        message = observation,
+                                        tokenUsage = roundTokenUsage,
+                                    ),
+                                )
+                                context.addUserMessage(observation)
+                            }
+
+                            ACTION_GET_TASK_HISTORY_DETAIL -> {
+                                val taskId = action.historyTaskId
+                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
+                                if (taskId == null) {
+                                    val err = if (isEn) {
+                                        "get_task_history_detail is missing the required `taskId` field. Please output the action again."
+                                    } else {
+                                        "get_task_history_detail 缺少 taskId 字段，请重新输出。"
+                                    }
+                                    context.addUserMessage(err)
+                                    continue
+                                }
+
+                                val resultMessage = if (historyManager != null) {
+                                    try {
+                                        val task = historyManager.getTask(taskId)
+                                            ?: historyManager.historyList.value.find { it.id == taskId }
+                                        if (task == null) {
+                                            if (isEn) "Task not found: id=$taskId" else "未找到历史任务：id=$taskId"
+                                        } else {
+                                            formatTaskHistoryDetail(task, isEn)
+                                        }
+                                    } catch (e: Exception) {
+                                        Logger.e(TAG, "Failed to get task history detail", e)
+                                        if (isEn) "Task history detail query failed: ${e.message}" else "历史任务详情查询失败：${e.message}"
+                                    }
+                                } else {
+                                    if (isEn) "Task history detail query failed: HistoryManager not available" else "历史任务详情查询失败：未启用历史记录"
+                                }
+
+                                val observation = if (isEn) {
+                                    "$resultMessage\n\nDecide your next action based on the above."
+                                } else {
+                                    "$resultMessage\n\n请根据上述信息决定下一步操作。"
+                                }
+                                Logger.i(TAG, "LLMAgent queried task history detail: taskId=$taskId")
+                                historyManager?.recordPlanningRound(
+                                    LLMPlanningRound(
+                                        round = round,
+                                        thinking = thinking,
+                                        actionDescription = actionDescription,
+                                        actionType = ACTION_GET_TASK_HISTORY_DETAIL,
+                                        message = observation,
+                                        tokenUsage = roundTokenUsage,
+                                    ),
+                                )
+                                context.addUserMessage(observation)
+                            }
+
                             else -> {
                                 Logger.w(TAG, "Unknown action type: ${action.type}")
-                                context.addUserMessage("未知的 action type \"${action.type}\"，请使用 execute_subtask、finish、request_user、request_brain、schedule_task、query_scheduled_tasks、update_scheduled_task、delete_scheduled_task、read_relationships、update_relationships、read_behavior_rules 或 update_behavior_rules。")
+                                context.addUserMessage(
+                                    "未知的 action type \"${action.type}\"，请使用 execute_subtask、finish、request_user、request_brain、" +
+                                        "schedule_task、query_scheduled_tasks、update_scheduled_task、delete_scheduled_task、" +
+                                        "read_relationships、update_relationships、read_behavior_rules、update_behavior_rules、" +
+                                        "query_task_history 或 get_task_history_detail。",
+                                )
                             }
                         }
                     }
@@ -1080,6 +1175,8 @@ class LLMAgent(
         val brainRequestParams: BrainRequestParams? = null,
         val relationshipsContent: String? = null,
         val behaviorContent: String? = null,
+        val historyQueryCount: Int? = null,
+        val historyTaskId: String? = null,
     )
 
     private data class BrainRequestParams(
@@ -1245,12 +1342,75 @@ class LLMAgent(
                     )
                 }
 
+                ACTION_QUERY_TASK_HISTORY -> {
+                    val count = json.optInt("count", 0)
+                    if (count < 1 || count >= 5) return null
+                    ParsedAction(type = type, message = null, subTask = null, historyQueryCount = count)
+                }
+
+                ACTION_GET_TASK_HISTORY_DETAIL -> {
+                    val taskId = json.optString("taskId").ifBlank { return null }
+                    ParsedAction(type = type, message = null, subTask = null, historyTaskId = taskId)
+                }
+
                 else -> ParsedAction(type = type, message = null, subTask = null)
             }
         } catch (e: Exception) {
             Logger.w(TAG, "Failed to parse LLM action JSON: ${e.message}")
             null
         }
+    }
+
+    private fun wrapHistoryJsonBlock(title: String, json: JSONObject): String =
+        "$title\n```json\n${json.toString(2)}\n```"
+
+    private fun taskHistoryOverviewToJson(tasks: List<TaskHistory>): JSONObject {
+        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
+        val tasksArray = JSONArray()
+        tasks.forEach { task ->
+            tasksArray.put(
+                JSONObject().apply {
+                    put("id", task.id)
+                    put("taskDescription", task.taskDescription)
+                    put("completionMessage", task.completionMessage ?: "")
+                    put("success", task.success)
+                    put("startTime", fmt.format(java.util.Date(task.startTime)))
+                    put("endTime", task.endTime?.let { fmt.format(java.util.Date(it)) } ?: "")
+                },
+            )
+        }
+        return JSONObject().apply {
+            put("tasks", tasksArray)
+            put("count", tasks.size)
+        }
+    }
+
+    private fun taskHistoryDetailToJson(task: TaskHistory): JSONObject {
+        val roundsArray = JSONArray()
+        task.planningRounds.forEach { round ->
+            roundsArray.put(
+                JSONObject().apply {
+                    put("round", round.round)
+                    put("actionDescription", round.actionDescription)
+                    put("message", round.message ?: "")
+                },
+            )
+        }
+        return JSONObject().apply {
+            put("id", task.id)
+            put("taskDescription", task.taskDescription)
+            put("planningRounds", roundsArray)
+        }
+    }
+
+    private fun formatTaskHistoryOverview(tasks: List<TaskHistory>, isEn: Boolean): String {
+        val title = if (isEn) "[Task History Overview]" else "【历史任务概览】"
+        return wrapHistoryJsonBlock(title, taskHistoryOverviewToJson(tasks))
+    }
+
+    private fun formatTaskHistoryDetail(task: TaskHistory, isEn: Boolean): String {
+        val title = if (isEn) "[Task History Detail]" else "【历史任务详情】"
+        return wrapHistoryJsonBlock(title, taskHistoryDetailToJson(task))
     }
 
     companion object {
@@ -1268,6 +1428,8 @@ class LLMAgent(
         private const val ACTION_UPDATE_RELATIONSHIPS = "update_relationships"
         private const val ACTION_READ_BEHAVIOR_RULES = "read_behavior_rules"
         private const val ACTION_UPDATE_BEHAVIOR_RULES = "update_behavior_rules"
+        private const val ACTION_QUERY_TASK_HISTORY = "query_task_history"
+        private const val ACTION_GET_TASK_HISTORY_DETAIL = "get_task_history_detail"
 
         /**
          * If a preGeneratedTexts key starts with this prefix the value is treated as a
