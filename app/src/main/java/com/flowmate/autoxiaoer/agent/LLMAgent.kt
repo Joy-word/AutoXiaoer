@@ -828,9 +828,9 @@ class LLMAgent(
                                 val isEn = config.language.lowercase().let { it == "en" || it == "english" }
                                 if (count == null) {
                                     val err = if (isEn) {
-                                        "query_task_history is missing the required `count` field (1–4). Please output the action again."
+                                        "query_task_history is missing the required `count` field (1–5). Please output the action again."
                                     } else {
-                                        "query_task_history 缺少 count 字段（取值 1–4），请重新输出。"
+                                        "query_task_history 缺少 count 字段（取值 1–5），请重新输出。"
                                     }
                                     context.addUserMessage(err)
                                     continue
@@ -1344,7 +1344,7 @@ class LLMAgent(
 
                 ACTION_QUERY_TASK_HISTORY -> {
                     val count = json.optInt("count", 0)
-                    if (count < 1 || count >= 5) return null
+                    if (count < 1 || count > 5) return null
                     ParsedAction(type = type, message = null, subTask = null, historyQueryCount = count)
                 }
 
