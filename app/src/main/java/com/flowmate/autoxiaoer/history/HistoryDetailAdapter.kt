@@ -288,7 +288,7 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
         fun bind(step: HistoryStep) {
             currentStep = step
 
-            stepNumber.text = step.stepNumber.toString()
+            stepNumber.text = step.displayLabel()
             actionDescription.text = step.actionDescription
 
             val context = itemView.context

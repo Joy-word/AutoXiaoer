@@ -411,7 +411,7 @@ class HistoryDetailActivity : BaseActivity() {
             y += 15
 
             // Step number
-            canvas.drawText("步骤 ${step.stepNumber}", padding + 20f, y + 40, stepNumberPaint)
+            canvas.drawText("步骤 ${step.displayLabel()}", padding + 20f, y + 40, stepNumberPaint)
 
             // Status indicator
             val stepStatusPaint =

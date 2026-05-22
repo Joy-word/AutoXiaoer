@@ -57,6 +57,12 @@ class HistoryManager private constructor(private val context: Context) {
     /** Height of the current screenshot in pixels. */
     private var currentScreenshotHeight: Int = 0
 
+    /**
+     * Active LLM planning round for [recordStep] screenshot naming (r{round}_step_{n}).
+     * Set before [com.flowmate.autoxiaoer.agent.PhoneAgent.runSubTask] and cleared after the round is recorded.
+     */
+    private var recordingPlanningRound: Int? = null
+
     private val _historyList = MutableStateFlow<List<TaskHistory>>(emptyList())
 
     /** Observable list of all task histories, sorted by most recent first. */
@@ -80,8 +86,24 @@ class HistoryManager private constructor(private val context: Context) {
         val task = TaskHistory(taskDescription = taskDescription)
         currentTask = task
         pendingSteps.clear()
+        recordingPlanningRound = null
         Logger.d(TAG, "Started recording task: ${task.id}")
         return task
+    }
+
+    /**
+     * Binds subsequent [recordStep] calls to an LLM planning round for unique screenshot paths.
+     *
+     * @param round 1-based planning round number from [com.flowmate.autoxiaoer.agent.LLMAgent]
+     */
+    fun setRecordingPlanningRound(round: Int) {
+        recordingPlanningRound = round
+        Logger.d(TAG, "Recording steps under planning round $round")
+    }
+
+    /** Clears the planning round set by [setRecordingPlanningRound]. */
+    fun clearRecordingPlanningRound() {
+        recordingPlanningRound = null
     }
 
     /**
@@ -108,7 +130,7 @@ class HistoryManager private constructor(private val context: Context) {
      * If a screenshot is available (set via [setCurrentScreenshot]), it will be saved to disk
      * and optionally annotated with action visualization.
      *
-     * @param stepNumber Sequential step number within the task
+     * @param stepNumber Step number within the current sub-task or direct run (1-based)
      * @param thinking Model's reasoning/thinking for this step
      * @param action The agent action executed, or null if no action
      * @param actionDescription Human-readable description of the action
@@ -127,6 +149,7 @@ class HistoryManager private constructor(private val context: Context) {
         tokenUsage: TokenUsage? = null,
     ) = withContext(Dispatchers.IO) {
         val task = currentTask ?: return@withContext
+        val planningRound = recordingPlanningRound
 
         var screenshotPath: String? = null
         var annotatedPath: String? = null
@@ -138,7 +161,7 @@ class HistoryManager private constructor(private val context: Context) {
                 val webpBytes = Base64.decode(base64, Base64.DEFAULT)
 
                 // Save original screenshot directly without re-compression
-                screenshotPath = saveScreenshotBytes(task.id, stepNumber, webpBytes, false)
+                screenshotPath = saveScreenshotBytes(task.id, planningRound, stepNumber, webpBytes, false)
 
                 // Create and save annotated screenshot if action has visual annotation
                 if (action != null) {
@@ -158,20 +181,21 @@ class HistoryManager private constructor(private val context: Context) {
                             val scaleFactor = bitmap.width.toFloat() / context.resources.displayMetrics.widthPixels
                             val scaledDensity = baseDensity * scaleFactor
                             val annotatedBitmap = ScreenshotAnnotator.annotate(bitmap, annotation, scaledDensity)
-                            annotatedPath = saveScreenshotBitmap(task.id, stepNumber, annotatedBitmap, true)
+                            annotatedPath = saveScreenshotBitmap(task.id, planningRound, stepNumber, annotatedBitmap, true)
                             annotatedBitmap.recycle()
                             bitmap.recycle()
                         }
                     }
                 }
             } catch (e: Exception) {
-                Logger.e(TAG, "Failed to save screenshot for step $stepNumber", e)
+                Logger.e(TAG, "Failed to save screenshot for step ${formatStepLogLabel(planningRound, stepNumber)}", e)
             }
         }
 
         val step =
             HistoryStep(
                 stepNumber = stepNumber,
+                planningRound = planningRound,
                 thinking = thinking,
                 action = action,
                 actionDescription = actionDescription,
@@ -183,7 +207,7 @@ class HistoryManager private constructor(private val context: Context) {
             )
 
         pendingSteps.add(step)
-        Logger.d(TAG, "Recorded step $stepNumber for task ${task.id}")
+        Logger.d(TAG, "Recorded step ${formatStepLogLabel(planningRound, stepNumber)} for task ${task.id}")
 
         // Clear current screenshot
         currentScreenshotBase64 = null
@@ -329,20 +353,21 @@ class HistoryManager private constructor(private val context: Context) {
      * Saves raw WebP bytes directly to file (no re-compression).
      *
      * @param taskId Task identifier for directory organization
-     * @param stepNumber Step number for filename
+     * @param planningRound LLM round prefix, or null for direct PhoneAgent-only tasks
+     * @param stepNumber Step number within the sub-task or direct run
      * @param webpBytes Raw WebP image bytes
      * @param annotated Whether this is an annotated screenshot
      * @return Absolute file path of the saved screenshot
      */
     private fun saveScreenshotBytes(
         taskId: String,
+        planningRound: Int?,
         stepNumber: Int,
         webpBytes: ByteArray,
         annotated: Boolean,
     ): String {
         val taskDir = File(historyDir, taskId).also { it.mkdirs() }
-        val suffix = if (annotated) "_annotated" else ""
-        val file = File(taskDir, "step_${stepNumber}$suffix.webp")
+        val file = File(taskDir, screenshotFileName(planningRound, stepNumber, annotated))
 
         FileOutputStream(file).use { out ->
             out.write(webpBytes)
@@ -355,15 +380,21 @@ class HistoryManager private constructor(private val context: Context) {
      * Saves bitmap as WebP (used for annotated screenshots).
      *
      * @param taskId Task identifier for directory organization
-     * @param stepNumber Step number for filename
+     * @param planningRound LLM round prefix, or null for direct PhoneAgent-only tasks
+     * @param stepNumber Step number within the sub-task or direct run
      * @param bitmap Bitmap to save
      * @param annotated Whether this is an annotated screenshot
      * @return Absolute file path of the saved screenshot
      */
-    private fun saveScreenshotBitmap(taskId: String, stepNumber: Int, bitmap: Bitmap, annotated: Boolean): String {
+    private fun saveScreenshotBitmap(
+        taskId: String,
+        planningRound: Int?,
+        stepNumber: Int,
+        bitmap: Bitmap,
+        annotated: Boolean,
+    ): String {
         val taskDir = File(historyDir, taskId).also { it.mkdirs() }
-        val suffix = if (annotated) "_annotated" else ""
-        val file = File(taskDir, "step_${stepNumber}$suffix.webp")
+        val file = File(taskDir, screenshotFileName(planningRound, stepNumber, annotated))
 
         FileOutputStream(file).use { out ->
             @Suppress("DEPRECATION")
@@ -497,7 +528,8 @@ class HistoryManager private constructor(private val context: Context) {
             } else if (round.actionType == "execute_subtask" && round.subTaskStepCount != null && round.subTaskStepCount > 0) {
                 val count = minOf(round.subTaskStepCount, legacySteps.size)
                 if (count > 0) {
-                    val steps = legacySteps.take(count).toMutableList()
+                    val steps =
+                        legacySteps.take(count).map { it.copy(planningRound = round.round) }.toMutableList()
                     repeat(count) { legacySteps.removeAt(0) }
                     round.copy(steps = steps)
                 } else {
@@ -544,7 +576,13 @@ class HistoryManager private constructor(private val context: Context) {
         }
 
     private fun planningRoundFromJson(roundJson: JSONObject): LLMPlanningRound {
-        val steps = roundJson.optJSONArray("steps")?.let { parseStepsArray(it) } ?: mutableListOf()
+        val roundNum = roundJson.getInt("round")
+        val steps =
+            roundJson.optJSONArray("steps")?.let { array ->
+                parseStepsArray(array).map { step ->
+                    if (step.planningRound == null) step.copy(planningRound = roundNum) else step
+                }.toMutableList()
+            } ?: mutableListOf()
         // Legacy meta.json may still have observation; prefer it as message.
         val message =
             roundJson.optString("observation").takeIf { it.isNotEmpty() }
@@ -569,6 +607,7 @@ class HistoryManager private constructor(private val context: Context) {
     private fun stepToJson(step: HistoryStep): JSONObject =
         JSONObject().apply {
             put("stepNumber", step.stepNumber)
+            step.planningRound?.let { put("planningRound", it) }
             put("timestamp", step.timestamp)
             put("thinking", step.thinking)
             put("actionDescription", step.actionDescription)
@@ -590,6 +629,7 @@ class HistoryManager private constructor(private val context: Context) {
     private fun stepFromJson(stepJson: JSONObject): HistoryStep =
         HistoryStep(
             stepNumber = stepJson.getInt("stepNumber"),
+            planningRound = stepJson.optInt("planningRound").takeIf { stepJson.has("planningRound") && !stepJson.isNull("planningRound") },
             timestamp = stepJson.getLong("timestamp"),
             thinking = stepJson.getString("thinking"),
             action = null,
@@ -623,6 +663,18 @@ class HistoryManager private constructor(private val context: Context) {
     private fun deleteTaskFiles(taskId: String) {
         File(historyDir, taskId).deleteRecursively()
     }
+
+    private fun screenshotFileName(planningRound: Int?, stepNumber: Int, annotated: Boolean): String {
+        val suffix = if (annotated) "_annotated" else ""
+        return if (planningRound != null) {
+            "r${planningRound}_step_${stepNumber}$suffix.webp"
+        } else {
+            "step_${stepNumber}$suffix.webp"
+        }
+    }
+
+    private fun formatStepLogLabel(planningRound: Int?, stepNumber: Int): String =
+        if (planningRound != null) "R$planningRound-$stepNumber" else stepNumber.toString()
 
     /**
      * Loads the history index from persistent storage.

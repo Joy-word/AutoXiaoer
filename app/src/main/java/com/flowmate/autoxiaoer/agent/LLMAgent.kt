@@ -412,7 +412,13 @@ class LLMAgent(
                                 listener?.onSubTaskStarted(resolvedSubTask)
 
                                 // ── Observe ────────────────────────────────────
-                                val subTaskResult = phoneAgent.runSubTask(resolvedSubTask)
+                                historyManager?.setRecordingPlanningRound(round)
+                                val subTaskResult =
+                                    try {
+                                        phoneAgent.runSubTask(resolvedSubTask)
+                                    } finally {
+                                        historyManager?.clearRecordingPlanningRound()
+                                    }
                                 Logger.i(
                                     TAG,
                                     "SubTask ${subTask.id} done: success=${subTaskResult.success}, " +

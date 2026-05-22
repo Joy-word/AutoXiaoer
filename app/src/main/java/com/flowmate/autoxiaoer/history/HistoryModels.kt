@@ -10,7 +10,8 @@ import java.util.UUID
  * Each step captures the model's thinking, the action taken, and the result.
  * Screenshots are stored as file paths to avoid memory issues.
  *
- * @property stepNumber Sequential step number within the task (1-based)
+ * @property stepNumber Step number within the sub-task or direct PhoneAgent run (1-based)
+ * @property planningRound LLM planning round that owns this step, or null for legacy / direct execution
  * @property timestamp Unix timestamp when the step was recorded
  * @property thinking Model's reasoning/thinking for this step
  * @property action The agent action executed, or null if no action
@@ -24,6 +25,7 @@ import java.util.UUID
  */
 data class HistoryStep(
     val stepNumber: Int,
+    val planningRound: Int? = null,
     val timestamp: Long = System.currentTimeMillis(),
     val thinking: String,
     val action: AgentAction?,
@@ -33,7 +35,15 @@ data class HistoryStep(
     val success: Boolean,
     val message: String? = null,
     val tokenUsage: TokenUsage? = null,
-)
+) {
+    /** Display label: "R{round}-{step}" when tied to a planning round, else step number only. */
+    fun displayLabel(): String =
+        if (planningRound != null) {
+            "R$planningRound-$stepNumber"
+        } else {
+            stepNumber.toString()
+        }
+}
 
 /**
  * Represents a single ReAct planning round executed by [com.flowmate.autoxiaoer.agent.LLMAgent].
