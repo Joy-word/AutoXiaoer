@@ -1064,7 +1064,7 @@ class LLMAgent(
                 TriggerType.VOICE -> sb.appendLine("【触发来源】语音指令触发")
                 TriggerType.MANUAL -> { /* No extra context needed for manual triggers */ }
                 TriggerType.CLAWBOT -> {
-                    sb.appendLine("【触发来源】ClawBot 微信消息")
+                    sb.appendLine("【触发来源】ClawBot 消息")
                     sb.appendLine("【注意事项】如果需要回复用户消息，请使用 request_user action 输出回复内容，发送成功后你会收到反馈并继续执行后续步骤；如果已回复用户的提问，请使用 finish action 输出回复内容，发送成功后任务将结束。")
                     if (!triggerContext.clawBotFromUserId.isNullOrBlank()) {
                         sb.appendLine("【发送方】${triggerContext.clawBotFromUserId}")
