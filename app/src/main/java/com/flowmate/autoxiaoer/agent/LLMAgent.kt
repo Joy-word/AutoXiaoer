@@ -1473,7 +1473,7 @@ class LLMAgent(
         private const val ACTION_UPDATE_BEHAVIOR_RULES = "update_behavior_rules"
         private const val ACTION_QUERY_TASK_HISTORY = "query_task_history"
         private const val ACTION_GET_TASK_HISTORY_DETAIL = "get_task_history_detail"
-        private const val MAX_HISTORY_QUERY_COUNT = 5
+        private const val MAX_HISTORY_QUERY_COUNT = 10
 
         /**
          * If a preGeneratedTexts key starts with this prefix the value is treated as a

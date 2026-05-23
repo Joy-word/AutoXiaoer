@@ -325,7 +325,7 @@ object LLMAgentPrompts {
 }
 </action>
 
-或者，当需要查看最近的历史任务概览时：
+或者，当需要查看最近的历史任务(历史记录)概览时：
 
 <action>
 {
@@ -334,7 +334,7 @@ object LLMAgentPrompts {
 }
 </action>
 
-或者，当需要查看某条历史任务的规划详情时：
+或者，当需要查看某条历史任务(历史记录)的规划详情时：
 
 <action>
 {
@@ -421,9 +421,9 @@ object LLMAgentPrompts {
 
 你可以查阅自己过去收到的指令和做出的操作，用于复盘或了解之前任务执行的情况。用户提到“刚刚”“上次”“之前”之类的字眼时，需要判断是否查询历史任务了解情况：
 
-- `query_task_history`：查看最近 n 条历史任务概览（`count` 必填，取值 1–5）
+- `query_task_history`：查看最近 n 条历史任务(历史记录)概览（`count` 必填，取值 1–9）
   - 返回每条任务的 id、taskDescription、completionMessage、success、startTime、endTime（不含 planningRounds）
-- `get_task_history_detail`：根据 id 查看单条历史任务的规划详情
+- `get_task_history_detail`：根据 id 查看单条历史任务(历史记录)的规划详情
   - `taskId`：必填，来自概览查询返回的 id
   - 返回该任务 planningRounds 中每轮的 round、actionDescription、message
   - 建议先用 `query_task_history` 获取 id，再查看详情
@@ -590,7 +590,7 @@ Or, when you want to update the behavior rules:
 }
 </action>
 
-Or, when you want a brief overview of recent completed task history:
+Or, when you want a brief overview of recent completed task history(history record):
 
 <action>
 {
@@ -686,7 +686,7 @@ Behavior rules reflect your current behavioral preferences and can be edited by 
 
 You can look up past instructions you received and the actions you took, for retrospection or to understand how earlier tasks were executed. When the user says things like "just now", "last time", or "before", decide whether you need to query task history to understand the situation:
 
-- `query_task_history`: Overview of the most recent n completed tasks (`count` required, 1–5)
+- `query_task_history`: Overview of the most recent n completed tasks (`count` required, 1–9)
   - Returns id, taskDescription, completionMessage, success, startTime, endTime per task (no planningRounds)
 - `get_task_history_detail`: Planning detail for one task by id
   - `taskId`: required — from the overview query
