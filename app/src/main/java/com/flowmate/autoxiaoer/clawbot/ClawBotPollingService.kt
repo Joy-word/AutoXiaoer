@@ -134,20 +134,15 @@ class ClawBotPollingService : Service() {
             return
         }
 
+        ClawBotShortcutHandler.parse(text)?.let { command ->
+            Logger.i(TAG, "Handling ClawBot shortcut command: #$command")
+            replyToMessage(msg, ClawBotShortcutHandler.execute(command))
+            return
+        }
+
         if (TaskExecutionManager.isTaskRunning()) {
             Logger.w(TAG, "Task already running, dropping ClawBot message: ${text.take(50)}")
-            serviceScope.launch {
-                try {
-                    ClawBotManager.sendMessage(
-                        applicationContext,
-                        msg.fromUserId,
-                        msg.contextToken,
-                        "正在忙，稍后处理～",
-                    )
-                } catch (e: Exception) {
-                    Logger.w(TAG, "Failed to send busy reply: ${e.message}")
-                }
-            }
+            replyToMessage(msg, ClawBotShortcutHandler.BUSY_REPLY)
             return
         }
 
@@ -172,5 +167,20 @@ class ClawBotPollingService : Service() {
 
         Logger.i(TAG, "Triggering task from ClawBot message: ${text.take(80)}")
         TaskExecutionManager.startTask(text, triggerContext)
+    }
+
+    private fun replyToMessage(msg: ClawBotIncomingMessage, replyText: String) {
+        serviceScope.launch {
+            try {
+                ClawBotManager.sendMessage(
+                    applicationContext,
+                    msg.fromUserId,
+                    msg.contextToken,
+                    replyText,
+                )
+            } catch (e: Exception) {
+                Logger.w(TAG, "Failed to send ClawBot reply: ${e.message}")
+            }
+        }
     }
 }

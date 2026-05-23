@@ -605,6 +605,39 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
         _steps.value = emptyList()
     }
 
+    /**
+     * Clears all pending passive/scheduled tasks waiting in the queue.
+     * Does not affect the currently running task.
+     *
+     * @return Number of queue entries removed
+     */
+    fun clearPassiveTaskQueue(): Int {
+        synchronized(passiveTaskQueue) {
+            val count = passiveTaskQueue.size
+            passiveTaskQueue.clear()
+            if (count > 0) {
+                Logger.i(TAG, "Passive task queue cleared, removed $count entries")
+            }
+            return count
+        }
+    }
+
+    /**
+     * Stops the current task (if running or paused) and clears the passive task queue.
+     *
+     * The queue is cleared first so that when cancellation completes and
+     * [processNextInQueue] runs, no queued task is auto-started.
+     *
+     * @return Number of queue entries that were cleared
+     */
+    fun cancelTaskAndClearQueue(): Int {
+        val cleared = clearPassiveTaskQueue()
+        if (isTaskRunning()) {
+            cancelTask()
+        }
+        return cleared
+    }
+
     // endregion
 
     // region Query Methods
@@ -677,6 +710,10 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
         val status = _taskState.value.status
         return status == TaskStatus.RUNNING || status == TaskStatus.PAUSED
     }
+
+    /** @return Number of tasks waiting in the passive task queue. */
+    fun getPassiveQueueSize(): Int =
+        synchronized(passiveTaskQueue) { passiveTaskQueue.size }
 
     // endregion
 
