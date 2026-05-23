@@ -828,17 +828,32 @@ class LLMAgent(
                                 val isEn = config.language.lowercase().let { it == "en" || it == "english" }
                                 if (count == null) {
                                     val err = if (isEn) {
-                                        "query_task_history is missing the required `count` field (1–5). Please output the action again."
+                                        "query_task_history has a missing or invalid `count` field. It must be an integer from 1 to 5. Please output the action again."
                                     } else {
-                                        "query_task_history 缺少 count 字段（取值 1–5），请重新输出。"
+                                        "query_task_history 的 count 未填写或无效，取值应为 1–5 的整数，请重新输出。"
                                     }
+                                    historyManager?.recordPlanningRound(
+                                        LLMPlanningRound(
+                                            round = round,
+                                            thinking = thinking,
+                                            actionDescription = actionDescription,
+                                            actionType = ACTION_QUERY_TASK_HISTORY,
+                                            message = err,
+                                            tokenUsage = roundTokenUsage,
+                                        ),
+                                    )
                                     context.addUserMessage(err)
                                     continue
                                 }
 
                                 val resultMessage = if (historyManager != null) {
-                                    val tasks = historyManager.historyList.value.take(count)
-                                    formatTaskHistoryOverview(tasks, isEn)
+                                    try {
+                                        val tasks = historyManager.historyList.value.take(count)
+                                        formatTaskHistoryOverview(tasks, isEn)
+                                    } catch (e: Exception) {
+                                        Logger.e(TAG, "Failed to query task history overview", e)
+                                        if (isEn) "Task history query failed: ${e.message}" else "历史任务查询失败：${e.message}"
+                                    }
                                 } else {
                                     if (isEn) "Task history query failed: HistoryManager not available" else "历史任务查询失败：未启用历史记录"
                                 }
@@ -871,6 +886,16 @@ class LLMAgent(
                                     } else {
                                         "get_task_history_detail 缺少 taskId 字段，请重新输出。"
                                     }
+                                    historyManager?.recordPlanningRound(
+                                        LLMPlanningRound(
+                                            round = round,
+                                            thinking = thinking,
+                                            actionDescription = actionDescription,
+                                            actionType = ACTION_GET_TASK_HISTORY_DETAIL,
+                                            message = err,
+                                            tokenUsage = roundTokenUsage,
+                                        ),
+                                    )
                                     context.addUserMessage(err)
                                     continue
                                 }
@@ -1343,9 +1368,12 @@ class LLMAgent(
                 }
 
                 ACTION_QUERY_TASK_HISTORY -> {
-                    val count = json.optInt("count", 0)
-                    if (count < 1 || count > 5) return null
-                    ParsedAction(type = type, message = null, subTask = null, historyQueryCount = count)
+                    ParsedAction(
+                        type = type,
+                        message = null,
+                        subTask = null,
+                        historyQueryCount = parseHistoryQueryCount(json),
+                    )
                 }
 
                 ACTION_GET_TASK_HISTORY_DETAIL -> {
@@ -1359,6 +1387,21 @@ class LLMAgent(
             Logger.w(TAG, "Failed to parse LLM action JSON: ${e.message}")
             null
         }
+    }
+
+    /**
+     * Parses [query_task_history] count: missing or invalid → null; above max → clamped to [MAX_HISTORY_QUERY_COUNT].
+     */
+    private fun parseHistoryQueryCount(json: JSONObject): Int? {
+        if (!json.has("count") || json.isNull("count")) return null
+        val count =
+            when (val raw = json.get("count")) {
+                is Number -> raw.toInt()
+                is String -> raw.trim().toIntOrNull()
+                else -> null
+            } ?: return null
+        if (count < 1) return null
+        return minOf(count, MAX_HISTORY_QUERY_COUNT)
     }
 
     private fun wrapHistoryJsonBlock(title: String, json: JSONObject): String =
@@ -1430,6 +1473,7 @@ class LLMAgent(
         private const val ACTION_UPDATE_BEHAVIOR_RULES = "update_behavior_rules"
         private const val ACTION_QUERY_TASK_HISTORY = "query_task_history"
         private const val ACTION_GET_TASK_HISTORY_DETAIL = "get_task_history_detail"
+        private const val MAX_HISTORY_QUERY_COUNT = 5
 
         /**
          * If a preGeneratedTexts key starts with this prefix the value is treated as a
