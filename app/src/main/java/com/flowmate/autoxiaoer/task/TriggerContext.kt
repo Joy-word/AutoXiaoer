@@ -46,6 +46,10 @@ enum class TriggerType {
  *   Only set for [TriggerType.CLAWBOT] triggers.
  * @property clawBotFromUserId The `from_user_id` of the WeChat user who sent the message.
  *   Only set for [TriggerType.CLAWBOT] triggers.
+ * @property clawBotHistoryContext A formatted string containing the recent conversation
+ *   history for this user, built by [com.flowmate.autoxiaoer.clawbot.ClawBotConversationHistory.toPromptContext].
+ *   When non-null, [com.flowmate.autoxiaoer.agent.LLMAgent] injects it into the initial
+ *   user message so the LLM can reference prior turns. Only set for [TriggerType.CLAWBOT].
  * @property notificationTexts Accumulated notification text messages for queue-merged entries.
  *   When multiple notifications from the same session are merged in the passive task queue,
  *   their individual [notificationText] values are collected here in arrival order.
@@ -64,6 +68,7 @@ data class TriggerContext(
     val scheduledTaskBackground: String? = null,
     val clawBotContextToken: String? = null,
     val clawBotFromUserId: String? = null,
+    val clawBotHistoryContext: String? = null,
     val notificationTexts: List<String> = emptyList(),
     val triggerTime: Long = System.currentTimeMillis(),
 ) {

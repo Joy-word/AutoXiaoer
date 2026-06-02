@@ -156,6 +156,7 @@ class ClawBotPollingService : Service() {
             triggerType = TriggerType.CLAWBOT,
             clawBotContextToken = msg.contextToken,
             clawBotFromUserId = msg.fromUserId,
+            clawBotHistoryContext = loadHistoryContext(msg.fromUserId),
         )
 
         // Persist the latest conversation so proactive sends (app-initiated tasks) can
@@ -182,5 +183,15 @@ class ClawBotPollingService : Service() {
                 Logger.w(TAG, "Failed to send ClawBot reply: ${e.message}")
             }
         }
+    }
+
+    /**
+     * Loads the conversation history for the given ClawBot user and formats it
+     * as a prompt-ready context string. Returns null if no history exists.
+     */
+    private fun loadHistoryContext(fromUserId: String): String? {
+        val history = SettingsManager.getInstance(applicationContext)
+            .getClawBotConversationHistory(fromUserId)
+        return history.toPromptContext()
     }
 }

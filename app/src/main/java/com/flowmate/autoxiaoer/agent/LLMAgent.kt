@@ -113,6 +113,9 @@ class LLMAgent(
     /** When true the ReAct loop will suspend at iteration boundaries until resumed. */
     private val pauseRequested = AtomicBoolean(false)
 
+    /** Messages sent to the user during the current ClawBot task (for conversation history). */
+    private val sentMessagesInCurrentTask = mutableListOf<String>()
+
     fun setListener(listener: LLMAgentListener?) {
         this.listener = listener
     }
@@ -203,6 +206,9 @@ class LLMAgent(
         // Reset control flags for this new run
         cancelRequested.set(false)
         pauseRequested.set(false)
+
+        // Clear sent messages tracker for this task
+        sentMessagesInCurrentTask.clear()
 
         // Own the task history lifecycle: start recording before any planning rounds
         historyManager?.startTask(taskDescription)
@@ -315,6 +321,11 @@ class LLMAgent(
                                         tokenUsage = roundTokenUsage,
                                     ),
                                 )
+
+                                // Save ClawBot conversation turn if this was a ClawBot-triggered task
+                                // and we have at least one message to record.
+                                saveClawBotTurnIfApplicable(taskDescription, triggerContext, msg)
+
                                 val result = LLMTaskResult(success = true, message = msg, planningRounds = round)
                                 historyManager?.completeTask(true, msg)
                                 listener?.onTaskFinished(result)
@@ -377,6 +388,9 @@ class LLMAgent(
                                 }
 
                                 Logger.i(TAG, "ClawBot request_user sent=$sent")
+
+                                // Track sent messages for ClawBot conversation history
+                                if (sent) sentMessagesInCurrentTask.add(msg)
 
                                 // Feed the send result back into context and let the LLM decide next step.
                                 val sendResultObservation = if (sent) {
@@ -1069,6 +1083,11 @@ class LLMAgent(
                     if (!triggerContext.clawBotFromUserId.isNullOrBlank()) {
                         sb.appendLine("【发送方】${triggerContext.clawBotFromUserId}")
                     }
+                    // Inject recent conversation history so the LLM can maintain context across turns
+                    if (!triggerContext.clawBotHistoryContext.isNullOrBlank()) {
+                        sb.appendLine()
+                        sb.appendLine(triggerContext.clawBotHistoryContext)
+                    }
                 }
             }
         }
@@ -1455,6 +1474,45 @@ class LLMAgent(
         val title = if (isEn) "[Task History Detail]" else "【历史任务详情】"
         return wrapHistoryJsonBlock(title, taskHistoryDetailToJson(task))
     }
+
+    // ─── ClawBot conversation history saving ──────────────────────────────────
+
+    /**
+     * Persists the completed conversation turn for ClawBot-triggered tasks.
+     *
+     * Called when a ClawBot task finishes via ACTION_FINISH.  The user's original
+     * message is stored together with the assistant's final response (or accumulated
+     * request_user messages if multiple were sent).
+     */
+    private fun saveClawBotTurnIfApplicable(
+        taskDescription: String,
+        triggerContext: TriggerContext?,
+        finalMessage: String,
+    ) {
+        val appCtx = context ?: return
+        if (triggerContext?.triggerType != TriggerType.CLAWBOT) return
+        val fromUserId = triggerContext.clawBotFromUserId ?: return
+        if (fromUserId.isBlank()) return
+
+        val assistantMessage = if (sentMessagesInCurrentTask.isNotEmpty()) {
+            sentMessagesInCurrentTask.joinToString("\n")
+        } else {
+            finalMessage
+        }
+
+        try {
+            ClawBotManager.saveConversationTurn(
+                context = appCtx,
+                fromUserId = fromUserId,
+                userMessage = taskDescription,
+                assistantMessage = assistantMessage,
+            )
+        } catch (e: Exception) {
+            Logger.w(TAG, "Failed to save ClawBot conversation turn", e)
+        }
+    }
+
+    // ─── End ClawBot conversation history saving ──────────────────────────────
 
     companion object {
         private const val TAG = "LLMAgent"

@@ -119,4 +119,32 @@ object ClawBotManager {
             Logger.i(TAG, "sendProactiveMessage toUserId=$fromUserId ok=$ok")
             ok
         }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Conversation History
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Saves a completed conversation turn (user message → assistant response) for
+     * the given ClawBot user. The history is persisted via [SettingsManager] and
+     * will be injected as context on the next incoming message from the same user.
+     *
+     * This should be called after a ClawBot-triggered task finishes successfully,
+     * with the user's incoming message and the assistant's final response.
+     *
+     * @param userMessage The text the user sent (incoming ClawBot message).
+     * @param assistantMessage The assistant's response sent back to the user.
+     */
+    fun saveConversationTurn(
+        context: Context,
+        fromUserId: String,
+        userMessage: String,
+        assistantMessage: String,
+    ) {
+        val settings = SettingsManager.getInstance(context)
+        val history = settings.getClawBotConversationHistory(fromUserId)
+        val updated = history.appendTurn(userMessage, assistantMessage)
+        settings.saveClawBotConversationHistory(updated)
+        Logger.i(TAG, "Saved ClawBot conversation turn for $fromUserId: turns=${updated.turns.size}")
+    }
 }

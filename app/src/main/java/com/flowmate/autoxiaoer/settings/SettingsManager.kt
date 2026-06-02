@@ -150,6 +150,12 @@ class SettingsManager private constructor(private val context: Context) {
         private const val KEY_CLAWBOT_LAST_FROM_USER_ID = "clawbot_last_from_user_id"
         private const val KEY_CLAWBOT_LAST_CONTEXT_TOKEN = "clawbot_last_context_token"
 
+        // ClawBot conversation history (multi-turn context persistence)
+        // Key pattern: clawbot_history_{fromUserId} → JSON string of ClawBotConversationHistory
+        private const val KEY_CLAWBOT_HISTORY_PREFIX = "clawbot_history_"
+        // Maximum turn pairs to retain per user (sliding window)
+        private const val KEY_CLAWBOT_HISTORY_MAX_TURNS = "clawbot_history_max_turns"
+
         // Floating window UI state keys
         private const val KEY_FLOATING_WINDOW_MINIMIZED = "floating_window_minimized"
 
@@ -1140,6 +1146,7 @@ class SettingsManager private constructor(private val context: Context) {
             remove(KEY_CLAWBOT_LAST_CONTEXT_TOKEN)
             apply()
         }
+        clearAllClawBotConversationHistories()
     }
 
     /**
@@ -1161,6 +1168,91 @@ class SettingsManager private constructor(private val context: Context) {
         val userId = prefs.getString(KEY_CLAWBOT_LAST_FROM_USER_ID, null)?.takeIf { it.isNotBlank() } ?: return null
         val token = prefs.getString(KEY_CLAWBOT_LAST_CONTEXT_TOKEN, null)?.takeIf { it.isNotBlank() } ?: return null
         return Pair(userId, token)
+    }
+
+    // ── ClawBot Conversation History ──────────────────────────────────────────
+
+    /**
+     * Returns the per-key SharedPreferences key for a user's conversation history.
+     */
+    private fun clawBotHistoryKey(fromUserId: String): String =
+        KEY_CLAWBOT_HISTORY_PREFIX + fromUserId
+
+    /**
+     * Loads the conversation history for a specific ClawBot user.
+     * Returns a new empty history if none exists.
+     */
+    fun getClawBotConversationHistory(fromUserId: String): com.flowmate.autoxiaoer.clawbot.ClawBotConversationHistory {
+        val jsonStr = prefs.getString(clawBotHistoryKey(fromUserId), null)
+        if (jsonStr != null) {
+            val parsed = com.flowmate.autoxiaoer.clawbot.ClawBotConversationHistory.fromJson(jsonStr)
+            if (parsed != null) {
+                // Respect the global maxTurns setting (may have changed since last save)
+                val maxTurns = getClawBotHistoryMaxTurns()
+                return if (parsed.maxTurns != maxTurns) parsed.copy(maxTurns = maxTurns) else parsed
+            }
+        }
+        return com.flowmate.autoxiaoer.clawbot.ClawBotConversationHistory.createEmpty(
+            fromUserId = fromUserId,
+            maxTurns = getClawBotHistoryMaxTurns(),
+        )
+    }
+
+    /**
+     * Saves the conversation history for a specific ClawBot user.
+     */
+    fun saveClawBotConversationHistory(history: com.flowmate.autoxiaoer.clawbot.ClawBotConversationHistory) {
+        prefs.edit()
+            .putString(clawBotHistoryKey(history.fromUserId), history.toJson())
+            .apply()
+    }
+
+    /**
+     * Clears the conversation history for a specific ClawBot user.
+     */
+    fun clearClawBotConversationHistory(fromUserId: String) {
+        prefs.edit().remove(clawBotHistoryKey(fromUserId)).apply()
+    }
+
+    /**
+     * Clears ALL ClawBot conversation histories (e.g. on disconnect).
+     */
+    fun clearAllClawBotConversationHistories() {
+        val allKeys = prefs.all.keys
+        val historyKeys = allKeys.filter { it.startsWith(KEY_CLAWBOT_HISTORY_PREFIX) }
+        if (historyKeys.isNotEmpty()) {
+            prefs.edit().apply {
+                historyKeys.forEach { remove(it) }
+                apply()
+            }
+        }
+    }
+
+    /**
+     * Gets the configured maximum number of turn pairs to retain per ClawBot conversation.
+     * Defaults to [ClawBotConversationHistory.DEFAULT_MAX_TURNS].
+     */
+    fun getClawBotHistoryMaxTurns(): Int {
+        return prefs.getInt(
+            KEY_CLAWBOT_HISTORY_MAX_TURNS,
+            com.flowmate.autoxiaoer.clawbot.ClawBotConversationHistory.DEFAULT_MAX_TURNS,
+        ).coerceIn(
+            com.flowmate.autoxiaoer.clawbot.ClawBotConversationHistory.MIN_MAX_TURNS,
+            com.flowmate.autoxiaoer.clawbot.ClawBotConversationHistory.MAX_MAX_TURNS,
+        )
+    }
+
+    /**
+     * Sets the maximum number of turn pairs per ClawBot conversation.
+     */
+    fun setClawBotHistoryMaxTurns(maxTurns: Int) {
+        prefs.edit().putInt(
+            KEY_CLAWBOT_HISTORY_MAX_TURNS,
+            maxTurns.coerceIn(
+                com.flowmate.autoxiaoer.clawbot.ClawBotConversationHistory.MIN_MAX_TURNS,
+                com.flowmate.autoxiaoer.clawbot.ClawBotConversationHistory.MAX_MAX_TURNS,
+            ),
+        ).apply()
     }
 
     // ==================== Agent Name ====================
