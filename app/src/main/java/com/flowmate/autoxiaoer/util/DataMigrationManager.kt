@@ -28,7 +28,7 @@ import java.util.zip.ZipOutputStream
  * Export modes:
  * - **Persona-only**: packages all user-authored prompts and context files
  *   (persona, relationships, behavior rules, PhoneAgent/LLMAgent/BrainLLM system prompts).
- * - **Full**: persona-only content **plus** task execution history.
+ * - **Full**: persona-only content **plus** task execution history and ClawBot conversation context.
  *
  * API keys are intentionally excluded from both modes.
  *
@@ -43,7 +43,8 @@ import java.util.zip.ZipOutputStream
  * │   ├── relationships/...  ← RelationshipContext files
  * │   ├── behavior_rules/... ← BehaviorContext files
  * │   ├── prompts/...        ← PromptManager files
- * │   └── task_history/...   ← (full mode only) HistoryManager files
+ * │   ├── task_history/...   ← (full mode only) HistoryManager files
+ * │   └── clawbot/...        ← (full mode only) ClawBotContextStore files
  * ```
  */
 object DataMigrationManager {
@@ -80,8 +81,9 @@ object DataMigrationManager {
     )
 
     // Directories under filesDir to include additionally in full mode.
-    private val HISTORY_DIRS = listOf(
+    private val FULL_EXPORT_EXTRA_DIRS = listOf(
         "task_history",
+        "clawbot",
     )
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -185,7 +187,7 @@ object DataMigrationManager {
     }
 
     private fun writeFilesDirs(zip: ZipOutputStream, context: Context, personaOnly: Boolean) {
-        val dirs = if (personaOnly) PERSONA_DIRS else PERSONA_DIRS + HISTORY_DIRS
+        val dirs = if (personaOnly) PERSONA_DIRS else PERSONA_DIRS + FULL_EXPORT_EXTRA_DIRS
         for (dirName in dirs) {
             val dir = File(context.filesDir, dirName)
             if (dir.exists()) {

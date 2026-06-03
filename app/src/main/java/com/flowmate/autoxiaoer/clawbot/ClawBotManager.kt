@@ -53,6 +53,7 @@ object ClawBotManager {
      */
     fun disconnect(context: Context) {
         Logger.i(TAG, "Disconnecting ClawBot")
+        ClawBotContextStore.clearInstance(context)
         SettingsManager.getInstance(context).clearClawBotCredentials()
         ClawBotPollingService.stop(context)
     }

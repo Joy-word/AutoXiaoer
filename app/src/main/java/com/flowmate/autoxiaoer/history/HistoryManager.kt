@@ -91,6 +91,9 @@ class HistoryManager private constructor(private val context: Context) {
         return task
     }
 
+    /** Id of the task currently being recorded, or null if none. */
+    fun getCurrentTaskId(): String? = currentTask?.id
+
     /**
      * Binds subsequent [recordStep] calls to an LLM planning round for unique screenshot paths.
      *

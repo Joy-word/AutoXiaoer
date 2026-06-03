@@ -106,6 +106,7 @@ class ClawBotPollingService : Service() {
 
             if (response.ret == -14) {
                 Logger.w(TAG, "Session expired (ret=-14), clearing credentials and stopping")
+                ClawBotContextStore.clearInstance(applicationContext)
                 SettingsManager.getInstance(applicationContext).clearClawBotCredentials()
                 sendBroadcast(Intent(ACTION_SESSION_EXPIRED))
                 running.set(false)
@@ -139,6 +140,8 @@ class ClawBotPollingService : Service() {
             replyToMessage(msg, ClawBotShortcutHandler.execute(command))
             return
         }
+
+        ClawBotContextStore.getInstance(applicationContext).appendUser(text)
 
         if (TaskExecutionManager.isTaskRunning()) {
             Logger.w(TAG, "Task already running, dropping ClawBot message: ${text.take(50)}")

@@ -52,6 +52,7 @@ import com.flowmate.autoxiaoer.model.ModelClient
 import com.flowmate.autoxiaoer.model.ModelConfig
 import com.flowmate.autoxiaoer.ui.MainViewModel
 import com.flowmate.autoxiaoer.ui.PermissionStates
+import com.flowmate.autoxiaoer.clawbot.ClawBotContextStore
 import com.flowmate.autoxiaoer.util.DataMigrationManager
 import com.flowmate.autoxiaoer.util.LogFileManager
 import com.flowmate.autoxiaoer.util.Logger
@@ -1912,6 +1913,7 @@ class SettingsFragment : Fragment() {
         PersonaContext.init(ctx)
         RelationshipContext.init(ctx)
         BehaviorContext.init(ctx)
+        ClawBotContextStore.reloadFromDiskIfLoaded(ctx)
         // PromptManager is already lazily initialized, force re-read by creating a fresh instance
         // SettingsManager reads from SharedPreferences which was already updated by the import
         // Reload UI settings

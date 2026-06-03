@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import com.flowmate.autoxiaoer.clawbot.ClawBotContextStore
 import com.flowmate.autoxiaoer.clawbot.ClawBotManager
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
 import com.flowmate.autoxiaoer.config.RelationshipContext
@@ -377,6 +378,13 @@ class LLMAgent(
                                 }
 
                                 Logger.i(TAG, "ClawBot request_user sent=$sent")
+
+                                if (sent) {
+                                    val taskId = historyManager?.getCurrentTaskId()
+                                    if (taskId != null) {
+                                        ClawBotContextStore.getInstance(appCtx).appendAgent(msg, taskId)
+                                    }
+                                }
 
                                 // Feed the send result back into context and let the LLM decide next step.
                                 val sendResultObservation = if (sent) {
@@ -1044,9 +1052,16 @@ class LLMAgent(
         val brainEnabled = brainLLM?.isEnabled == true
         sb.appendLine(LLMAgentPrompts.getBrainStatePrefix(config.language, brainConfigured, brainEnabled))
         val batteryPct = getBatteryLevel()
+        val isEn = config.language.lowercase().let { it == "en" || it == "english" }
         if (batteryPct >= 0) {
-            val isEn = config.language.lowercase().let { it == "en" || it == "english" }
             if (isEn) sb.appendLine("[Battery: $batteryPct%]") else sb.appendLine("【当前电量】$batteryPct%")
+        }
+        if (triggerContext?.triggerType == TriggerType.CLAWBOT && context != null) {
+            val contextBlock = ClawBotContextStore.getInstance(context).formatForPrompt(isEn)
+            if (contextBlock.isNotBlank()) {
+                sb.appendLine(contextBlock)
+                sb.appendLine()
+            }
         }
         sb.appendLine("【用户任务】$taskDescription")
 

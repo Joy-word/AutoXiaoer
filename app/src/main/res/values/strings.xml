@@ -425,7 +425,7 @@
     <string name="settings_import_data">导入数据</string>
     <string name="settings_export_dialog_title">导出数据</string>
     <string name="settings_export_persona_only">仅人设</string>
-    <string name="settings_export_persona_only_desc">仅导出人设、人际关系、行为准则和系统提示词</string>
+    <string name="settings_export_persona_only_desc">勾选：仅导出人设、人际关系、行为准则和系统提示词。不勾选：另含任务历史与 ClawBot 对话上下文（不含 ClawBot 登录凭证）。</string>
     <string name="settings_export_success">数据已导出，请选择保存位置</string>
     <string name="settings_export_failed">导出失败</string>
     <string name="settings_import_dialog_title">导入数据</string>
