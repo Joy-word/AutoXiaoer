@@ -181,6 +181,20 @@ class ScheduledTaskManager private constructor(private val context: Context) {
     }
 
     /**
+     * Reloads tasks from storage after an external data import.
+     *
+     * Cancels existing alarms, reloads persisted tasks, and reschedules enabled ones.
+     */
+    fun reloadAfterImport() {
+        _tasks.value.forEach { scheduler.cancelTask(it.id) }
+        val tasks = loadTasksFromStorage()
+        _tasks.value = tasks
+        rescheduleAllEnabledTasks()
+        updateScreenKeepAliveState()
+        Logger.i(TAG, "Reloaded ${tasks.size} scheduled tasks after import")
+    }
+
+    /**
      * Reschedules all enabled tasks.
      *
      * This should be called on app startup and after device boot to ensure

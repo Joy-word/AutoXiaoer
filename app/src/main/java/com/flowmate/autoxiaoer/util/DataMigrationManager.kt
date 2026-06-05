@@ -8,7 +8,6 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import com.flowmate.autoxiaoer.BuildConfig
-import com.flowmate.autoxiaoer.settings.SettingsManager
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -25,26 +24,27 @@ import java.util.zip.ZipOutputStream
 /**
  * Handles export and import of app data for device migration ("软件搬家").
  *
- * Export modes:
- * - **Persona-only**: packages all user-authored prompts and context files
- *   (persona, relationships, behavior rules, PhoneAgent/LLMAgent/BrainLLM system prompts).
- * - **Full**: persona-only content **plus** task execution history and ClawBot conversation context.
+ * Users can selectively export/import these sections:
+ * - Persona, behavior rules, relationships (file-based context)
+ * - System prompts (SharedPreferences + PromptManager files)
+ * - Task history, scheduled tasks, task templates
  *
- * API keys are intentionally excluded from both modes.
+ * API keys are intentionally excluded from all exports.
  *
- * Zip layout:
+ * Zip layout (v2):
  * ```
  * autoxiaoer_backup_<timestamp>.zip
- * ├── manifest.json          ← format version + export mode
+ * ├── manifest.json
  * ├── prefs/
- * │   └── prompts.json       ← SharedPreferences prompt keys (no API keys)
- * ├── files/
- * │   ├── persona/...        ← PersonaContext files
- * │   ├── relationships/...  ← RelationshipContext files
- * │   ├── behavior_rules/... ← BehaviorContext files
- * │   ├── prompts/...        ← PromptManager files
- * │   ├── task_history/...   ← (full mode only) HistoryManager files
- * │   └── clawbot/...        ← (full mode only) ClawBotContextStore files
+ * │   ├── system_prompts.json   ← (optional) SharedPreferences prompt keys
+ * │   ├── scheduled_tasks.json  ← (optional) scheduled task list
+ * │   └── task_templates.json   ← (optional) task template list
+ * └── files/
+ *     ├── persona/...
+ *     ├── relationships/...
+ *     ├── behavior_rules/...
+ *     ├── prompts/...
+ *     └── task_history/...
  * ```
  */
 object DataMigrationManager {
@@ -54,8 +54,24 @@ object DataMigrationManager {
     private const val PREFS_DIR = "prefs"
     private const val FILES_DIR = "files"
     private const val PREFS_PROMPTS_FILE = "prompts.json"
-    private const val FORMAT_VERSION = 1
+    private const val PREFS_SYSTEM_PROMPTS_FILE = "system_prompts.json"
+    private const val PREFS_SCHEDULED_TASKS_FILE = "scheduled_tasks.json"
+    private const val PREFS_TASK_TEMPLATES_FILE = "task_templates.json"
+    private const val FORMAT_VERSION = 2
+    private const val LEGACY_FORMAT_VERSION = 1
     private const val EXPORT_TIMESTAMP_FORMAT = "yyyyMMdd_HHmmss"
+    private const val SETTINGS_PREFS_NAME = "autoglm_settings"
+    private const val SCHEDULED_TASKS_PREFS_NAME = "scheduled_tasks"
+    private const val KEY_SCHEDULED_TASKS = "tasks"
+    private const val KEY_TASK_TEMPLATES = "task_templates"
+
+    const val SECTION_PERSONA = "persona"
+    const val SECTION_BEHAVIOR_RULES = "behavior_rules"
+    const val SECTION_RELATIONSHIPS = "relationships"
+    const val SECTION_SYSTEM_PROMPTS = "system_prompts"
+    const val SECTION_TASK_HISTORY = "task_history"
+    const val SECTION_SCHEDULED_TASKS = "scheduled_tasks"
+    const val SECTION_TASK_TEMPLATES = "task_templates"
 
     private val exportTimestampFormat = SimpleDateFormat(EXPORT_TIMESTAMP_FORMAT, Locale.getDefault())
 
@@ -72,49 +88,122 @@ object DataMigrationManager {
         "llm_agent_language",
     )
 
-    // Directories under filesDir to include in persona-only mode.
-    private val PERSONA_DIRS = listOf(
-        "persona",
-        "relationships",
-        "behavior_rules",
-        "prompts",
+    private val SECTION_TO_DIR = mapOf(
+        SECTION_PERSONA to "persona",
+        SECTION_BEHAVIOR_RULES to "behavior_rules",
+        SECTION_RELATIONSHIPS to "relationships",
+        SECTION_SYSTEM_PROMPTS to "prompts",
+        SECTION_TASK_HISTORY to "task_history",
     )
 
-    // Directories under filesDir to include additionally in full mode.
-    private val FULL_EXPORT_EXTRA_DIRS = listOf(
-        "task_history",
-        "clawbot",
+    data class ExportOptions(
+        val persona: Boolean = true,
+        val behaviorRules: Boolean = true,
+        val relationships: Boolean = true,
+        val systemPrompts: Boolean = false,
+        val taskHistory: Boolean = false,
+        val scheduledTasks: Boolean = false,
+        val taskTemplates: Boolean = false,
+    ) {
+        fun hasAnySelected(): Boolean =
+            persona || behaviorRules || relationships || systemPrompts ||
+                taskHistory || scheduledTasks || taskTemplates
+
+        fun selectedSections(): List<String> = buildList {
+            if (persona) add(SECTION_PERSONA)
+            if (behaviorRules) add(SECTION_BEHAVIOR_RULES)
+            if (relationships) add(SECTION_RELATIONSHIPS)
+            if (systemPrompts) add(SECTION_SYSTEM_PROMPTS)
+            if (taskHistory) add(SECTION_TASK_HISTORY)
+            if (scheduledTasks) add(SECTION_SCHEDULED_TASKS)
+            if (taskTemplates) add(SECTION_TASK_TEMPLATES)
+        }
+
+        fun isSectionSelected(section: String): Boolean = when (section) {
+            SECTION_PERSONA -> persona
+            SECTION_BEHAVIOR_RULES -> behaviorRules
+            SECTION_RELATIONSHIPS -> relationships
+            SECTION_SYSTEM_PROMPTS -> systemPrompts
+            SECTION_TASK_HISTORY -> taskHistory
+            SECTION_SCHEDULED_TASKS -> scheduledTasks
+            SECTION_TASK_TEMPLATES -> taskTemplates
+            else -> false
+        }
+
+        companion object {
+            val DEFAULT = ExportOptions(
+                persona = true,
+                behaviorRules = true,
+                relationships = true,
+            )
+
+            fun fromAvailableSections(sections: Set<String>) = ExportOptions(
+                persona = SECTION_PERSONA in sections,
+                behaviorRules = SECTION_BEHAVIOR_RULES in sections,
+                relationships = SECTION_RELATIONSHIPS in sections,
+                systemPrompts = SECTION_SYSTEM_PROMPTS in sections,
+                taskHistory = SECTION_TASK_HISTORY in sections,
+                scheduledTasks = SECTION_SCHEDULED_TASKS in sections,
+                taskTemplates = SECTION_TASK_TEMPLATES in sections,
+            )
+        }
+    }
+
+    data class BackupInspection(
+        val formatVersion: Int,
+        val appVersion: String?,
+        val exportedAt: Long?,
+        val exportMode: String?,
+        val availableSections: Set<String>,
     )
+
+    sealed class InspectionResult {
+        data class Success(val inspection: BackupInspection) : InspectionResult()
+        data class Failure(val reason: String) : InspectionResult()
+    }
 
     // ──────────────────────────────────────────────────────────────────────────
     // Export
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Exports app data to a zip file in the app's external cache directory.
+     * Exports app data to a zip file in the app's cache directory.
      *
      * @param context Application context.
-     * @param personaOnly If true only prompt/persona data is included; if false task
-     *                    history is also included.
-     * @return The generated [File], or null if export failed.
+     * @param options Sections to include in the export.
+     * @return The generated [File], or null if export failed or nothing was selected.
      */
-    fun exportData(context: Context, personaOnly: Boolean): File? = try {
-        val exportDir = File(context.cacheDir, "migration_export").also { it.mkdirs() }
-        val timestamp = exportTimestampFormat.format(Date())
-        val mode = if (personaOnly) "persona" else "full"
-        val zipFile = File(exportDir, "autoxiaoer_backup_${mode}_$timestamp.zip")
-
-        ZipOutputStream(FileOutputStream(zipFile)).use { zip ->
-            writeManifest(zip, personaOnly)
-            writePromptPrefs(zip, context)
-            writeFilesDirs(zip, context, personaOnly)
+    fun exportData(context: Context, options: ExportOptions): File? {
+        if (!options.hasAnySelected()) {
+            Logger.w(TAG, "Export aborted: no sections selected")
+            return null
         }
 
-        Logger.i(TAG, "Export complete: ${zipFile.name} (${zipFile.length()} bytes)")
-        zipFile
-    } catch (e: Exception) {
-        Logger.e(TAG, "Export failed", e)
-        null
+        return try {
+            val exportDir = File(context.cacheDir, "migration_export").also { it.mkdirs() }
+            val timestamp = exportTimestampFormat.format(Date())
+            val zipFile = File(exportDir, "autoxiaoer_backup_$timestamp.zip")
+
+            ZipOutputStream(FileOutputStream(zipFile)).use { zip ->
+                writeManifest(zip, options)
+                if (options.systemPrompts) {
+                    writeSystemPromptPrefs(zip, context)
+                }
+                if (options.scheduledTasks) {
+                    writeScheduledTasksPrefs(zip, context)
+                }
+                if (options.taskTemplates) {
+                    writeTaskTemplatesPrefs(zip, context)
+                }
+                writeSelectedFileDirs(zip, context, options)
+            }
+
+            Logger.i(TAG, "Export complete: ${zipFile.name} (${zipFile.length()} bytes)")
+            zipFile
+        } catch (e: Exception) {
+            Logger.e(TAG, "Export failed", e)
+            null
+        }
     }
 
     /**
@@ -141,7 +230,6 @@ object DataMigrationManager {
                     zipFile.inputStream().use { input -> input.copyTo(output) }
                 }
                 Logger.i(TAG, "Saved to Downloads via MediaStore: $fileName")
-                // Return a user-friendly path
                 "/sdcard/Download/$fileName"
             } else {
                 Logger.e(TAG, "MediaStore insert returned null")
@@ -161,11 +249,12 @@ object DataMigrationManager {
         null
     }
 
-    private fun writeManifest(zip: ZipOutputStream, personaOnly: Boolean) {
+    private fun writeManifest(zip: ZipOutputStream, options: ExportOptions) {
+        val sections = options.selectedSections()
         val manifest = JSONObject().apply {
             put("formatVersion", FORMAT_VERSION)
             put("appVersion", BuildConfig.VERSION_NAME)
-            put("exportMode", if (personaOnly) "persona" else "full")
+            put("exportSections", JSONArray(sections))
             put("exportedAt", System.currentTimeMillis())
         }
         zip.putNextEntry(ZipEntry(MANIFEST_FILE))
@@ -173,22 +262,47 @@ object DataMigrationManager {
         zip.closeEntry()
     }
 
-    private fun writePromptPrefs(zip: ZipOutputStream, context: Context) {
+    private fun writeSystemPromptPrefs(zip: ZipOutputStream, context: Context) {
         val prefs: SharedPreferences =
-            context.getSharedPreferences("autoglm_settings", Context.MODE_PRIVATE)
+            context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
         val obj = JSONObject()
         for (key in PROMPT_PREF_KEYS) {
             val value = prefs.getString(key, null)
             if (value != null) obj.put(key, value)
         }
-        zip.putNextEntry(ZipEntry("$PREFS_DIR/$PREFS_PROMPTS_FILE"))
+        zip.putNextEntry(ZipEntry("$PREFS_DIR/$PREFS_SYSTEM_PROMPTS_FILE"))
         zip.write(obj.toString(2).toByteArray())
         zip.closeEntry()
     }
 
-    private fun writeFilesDirs(zip: ZipOutputStream, context: Context, personaOnly: Boolean) {
-        val dirs = if (personaOnly) PERSONA_DIRS else PERSONA_DIRS + FULL_EXPORT_EXTRA_DIRS
-        for (dirName in dirs) {
+    private fun writeScheduledTasksPrefs(zip: ZipOutputStream, context: Context) {
+        val prefs = context.getSharedPreferences(SCHEDULED_TASKS_PREFS_NAME, Context.MODE_PRIVATE)
+        val json = prefs.getString(KEY_SCHEDULED_TASKS, null) ?: "[]"
+        zip.putNextEntry(ZipEntry("$PREFS_DIR/$PREFS_SCHEDULED_TASKS_FILE"))
+        zip.write(json.toByteArray())
+        zip.closeEntry()
+    }
+
+    private fun writeTaskTemplatesPrefs(zip: ZipOutputStream, context: Context) {
+        val prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
+        val json = prefs.getString(KEY_TASK_TEMPLATES, null) ?: "[]"
+        zip.putNextEntry(ZipEntry("$PREFS_DIR/$PREFS_TASK_TEMPLATES_FILE"))
+        zip.write(json.toByteArray())
+        zip.closeEntry()
+    }
+
+    private fun writeSelectedFileDirs(zip: ZipOutputStream, context: Context, options: ExportOptions) {
+        for ((section, dirName) in SECTION_TO_DIR) {
+            val include = when (section) {
+                SECTION_PERSONA -> options.persona
+                SECTION_BEHAVIOR_RULES -> options.behaviorRules
+                SECTION_RELATIONSHIPS -> options.relationships
+                SECTION_SYSTEM_PROMPTS -> options.systemPrompts
+                SECTION_TASK_HISTORY -> options.taskHistory
+                else -> false
+            }
+            if (!include) continue
+
             val dir = File(context.filesDir, dirName)
             if (dir.exists()) {
                 addDirToZip(zip, dir, "$FILES_DIR/$dirName")
@@ -208,22 +322,119 @@ object DataMigrationManager {
     }
 
     // ──────────────────────────────────────────────────────────────────────────
+    // Inspect
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Scans a backup zip and returns which data sections it contains.
+     *
+     * Only reads entry names and [MANIFEST_FILE]; does not load file payloads.
+     */
+    fun inspectBackup(zipFile: File): InspectionResult {
+        return try {
+            var manifest: JSONObject? = null
+            val availableSections = mutableSetOf<String>()
+
+            ZipInputStream(FileInputStream(zipFile)).use { zip ->
+                var entry = zip.nextEntry
+                while (entry != null) {
+                    when {
+                        entry.name == MANIFEST_FILE -> {
+                            manifest = JSONObject(zip.readBytes().toString(Charsets.UTF_8))
+                        }
+                        entry.name == "$PREFS_DIR/$PREFS_SYSTEM_PROMPTS_FILE" ||
+                            entry.name == "$PREFS_DIR/$PREFS_PROMPTS_FILE" -> {
+                            availableSections.add(SECTION_SYSTEM_PROMPTS)
+                        }
+                        entry.name == "$PREFS_DIR/$PREFS_SCHEDULED_TASKS_FILE" -> {
+                            availableSections.add(SECTION_SCHEDULED_TASKS)
+                        }
+                        entry.name == "$PREFS_DIR/$PREFS_TASK_TEMPLATES_FILE" -> {
+                            availableSections.add(SECTION_TASK_TEMPLATES)
+                        }
+                        entry.name.startsWith("$FILES_DIR/") && !entry.isDirectory -> {
+                            val topDir = entry.name
+                                .removePrefix("$FILES_DIR/")
+                                .substringBefore('/')
+                            if (topDir != "clawbot") {
+                                val section = dirToSection(topDir)
+                                if (section.isNotEmpty()) {
+                                    availableSections.add(section)
+                                }
+                            }
+                        }
+                    }
+                    zip.closeEntry()
+                    entry = zip.nextEntry
+                }
+            }
+
+            if (manifest == null) {
+                return InspectionResult.Failure("无效的备份文件：缺少 manifest.json")
+            }
+
+            val formatVersion = manifest!!.optInt("formatVersion", 0)
+            if (formatVersion != FORMAT_VERSION && formatVersion != LEGACY_FORMAT_VERSION) {
+                return InspectionResult.Failure("不支持的备份格式版本：$formatVersion")
+            }
+
+            val manifestSections = parseManifestSections(manifest!!)
+            if (manifestSections.isNotEmpty()) {
+                availableSections.retainAll(manifestSections)
+            }
+
+            if (availableSections.isEmpty()) {
+                return InspectionResult.Failure("备份文件中没有可导入的数据")
+            }
+
+            InspectionResult.Success(
+                BackupInspection(
+                    formatVersion = formatVersion,
+                    appVersion = manifest!!.optString("appVersion").takeIf { it.isNotEmpty() },
+                    exportedAt = manifest!!.optLong("exportedAt", 0L).takeIf { it > 0L },
+                    exportMode = manifest!!.optString("exportMode").takeIf { it.isNotEmpty() },
+                    availableSections = availableSections,
+                ),
+            )
+        } catch (e: Exception) {
+            Logger.e(TAG, "Backup inspection failed", e)
+            InspectionResult.Failure(e.message ?: "无法读取备份文件")
+        }
+    }
+
+    private fun parseManifestSections(manifest: JSONObject): Set<String> {
+        val sectionsArray = manifest.optJSONArray("exportSections") ?: return emptySet()
+        return buildSet {
+            for (i in 0 until sectionsArray.length()) {
+                add(sectionsArray.getString(i))
+            }
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
     // Import
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Imports data from a previously exported zip file.
+     * Imports selected sections from a previously exported zip file.
      *
-     * All matching data is overwritten. API keys in SharedPreferences are never touched.
+     * Only sections both present in the backup and selected in [options] are restored.
+     * API keys are never touched.
      *
      * @param context Application context.
      * @param zipFile The zip file to import from.
+     * @param options Sections the user chose to import.
      * @return [ImportResult] describing what was imported or the error that occurred.
      */
-    fun importData(context: Context, zipFile: File): ImportResult {
+    fun importData(context: Context, zipFile: File, options: ExportOptions): ImportResult {
+        if (!options.hasAnySelected()) {
+            return ImportResult.Failure("请至少选择一项导入内容")
+        }
         try {
             var manifest: JSONObject? = null
-            var promptsJson: JSONObject? = null
+            var systemPromptsJson: JSONObject? = null
+            var scheduledTasksJson: String? = null
+            var taskTemplatesJson: String? = null
             val fileEntries = mutableListOf<Pair<String, ByteArray>>()
 
             ZipInputStream(FileInputStream(zipFile)).use { zip ->
@@ -233,8 +444,15 @@ object DataMigrationManager {
                         entry.name == MANIFEST_FILE -> {
                             manifest = JSONObject(zip.readBytes().toString(Charsets.UTF_8))
                         }
-                        entry.name == "$PREFS_DIR/$PREFS_PROMPTS_FILE" -> {
-                            promptsJson = JSONObject(zip.readBytes().toString(Charsets.UTF_8))
+                        entry.name == "$PREFS_DIR/$PREFS_SYSTEM_PROMPTS_FILE" ||
+                            entry.name == "$PREFS_DIR/$PREFS_PROMPTS_FILE" -> {
+                            systemPromptsJson = JSONObject(zip.readBytes().toString(Charsets.UTF_8))
+                        }
+                        entry.name == "$PREFS_DIR/$PREFS_SCHEDULED_TASKS_FILE" -> {
+                            scheduledTasksJson = zip.readBytes().toString(Charsets.UTF_8)
+                        }
+                        entry.name == "$PREFS_DIR/$PREFS_TASK_TEMPLATES_FILE" -> {
+                            taskTemplatesJson = zip.readBytes().toString(Charsets.UTF_8)
                         }
                         entry.name.startsWith("$FILES_DIR/") && !entry.isDirectory -> {
                             fileEntries.add(entry.name to zip.readBytes())
@@ -250,36 +468,69 @@ object DataMigrationManager {
             }
 
             val formatVersion = manifest!!.optInt("formatVersion", 0)
-            if (formatVersion != FORMAT_VERSION) {
+            if (formatVersion != FORMAT_VERSION && formatVersion != LEGACY_FORMAT_VERSION) {
                 return ImportResult.Failure("不支持的备份格式版本：$formatVersion")
             }
 
-            // Restore SharedPreferences prompt keys
-            if (promptsJson != null) {
-                restorePromptPrefs(context, promptsJson!!)
+            val importedSections = mutableListOf<String>()
+
+            if (systemPromptsJson != null && options.systemPrompts) {
+                restoreSystemPromptPrefs(context, systemPromptsJson!!)
+                importedSections.add(SECTION_SYSTEM_PROMPTS)
             }
 
-            // Restore files
+            if (scheduledTasksJson != null && options.scheduledTasks) {
+                restoreScheduledTasksPrefs(context, scheduledTasksJson!!)
+                importedSections.add(SECTION_SCHEDULED_TASKS)
+            }
+
+            if (taskTemplatesJson != null && options.taskTemplates) {
+                restoreTaskTemplatesPrefs(context, taskTemplatesJson!!)
+                importedSections.add(SECTION_TASK_TEMPLATES)
+            }
+
             val filesDir = context.filesDir
+            val importedDirs = mutableSetOf<String>()
             for ((entryName, bytes) in fileEntries) {
-                // entryName is like "files/persona/zh/current.md"
                 val relativePath = entryName.removePrefix("$FILES_DIR/")
+                val topDir = relativePath.substringBefore('/')
+                if (topDir == "clawbot") continue
+                val section = dirToSection(topDir)
+                if (!options.isSectionSelected(section)) continue
+
+                importedDirs.add(section)
+
                 val targetFile = File(filesDir, relativePath)
                 targetFile.parentFile?.mkdirs()
                 targetFile.writeBytes(bytes)
             }
+            importedSections.addAll(importedDirs.filter { it.isNotEmpty() })
 
-            val exportMode = manifest!!.optString("exportMode", "unknown")
-            Logger.i(TAG, "Import complete: mode=$exportMode, files=${fileEntries.size}")
-            return ImportResult.Success(exportMode = exportMode, fileCount = fileEntries.size)
+            if (importedSections.isEmpty()) {
+                return ImportResult.Failure("未导入任何数据，请检查勾选项")
+            }
+
+            val exportMode = manifest!!.optString("exportMode", "selective")
+            Logger.i(
+                TAG,
+                "Import complete: mode=$exportMode, sections=${importedSections.distinct()}, files=${fileEntries.size}",
+            )
+            return ImportResult.Success(
+                exportMode = exportMode,
+                fileCount = fileEntries.size,
+                importedSections = importedSections.distinct(),
+            )
         } catch (e: Exception) {
             Logger.e(TAG, "Import failed", e)
             return ImportResult.Failure(e.message ?: "未知错误")
         }
     }
 
-    private fun restorePromptPrefs(context: Context, obj: JSONObject) {
-        val prefs = context.getSharedPreferences("autoglm_settings", Context.MODE_PRIVATE)
+    private fun dirToSection(dirName: String): String =
+        SECTION_TO_DIR.entries.find { it.value == dirName }?.key ?: dirName
+
+    private fun restoreSystemPromptPrefs(context: Context, obj: JSONObject) {
+        val prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
         val editor = prefs.edit()
         for (key in PROMPT_PREF_KEYS) {
             if (obj.has(key)) {
@@ -289,12 +540,31 @@ object DataMigrationManager {
         editor.apply()
     }
 
+    private fun restoreScheduledTasksPrefs(context: Context, json: String) {
+        context.getSharedPreferences(SCHEDULED_TASKS_PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_SCHEDULED_TASKS, json)
+            .apply()
+    }
+
+    private fun restoreTaskTemplatesPrefs(context: Context, json: String) {
+        context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_TASK_TEMPLATES, json)
+            .apply()
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // Result types
     // ──────────────────────────────────────────────────────────────────────────
 
     sealed class ImportResult {
-        data class Success(val exportMode: String, val fileCount: Int) : ImportResult()
+        data class Success(
+            val exportMode: String,
+            val fileCount: Int,
+            val importedSections: List<String> = emptyList(),
+        ) : ImportResult()
+
         data class Failure(val reason: String) : ImportResult()
     }
 }
