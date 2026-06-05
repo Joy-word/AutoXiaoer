@@ -1,7 +1,6 @@
 ﻿package com.flowmate.autoxiaoer.schedule
 
 import android.content.Context
-import android.content.SharedPreferences
 import com.flowmate.autoxiaoer.util.Logger
 import com.flowmate.autoxiaoer.util.ScreenKeepAliveManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,29 +8,34 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 
 /**
- * Manages scheduled tasks with persistence using SharedPreferences (Singleton).
+ * Manages scheduled tasks with persistence using file storage (Singleton).
+ *
+ * Storage layout under `context.filesDir/scheduled_tasks/`:
+ * ```
+ * scheduled_tasks/
+ * └── tasks.json
+ * ```
  *
  * This class provides methods to:
  * - Create, read, update, and delete scheduled tasks
- * - Persist tasks to SharedPreferences using JSON
+ * - Persist tasks to JSON file
  * - Automatically schedule/cancel tasks with AlarmManager when tasks are modified
  * - Expose a StateFlow for UI observation
  */
 class ScheduledTaskManager private constructor(private val context: Context) {
-    private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
     private val scheduler = ScheduledTaskScheduler(context)
+    private val storageFile: File = File(File(context.filesDir, DIR_NAME), TASKS_FILE)
 
     // StateFlow for observing task list changes
     private val _tasks = MutableStateFlow<List<ScheduledTask>>(emptyList())
     val tasks: StateFlow<List<ScheduledTask>> = _tasks.asStateFlow()
 
     init {
-        // Load tasks from storage on initialization
+        migrateFromLegacyPrefsIfNeeded()
         _tasks.value = loadTasksFromStorage()
-        
-        // Notify ScreenKeepAliveManager about scheduled tasks
         updateScreenKeepAliveState()
     }
 
@@ -60,28 +64,23 @@ class ScheduledTaskManager private constructor(private val context: Context) {
      */
     fun saveTask(task: ScheduledTask) {
         Logger.d(TAG, "Saving scheduled task: id=${task.id}, description=${task.taskDescription.take(30)}")
-        
+
         val currentTasks = _tasks.value.toMutableList()
         val existingIndex = currentTasks.indexOfFirst { it.id == task.id }
 
         if (existingIndex >= 0) {
-            // Cancel old alarm if it exists
             scheduler.cancelTask(task.id)
             currentTasks[existingIndex] = task
         } else {
             currentTasks.add(task)
         }
 
-        // Schedule the task if it's enabled
         if (task.isEnabled) {
             scheduler.scheduleTask(task)
         }
 
-        // Save to storage and update StateFlow
         saveTasksToStorage(currentTasks)
         _tasks.value = currentTasks
-        
-        // Update screen keep-alive state
         updateScreenKeepAliveState()
     }
 
@@ -92,15 +91,12 @@ class ScheduledTaskManager private constructor(private val context: Context) {
      */
     fun deleteTask(taskId: String) {
         Logger.d(TAG, "Deleting scheduled task: id=$taskId")
-        
-        // Cancel the alarm
+
         scheduler.cancelTask(taskId)
 
         val currentTasks = _tasks.value.filter { it.id != taskId }
         saveTasksToStorage(currentTasks)
         _tasks.value = currentTasks
-        
-        // Update screen keep-alive state
         updateScreenKeepAliveState()
     }
 
@@ -112,10 +108,10 @@ class ScheduledTaskManager private constructor(private val context: Context) {
      */
     fun updateTaskEnabled(taskId: String, enabled: Boolean) {
         Logger.d(TAG, "Updating task enabled state: id=$taskId, enabled=$enabled")
-        
+
         val currentTasks = _tasks.value.toMutableList()
         val taskIndex = currentTasks.indexOfFirst { it.id == taskId }
-        
+
         if (taskIndex >= 0) {
             val task = currentTasks[taskIndex]
             val updatedTask = task.copy(isEnabled = enabled)
@@ -129,8 +125,6 @@ class ScheduledTaskManager private constructor(private val context: Context) {
 
             saveTasksToStorage(currentTasks)
             _tasks.value = currentTasks
-            
-            // Update screen keep-alive state
             updateScreenKeepAliveState()
         }
     }
@@ -143,10 +137,10 @@ class ScheduledTaskManager private constructor(private val context: Context) {
      */
     fun updateLastExecutedAt(taskId: String, executedAt: Long) {
         Logger.d(TAG, "Updating task last executed time: id=$taskId")
-        
+
         val currentTasks = _tasks.value.toMutableList()
         val taskIndex = currentTasks.indexOfFirst { it.id == taskId }
-        
+
         if (taskIndex >= 0) {
             val task = currentTasks[taskIndex]
             val updatedTask = task.copy(lastExecutedAt = executedAt)
@@ -164,20 +158,32 @@ class ScheduledTaskManager private constructor(private val context: Context) {
      */
     fun rescheduleTask(taskId: String) {
         val task = getTaskById(taskId) ?: return
-        
+
         if (task.repeatType == RepeatType.ONCE) {
-            // For one-time tasks, disable them after execution
             updateTaskEnabled(taskId, false)
             return
         }
 
-        // Calculate next execution time
         val nextExecutionTime = scheduler.calculateNextExecutionTime(task)
         if (nextExecutionTime != null) {
             val updatedTask = task.copy(scheduledTimeMillis = nextExecutionTime)
             saveTask(updatedTask)
             Logger.i(TAG, "Rescheduled task $taskId for next execution")
         }
+    }
+
+    /**
+     * Reloads tasks from storage after an external data import.
+     *
+     * Cancels existing alarms, reloads persisted tasks, and reschedules enabled ones.
+     */
+    fun reloadAfterImport() {
+        _tasks.value.forEach { scheduler.cancelTask(it.id) }
+        val tasks = loadTasksFromStorage()
+        _tasks.value = tasks
+        rescheduleAllEnabledTasks()
+        updateScreenKeepAliveState()
+        Logger.i(TAG, "Reloaded ${tasks.size} scheduled tasks after import")
     }
 
     /**
@@ -188,7 +194,7 @@ class ScheduledTaskManager private constructor(private val context: Context) {
      */
     fun rescheduleAllEnabledTasks() {
         Logger.i(TAG, "Rescheduling all enabled tasks")
-        
+
         val enabledTasks = _tasks.value.filter { it.isEnabled }
         for (task in enabledTasks) {
             scheduler.scheduleTask(task)
@@ -203,47 +209,79 @@ class ScheduledTaskManager private constructor(private val context: Context) {
     fun generateTaskId(): String = "scheduled_${System.currentTimeMillis()}"
 
     /**
-     * Loads tasks from SharedPreferences storage.
+     * One-time migration: copies legacy SharedPreferences data into file storage.
+     */
+    private fun migrateFromLegacyPrefsIfNeeded() {
+        if (storageFile.exists()) return
+
+        val legacyPrefs = context.getSharedPreferences(LEGACY_PREFS_NAME, Context.MODE_PRIVATE)
+        val json = legacyPrefs.getString(LEGACY_KEY_TASKS, null) ?: return
+
+        try {
+            storageFile.parentFile?.mkdirs()
+            storageFile.writeText(json)
+            legacyPrefs.edit().clear().apply()
+            Logger.i(TAG, "Migrated scheduled tasks from legacy prefs to file")
+        } catch (e: Exception) {
+            Logger.e(TAG, "Failed to migrate scheduled tasks from legacy prefs", e)
+        }
+    }
+
+    /**
+     * Loads tasks from file storage.
      *
      * @return List of tasks loaded from storage, empty list if parsing fails
      */
     private fun loadTasksFromStorage(): List<ScheduledTask> {
-        val json = prefs.getString(KEY_SCHEDULED_TASKS, null) ?: return emptyList()
+        if (!storageFile.exists()) return emptyList()
         return try {
-            val array = JSONArray(json)
-            (0 until array.length()).map { i ->
-                val obj = array.getJSONObject(i)
-                ScheduledTask(
-                    id = obj.getString("id"),
-                    taskDescription = obj.getString("taskDescription"),
-                    taskBackground = if (obj.has("taskBackground") && !obj.isNull("taskBackground")) {
-                        obj.getString("taskBackground").takeIf { it.isNotBlank() }
-                    } else {
-                        null
-                    },
-                    scheduledTimeMillis = obj.getLong("scheduledTimeMillis"),
-                    repeatType = RepeatType.valueOf(obj.getString("repeatType")),
-                    isEnabled = obj.getBoolean("isEnabled"),
-                    createdAt = obj.getLong("createdAt"),
-                    lastExecutedAt = if (obj.has("lastExecutedAt") && !obj.isNull("lastExecutedAt")) {
-                        obj.getLong("lastExecutedAt")
-                    } else {
-                        null
-                    }
-                )
-            }
+            parseTasksJson(storageFile.readText())
         } catch (e: Exception) {
-            Logger.e(TAG, "Failed to parse scheduled tasks", e)
+            Logger.e(TAG, "Failed to load scheduled tasks from file", e)
             emptyList()
         }
     }
 
     /**
-     * Saves tasks to SharedPreferences storage.
+     * Saves tasks to file storage.
      *
      * @param tasks The list of tasks to save
      */
     private fun saveTasksToStorage(tasks: List<ScheduledTask>) {
+        try {
+            storageFile.parentFile?.mkdirs()
+            storageFile.writeText(encodeTasksJson(tasks))
+        } catch (e: Exception) {
+            Logger.e(TAG, "Failed to save scheduled tasks to file", e)
+        }
+    }
+
+    private fun parseTasksJson(json: String): List<ScheduledTask> {
+        val array = JSONArray(json)
+        return (0 until array.length()).map { i ->
+            val obj = array.getJSONObject(i)
+            ScheduledTask(
+                id = obj.getString("id"),
+                taskDescription = obj.getString("taskDescription"),
+                taskBackground = if (obj.has("taskBackground") && !obj.isNull("taskBackground")) {
+                    obj.getString("taskBackground").takeIf { it.isNotBlank() }
+                } else {
+                    null
+                },
+                scheduledTimeMillis = obj.getLong("scheduledTimeMillis"),
+                repeatType = RepeatType.valueOf(obj.getString("repeatType")),
+                isEnabled = obj.getBoolean("isEnabled"),
+                createdAt = obj.getLong("createdAt"),
+                lastExecutedAt = if (obj.has("lastExecutedAt") && !obj.isNull("lastExecutedAt")) {
+                    obj.getLong("lastExecutedAt")
+                } else {
+                    null
+                },
+            )
+        }
+    }
+
+    private fun encodeTasksJson(tasks: List<ScheduledTask>): String {
         val array = JSONArray()
         tasks.forEach { task ->
             val obj = JSONObject().apply {
@@ -258,7 +296,7 @@ class ScheduledTaskManager private constructor(private val context: Context) {
             }
             array.put(obj)
         }
-        prefs.edit().putString(KEY_SCHEDULED_TASKS, array.toString()).apply()
+        return array.toString()
     }
 
     /**
@@ -272,8 +310,10 @@ class ScheduledTaskManager private constructor(private val context: Context) {
 
     companion object {
         private const val TAG = "ScheduledTaskManager"
-        private const val PREFS_NAME = "scheduled_tasks"
-        private const val KEY_SCHEDULED_TASKS = "tasks"
+        const val DIR_NAME = "scheduled_tasks"
+        const val TASKS_FILE = "tasks.json"
+        private const val LEGACY_PREFS_NAME = "scheduled_tasks"
+        private const val LEGACY_KEY_TASKS = "tasks"
 
         @Volatile
         private var instance: ScheduledTaskManager? = null

@@ -60,6 +60,9 @@ class AutoGLMApplication : Application() {
         // Migrate legacy pref-based prompts to file storage (one-time, no-op if already done)
         migrateLegacyPrompts()
 
+        // Migrate legacy pref-based task templates to file storage
+        SettingsManager.getInstance(this).migrateLegacyTaskTemplatesFromPrefsIfNeeded()
+
         // Load custom system prompts if set
         loadCustomSystemPrompts()
 

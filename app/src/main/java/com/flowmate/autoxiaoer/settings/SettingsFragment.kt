@@ -17,6 +17,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.CheckBox
+import android.widget.CompoundButton
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.RadioButton
@@ -52,7 +53,7 @@ import com.flowmate.autoxiaoer.model.ModelClient
 import com.flowmate.autoxiaoer.model.ModelConfig
 import com.flowmate.autoxiaoer.ui.MainViewModel
 import com.flowmate.autoxiaoer.ui.PermissionStates
-import com.flowmate.autoxiaoer.clawbot.ClawBotContextStore
+import com.flowmate.autoxiaoer.schedule.ScheduledTaskManager
 import com.flowmate.autoxiaoer.util.DataMigrationManager
 import com.flowmate.autoxiaoer.util.LogFileManager
 import com.flowmate.autoxiaoer.util.Logger
@@ -1744,56 +1745,87 @@ class SettingsFragment : Fragment() {
     // region Data Migration
 
     /**
-     * Shows the export dialog with a "persona only" checkbox option.
+     * Shows the export dialog with selectable data sections.
      */
     private fun showExportDataDialog() {
         val ctx = requireContext()
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_export_data, null)
 
-        val container = android.widget.LinearLayout(ctx).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            val dp16 = (16 * resources.displayMetrics.density).toInt()
-            val dp8 = (8 * resources.displayMetrics.density).toInt()
-            setPadding(dp16, dp8, dp16, dp8)
-        }
+        val checkSelectAll = dialogView.findViewById<CheckBox>(R.id.checkExportSelectAll)
+        val sectionCheckboxes = listOf(
+            dialogView.findViewById<CheckBox>(R.id.checkExportPersona),
+            dialogView.findViewById<CheckBox>(R.id.checkExportBehaviorRules),
+            dialogView.findViewById<CheckBox>(R.id.checkExportRelationships),
+            dialogView.findViewById<CheckBox>(R.id.checkExportSystemPrompts),
+            dialogView.findViewById<CheckBox>(R.id.checkExportTaskHistory),
+            dialogView.findViewById<CheckBox>(R.id.checkExportScheduledTasks),
+            dialogView.findViewById<CheckBox>(R.id.checkExportTaskTemplates),
+        )
 
-        val descText = TextView(ctx).apply {
-            text = getString(R.string.settings_export_persona_only_desc)
-            textSize = 14f
-            setTextColor(ContextCompat.getColor(ctx, R.color.text_secondary))
-        }
-        container.addView(descText)
-
-        val checkbox = CheckBox(ctx).apply {
-            text = getString(R.string.settings_export_persona_only)
-            textSize = 16f
-            isChecked = true // default to persona-only
-        }
-        val dp16 = (16 * resources.displayMetrics.density).toInt()
-        checkbox.layoutParams = android.widget.LinearLayout.LayoutParams(
-            android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-            android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp16 }
-        container.addView(checkbox)
-
-        MaterialAlertDialogBuilder(ctx)
-            .setTitle(getString(R.string.settings_export_dialog_title))
-            .setView(container)
-            .setPositiveButton(getString(R.string.dialog_confirm)) { _, _ ->
-                val personaOnly = checkbox.isChecked
-                performExport(personaOnly)
+        lateinit var sectionListener: CompoundButton.OnCheckedChangeListener
+        val selectAllListener = CompoundButton.OnCheckedChangeListener { _, isChecked ->
+            sectionCheckboxes.forEach { checkbox ->
+                checkbox.setOnCheckedChangeListener(null)
+                checkbox.isChecked = isChecked
+                checkbox.setOnCheckedChangeListener(sectionListener)
             }
+        }
+
+        sectionListener = CompoundButton.OnCheckedChangeListener { _, _ ->
+            val allChecked = sectionCheckboxes.all { it.isChecked }
+            checkSelectAll.setOnCheckedChangeListener(null)
+            checkSelectAll.isChecked = allChecked
+            checkSelectAll.setOnCheckedChangeListener(selectAllListener)
+        }
+
+        checkSelectAll.setOnCheckedChangeListener(selectAllListener)
+        sectionCheckboxes.forEach { it.setOnCheckedChangeListener(sectionListener) }
+        checkSelectAll.isChecked = sectionCheckboxes.all { it.isChecked }
+
+        val dialog = MaterialAlertDialogBuilder(ctx)
+            .setTitle(getString(R.string.settings_export_dialog_title))
+            .setView(dialogView)
+            .setPositiveButton(getString(R.string.dialog_confirm), null)
             .setNegativeButton(getString(R.string.dialog_cancel), null)
-            .showWithPrimaryButtons()
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE).setOnClickListener {
+                val options = buildExportOptions(sectionCheckboxes)
+                if (!options.hasAnySelected()) {
+                    Toast.makeText(ctx, getString(R.string.settings_export_nothing_selected), Toast.LENGTH_SHORT)
+                        .show()
+                    return@setOnClickListener
+                }
+                dialog.dismiss()
+                performExport(options)
+            }
+        }
+
+        dialog.show()
+        dialog.applyPrimaryButtonColors()
+    }
+
+    private fun buildExportOptions(checkboxes: List<CheckBox>): DataMigrationManager.ExportOptions {
+        return DataMigrationManager.ExportOptions(
+            persona = checkboxes[0].isChecked,
+            behaviorRules = checkboxes[1].isChecked,
+            relationships = checkboxes[2].isChecked,
+            systemPrompts = checkboxes[3].isChecked,
+            taskHistory = checkboxes[4].isChecked,
+            scheduledTasks = checkboxes[5].isChecked,
+            taskTemplates = checkboxes[6].isChecked,
+        )
     }
 
     /**
      * Executes the export and triggers a share intent for the generated zip file.
      */
-    private fun performExport(personaOnly: Boolean) {
+    private fun performExport(options: DataMigrationManager.ExportOptions) {
         val ctx = requireContext()
         lifecycleScope.launch {
             val zipFile = withContext(Dispatchers.IO) {
-                DataMigrationManager.exportData(ctx, personaOnly)
+                DataMigrationManager.exportData(ctx, options)
             }
             if (zipFile != null) {
                 // Always save a copy to the Downloads directory first
@@ -1836,17 +1868,10 @@ class SettingsFragment : Fragment() {
     }
 
     /**
-     * Shows a confirmation dialog before launching the file picker for import.
+     * Launches the file picker to select a backup zip for import.
      */
     private fun showImportDataDialog() {
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle(getString(R.string.settings_import_confirm_title))
-            .setMessage(getString(R.string.settings_import_confirm_message))
-            .setPositiveButton(getString(R.string.dialog_confirm)) { _, _ ->
-                launchImportFilePicker()
-            }
-            .setNegativeButton(getString(R.string.dialog_cancel), null)
-            .showWithPrimaryButtons()
+        launchImportFilePicker()
     }
 
     /**
@@ -1863,62 +1888,240 @@ class SettingsFragment : Fragment() {
     /**
      * Handles the file selected by the user for import.
      *
-     * Copies the file to a temporary location (because the URI permission may not
-     * persist), then delegates to [DataMigrationManager.importData].
+     * Inspects the backup first, then shows a section-selection dialog before importing.
      */
     private fun handleImportFileSelected(uri: Uri) {
         val ctx = requireContext()
         lifecycleScope.launch {
-            val result = withContext(Dispatchers.IO) {
+            val inspectOutcome = withContext(Dispatchers.IO) {
                 try {
-                    // Copy URI content to a temp file so ZipInputStream can work with it
                     val tempFile = File(ctx.cacheDir, "import_temp.zip")
                     ctx.contentResolver.openInputStream(uri)?.use { input ->
                         tempFile.outputStream().use { output -> input.copyTo(output) }
-                    } ?: return@withContext DataMigrationManager.ImportResult.Failure("无法读取文件")
+                    } ?: return@withContext InspectOutcome.ReadFailure("无法读取文件")
 
-                    val importResult = DataMigrationManager.importData(ctx, tempFile)
-                    tempFile.delete()
-                    importResult
+                    when (val inspection = DataMigrationManager.inspectBackup(tempFile)) {
+                        is DataMigrationManager.InspectionResult.Success ->
+                            InspectOutcome.Ready(tempFile, inspection.inspection)
+                        is DataMigrationManager.InspectionResult.Failure -> {
+                            tempFile.delete()
+                            InspectOutcome.ReadFailure(inspection.reason)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Logger.e(TAG, "Import inspection failed", e)
+                    InspectOutcome.ReadFailure(e.message ?: "未知错误")
+                }
+            }
+
+            when (inspectOutcome) {
+                is InspectOutcome.Ready ->
+                    showImportSelectionDialog(inspectOutcome.tempFile, inspectOutcome.inspection)
+                is InspectOutcome.ReadFailure ->
+                    Toast.makeText(
+                        ctx,
+                        getString(R.string.settings_import_failed, inspectOutcome.reason),
+                        Toast.LENGTH_LONG,
+                    ).show()
+            }
+        }
+    }
+
+    private sealed class InspectOutcome {
+        data class Ready(
+            val tempFile: File,
+            val inspection: DataMigrationManager.BackupInspection,
+        ) : InspectOutcome()
+
+        data class ReadFailure(val reason: String) : InspectOutcome()
+    }
+
+    /**
+     * Shows detected backup contents and lets the user choose which sections to import.
+     */
+    private fun showImportSelectionDialog(
+        tempFile: File,
+        inspection: DataMigrationManager.BackupInspection,
+    ) {
+        val ctx = requireContext()
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_import_data, null)
+        val available = inspection.availableSections
+
+        val backupInfoText = dialogView.findViewById<TextView>(R.id.importBackupInfoText)
+        val exportedAtLabel = inspection.exportedAt?.let { formatExportTimestamp(it) }
+            ?: getString(R.string.settings_import_backup_info_unknown_time)
+        backupInfoText.text = getString(
+            R.string.settings_import_backup_info,
+            inspection.appVersion ?: "?",
+            exportedAtLabel,
+        )
+
+        val sectionsContainer = dialogView.findViewById<android.widget.LinearLayout>(R.id.importSectionsContainer)
+        val sectionOrder = listOf(
+            DataMigrationManager.SECTION_PERSONA,
+            DataMigrationManager.SECTION_BEHAVIOR_RULES,
+            DataMigrationManager.SECTION_RELATIONSHIPS,
+            DataMigrationManager.SECTION_SYSTEM_PROMPTS,
+            DataMigrationManager.SECTION_TASK_HISTORY,
+            DataMigrationManager.SECTION_SCHEDULED_TASKS,
+            DataMigrationManager.SECTION_TASK_TEMPLATES,
+        )
+        val sectionCheckboxes = sectionOrder
+            .filter { it in available }
+            .map { section ->
+                val checkbox = CheckBox(ctx).apply {
+                    text = getImportSectionLabel(section)
+                    textSize = 16f
+                    isChecked = true
+                }
+                sectionsContainer.addView(checkbox)
+                SectionCheckbox(section, checkbox)
+            }
+
+        val checkSelectAll = dialogView.findViewById<CheckBox>(R.id.checkImportSelectAll)
+        val visibleCheckboxes = sectionCheckboxes.map { it.checkbox }
+
+        if (visibleCheckboxes.size > 1) {
+            checkSelectAll.visibility = View.VISIBLE
+            lateinit var sectionListener: CompoundButton.OnCheckedChangeListener
+            val selectAllListener = CompoundButton.OnCheckedChangeListener { _, isChecked ->
+                visibleCheckboxes.forEach { checkbox ->
+                    checkbox.setOnCheckedChangeListener(null)
+                    checkbox.isChecked = isChecked
+                    checkbox.setOnCheckedChangeListener(sectionListener)
+                }
+            }
+            sectionListener = CompoundButton.OnCheckedChangeListener { _, _ ->
+                checkSelectAll.setOnCheckedChangeListener(null)
+                checkSelectAll.isChecked = visibleCheckboxes.all { it.isChecked }
+                checkSelectAll.setOnCheckedChangeListener(selectAllListener)
+            }
+            checkSelectAll.setOnCheckedChangeListener(selectAllListener)
+            visibleCheckboxes.forEach { it.setOnCheckedChangeListener(sectionListener) }
+            checkSelectAll.isChecked = true
+        }
+
+        val dialog = MaterialAlertDialogBuilder(ctx)
+            .setTitle(getString(R.string.settings_import_dialog_title))
+            .setView(dialogView)
+            .setPositiveButton(getString(R.string.dialog_confirm), null)
+            .setNegativeButton(getString(R.string.dialog_cancel)) { _, _ -> tempFile.delete() }
+            .setOnCancelListener { tempFile.delete() }
+            .create()
+
+        dialog.setOnShowListener {
+            dialog.getButton(android.content.DialogInterface.BUTTON_POSITIVE).setOnClickListener {
+                val options = buildImportOptions(sectionCheckboxes)
+                if (!options.hasAnySelected()) {
+                    Toast.makeText(ctx, getString(R.string.settings_import_nothing_selected), Toast.LENGTH_SHORT)
+                        .show()
+                    return@setOnClickListener
+                }
+                dialog.dismiss()
+                performImport(tempFile, options)
+            }
+        }
+
+        dialog.show()
+        dialog.applyPrimaryButtonColors()
+    }
+
+    private fun getImportSectionLabel(section: String): String = when (section) {
+        DataMigrationManager.SECTION_PERSONA -> getString(R.string.settings_export_section_persona)
+        DataMigrationManager.SECTION_BEHAVIOR_RULES -> getString(R.string.settings_export_section_behavior_rules)
+        DataMigrationManager.SECTION_RELATIONSHIPS -> getString(R.string.settings_export_section_relationships)
+        DataMigrationManager.SECTION_SYSTEM_PROMPTS -> getString(R.string.settings_export_section_system_prompts)
+        DataMigrationManager.SECTION_TASK_HISTORY -> getString(R.string.settings_export_section_task_history)
+        DataMigrationManager.SECTION_SCHEDULED_TASKS -> getString(R.string.settings_export_section_scheduled_tasks)
+        DataMigrationManager.SECTION_TASK_TEMPLATES -> getString(R.string.settings_export_section_task_templates)
+        else -> section
+    }
+
+    private fun buildImportOptions(sectionCheckboxes: List<SectionCheckbox>): DataMigrationManager.ExportOptions {
+        fun isChecked(section: String): Boolean =
+            sectionCheckboxes.find { it.section == section }?.checkbox?.isChecked == true
+
+        return DataMigrationManager.ExportOptions(
+            persona = isChecked(DataMigrationManager.SECTION_PERSONA),
+            behaviorRules = isChecked(DataMigrationManager.SECTION_BEHAVIOR_RULES),
+            relationships = isChecked(DataMigrationManager.SECTION_RELATIONSHIPS),
+            systemPrompts = isChecked(DataMigrationManager.SECTION_SYSTEM_PROMPTS),
+            taskHistory = isChecked(DataMigrationManager.SECTION_TASK_HISTORY),
+            scheduledTasks = isChecked(DataMigrationManager.SECTION_SCHEDULED_TASKS),
+            taskTemplates = isChecked(DataMigrationManager.SECTION_TASK_TEMPLATES),
+        )
+    }
+
+    private fun performImport(tempFile: File, options: DataMigrationManager.ExportOptions) {
+        val ctx = requireContext()
+        lifecycleScope.launch {
+            val result = withContext(Dispatchers.IO) {
+                try {
+                    DataMigrationManager.importData(ctx, tempFile, options)
                 } catch (e: Exception) {
                     Logger.e(TAG, "Import failed", e)
                     DataMigrationManager.ImportResult.Failure(e.message ?: "未知错误")
+                } finally {
+                    tempFile.delete()
                 }
             }
 
             when (result) {
                 is DataMigrationManager.ImportResult.Success -> {
                     Toast.makeText(ctx, getString(R.string.settings_import_success), Toast.LENGTH_LONG).show()
-                    // Reload contexts so the imported data takes effect immediately
-                    reinitializeAfterImport()
+                    reinitializeAfterImport(result.importedSections)
                 }
                 is DataMigrationManager.ImportResult.Failure -> {
                     Toast.makeText(
                         ctx,
                         getString(R.string.settings_import_failed, result.reason),
-                        Toast.LENGTH_LONG
+                        Toast.LENGTH_LONG,
                     ).show()
                 }
             }
         }
     }
 
+    private fun formatExportTimestamp(timestamp: Long): String {
+        val formatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        return formatter.format(Date(timestamp))
+    }
+
+    private data class SectionCheckbox(
+        val section: String,
+        val checkbox: CheckBox,
+    )
+
     /**
      * Re-initialises all context objects and reloads settings after a successful import
      * so that imported data is reflected without restarting the app.
      */
-    private fun reinitializeAfterImport() {
+    private fun reinitializeAfterImport(importedSections: List<String> = emptyList()) {
         val ctx = requireContext()
-        // Re-read imported prompt files
-        PersonaContext.init(ctx)
-        RelationshipContext.init(ctx)
-        BehaviorContext.init(ctx)
-        ClawBotContextStore.reloadFromDiskIfLoaded(ctx)
-        // PromptManager is already lazily initialized, force re-read by creating a fresh instance
-        // SettingsManager reads from SharedPreferences which was already updated by the import
-        // Reload UI settings
+        val sectionSet = importedSections.toSet()
+
+        if (sectionSet.isEmpty() ||
+            sectionSet.contains(DataMigrationManager.SECTION_PERSONA)
+        ) {
+            PersonaContext.init(ctx)
+        }
+        if (sectionSet.isEmpty() ||
+            sectionSet.contains(DataMigrationManager.SECTION_RELATIONSHIPS)
+        ) {
+            RelationshipContext.init(ctx)
+        }
+        if (sectionSet.isEmpty() ||
+            sectionSet.contains(DataMigrationManager.SECTION_BEHAVIOR_RULES)
+        ) {
+            BehaviorContext.init(ctx)
+        }
+        if (sectionSet.isEmpty() ||
+            sectionSet.contains(DataMigrationManager.SECTION_SCHEDULED_TASKS)
+        ) {
+            ScheduledTaskManager.getInstance(ctx).reloadAfterImport()
+        }
         loadCurrentSettings()
-        Logger.i(TAG, "Re-initialised contexts after import")
+        Logger.i(TAG, "Re-initialised contexts after import: sections=$importedSections")
     }
 
     // endregion

@@ -10,6 +10,7 @@ import com.flowmate.autoxiaoer.model.ModelConfig
 import com.flowmate.autoxiaoer.util.Logger
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.File
 
 /**
  * Represents a saved model profile with a display name.
@@ -120,8 +121,10 @@ class SettingsManager private constructor(private val context: Context) {
         private const val KEY_SAVED_PROFILES = "saved_model_profiles"
         private const val KEY_CURRENT_PROFILE_ID = "current_profile_id"
 
-        // Task templates keys
-        private const val KEY_TASK_TEMPLATES = "task_templates"
+        // Task templates storage
+        const val TASK_TEMPLATES_DIR = "task_templates"
+        const val TASK_TEMPLATES_FILE = "templates.json"
+        private const val LEGACY_KEY_TASK_TEMPLATES = "task_templates"
 
         // Custom system prompt keys
         private const val KEY_CUSTOM_SYSTEM_PROMPT_CN = "custom_system_prompt_cn"
@@ -547,23 +550,36 @@ class SettingsManager private constructor(private val context: Context) {
 
     // ==================== Task Templates ====================
 
+    private val taskTemplatesFile: File
+        get() = File(File(context.filesDir, TASK_TEMPLATES_DIR), TASK_TEMPLATES_FILE)
+
+    /**
+     * One-time migration: copies legacy SharedPreferences task templates into file storage.
+     * Safe to call on every startup — no-op when the target file already exists.
+     */
+    fun migrateLegacyTaskTemplatesFromPrefsIfNeeded() {
+        if (taskTemplatesFile.exists()) return
+
+        val json = prefs.getString(LEGACY_KEY_TASK_TEMPLATES, null) ?: return
+        try {
+            taskTemplatesFile.parentFile?.mkdirs()
+            taskTemplatesFile.writeText(json)
+            prefs.edit().remove(LEGACY_KEY_TASK_TEMPLATES).apply()
+            Logger.i(TAG, "Migrated task templates from legacy prefs to file")
+        } catch (e: Exception) {
+            Logger.e(TAG, "Failed to migrate task templates from legacy prefs", e)
+        }
+    }
+
     /**
      * Gets all saved task templates.
      *
      * @return List of saved task templates, empty list if none exist or parsing fails
      */
     fun getTaskTemplates(): List<TaskTemplate> {
-        val json = prefs.getString(KEY_TASK_TEMPLATES, null) ?: return emptyList()
+        if (!taskTemplatesFile.exists()) return emptyList()
         return try {
-            val array = JSONArray(json)
-            (0 until array.length()).map { i ->
-                val obj = array.getJSONObject(i)
-                TaskTemplate(
-                    id = obj.getString("id"),
-                    name = obj.getString("name"),
-                    description = obj.getString("description"),
-                )
-            }
+            parseTemplatesJson(taskTemplatesFile.readText())
         } catch (e: Exception) {
             Logger.e(TAG, "Failed to parse task templates", e)
             emptyList()
@@ -624,17 +640,37 @@ class SettingsManager private constructor(private val context: Context) {
      * @param templates The list of templates to save
      */
     private fun saveTemplatesList(templates: List<TaskTemplate>) {
+        try {
+            taskTemplatesFile.parentFile?.mkdirs()
+            taskTemplatesFile.writeText(encodeTemplatesJson(templates))
+        } catch (e: Exception) {
+            Logger.e(TAG, "Failed to save task templates to file", e)
+        }
+    }
+
+    private fun parseTemplatesJson(json: String): List<TaskTemplate> {
+        val array = JSONArray(json)
+        return (0 until array.length()).map { i ->
+            val obj = array.getJSONObject(i)
+            TaskTemplate(
+                id = obj.getString("id"),
+                name = obj.getString("name"),
+                description = obj.getString("description"),
+            )
+        }
+    }
+
+    private fun encodeTemplatesJson(templates: List<TaskTemplate>): String {
         val array = JSONArray()
         templates.forEach { template ->
-            val obj =
-                JSONObject().apply {
-                    put("id", template.id)
-                    put("name", template.name)
-                    put("description", template.description)
-                }
+            val obj = JSONObject().apply {
+                put("id", template.id)
+                put("name", template.name)
+                put("description", template.description)
+            }
             array.put(obj)
         }
-        prefs.edit().putString(KEY_TASK_TEMPLATES, array.toString()).apply()
+        return array.toString()
     }
 
     // ==================== Custom System Prompt ====================
