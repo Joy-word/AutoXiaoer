@@ -35,60 +35,15 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:text="@string/settings_export_select_all"
-            android:textSize="16sp" />
+            android:textSize="16sp"
+            android:visibility="gone" />
 
-        <CheckBox
-            android:id="@+id/checkImportPersona"
+        <LinearLayout
+            android:id="@+id/importSectionsContainer"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:checked="true"
-            android:text="@string/settings_export_section_persona"
-            android:textSize="16sp" />
-
-        <CheckBox
-            android:id="@+id/checkImportBehaviorRules"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:checked="true"
-            android:text="@string/settings_export_section_behavior_rules"
-            android:textSize="16sp" />
-
-        <CheckBox
-            android:id="@+id/checkImportRelationships"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:checked="true"
-            android:text="@string/settings_export_section_relationships"
-            android:textSize="16sp" />
-
-        <CheckBox
-            android:id="@+id/checkImportSystemPrompts"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/settings_export_section_system_prompts"
-            android:textSize="16sp" />
-
-        <CheckBox
-            android:id="@+id/checkImportTaskHistory"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/settings_export_section_task_history"
-            android:textSize="16sp" />
-
-        <CheckBox
-            android:id="@+id/checkImportScheduledTasks"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/settings_export_section_scheduled_tasks"
-            android:textSize="16sp" />
-
-        <CheckBox
-            android:id="@+id/checkImportTaskTemplates"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/settings_export_section_task_templates"
-            android:textSize="16sp" />
+            android:orientation="vertical" />
 
     </LinearLayout>
 </ScrollView>

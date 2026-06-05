@@ -1956,46 +1956,50 @@ class SettingsFragment : Fragment() {
             exportedAtLabel,
         )
 
-        val sectionCheckboxes = listOf(
-            SectionCheckbox(DataMigrationManager.SECTION_PERSONA, dialogView.findViewById(R.id.checkImportPersona)),
-            SectionCheckbox(DataMigrationManager.SECTION_BEHAVIOR_RULES, dialogView.findViewById(R.id.checkImportBehaviorRules)),
-            SectionCheckbox(DataMigrationManager.SECTION_RELATIONSHIPS, dialogView.findViewById(R.id.checkImportRelationships)),
-            SectionCheckbox(DataMigrationManager.SECTION_SYSTEM_PROMPTS, dialogView.findViewById(R.id.checkImportSystemPrompts)),
-            SectionCheckbox(DataMigrationManager.SECTION_TASK_HISTORY, dialogView.findViewById(R.id.checkImportTaskHistory)),
-            SectionCheckbox(DataMigrationManager.SECTION_SCHEDULED_TASKS, dialogView.findViewById(R.id.checkImportScheduledTasks)),
-            SectionCheckbox(DataMigrationManager.SECTION_TASK_TEMPLATES, dialogView.findViewById(R.id.checkImportTaskTemplates)),
+        val sectionsContainer = dialogView.findViewById<android.widget.LinearLayout>(R.id.importSectionsContainer)
+        val sectionOrder = listOf(
+            DataMigrationManager.SECTION_PERSONA,
+            DataMigrationManager.SECTION_BEHAVIOR_RULES,
+            DataMigrationManager.SECTION_RELATIONSHIPS,
+            DataMigrationManager.SECTION_SYSTEM_PROMPTS,
+            DataMigrationManager.SECTION_TASK_HISTORY,
+            DataMigrationManager.SECTION_SCHEDULED_TASKS,
+            DataMigrationManager.SECTION_TASK_TEMPLATES,
         )
-
-        val visibleCheckboxes = sectionCheckboxes.mapNotNull { (section, checkbox) ->
-            if (section in available) {
-                checkbox.isChecked = true
-                checkbox.visibility = View.VISIBLE
-                checkbox
-            } else {
-                checkbox.visibility = View.GONE
-                null
+        val sectionCheckboxes = sectionOrder
+            .filter { it in available }
+            .map { section ->
+                val checkbox = CheckBox(ctx).apply {
+                    text = getImportSectionLabel(section)
+                    textSize = 16f
+                    isChecked = true
+                }
+                sectionsContainer.addView(checkbox)
+                SectionCheckbox(section, checkbox)
             }
-        }
 
         val checkSelectAll = dialogView.findViewById<CheckBox>(R.id.checkImportSelectAll)
+        val visibleCheckboxes = sectionCheckboxes.map { it.checkbox }
 
-        lateinit var sectionListener: CompoundButton.OnCheckedChangeListener
-        val selectAllListener = CompoundButton.OnCheckedChangeListener { _, isChecked ->
-            visibleCheckboxes.forEach { checkbox ->
-                checkbox.setOnCheckedChangeListener(null)
-                checkbox.isChecked = isChecked
-                checkbox.setOnCheckedChangeListener(sectionListener)
+        if (visibleCheckboxes.size > 1) {
+            checkSelectAll.visibility = View.VISIBLE
+            lateinit var sectionListener: CompoundButton.OnCheckedChangeListener
+            val selectAllListener = CompoundButton.OnCheckedChangeListener { _, isChecked ->
+                visibleCheckboxes.forEach { checkbox ->
+                    checkbox.setOnCheckedChangeListener(null)
+                    checkbox.isChecked = isChecked
+                    checkbox.setOnCheckedChangeListener(sectionListener)
+                }
             }
-        }
-        sectionListener = CompoundButton.OnCheckedChangeListener { _, _ ->
-            checkSelectAll.setOnCheckedChangeListener(null)
-            checkSelectAll.isChecked = visibleCheckboxes.all { it.isChecked }
+            sectionListener = CompoundButton.OnCheckedChangeListener { _, _ ->
+                checkSelectAll.setOnCheckedChangeListener(null)
+                checkSelectAll.isChecked = visibleCheckboxes.all { it.isChecked }
+                checkSelectAll.setOnCheckedChangeListener(selectAllListener)
+            }
             checkSelectAll.setOnCheckedChangeListener(selectAllListener)
+            visibleCheckboxes.forEach { it.setOnCheckedChangeListener(sectionListener) }
+            checkSelectAll.isChecked = true
         }
-
-        checkSelectAll.setOnCheckedChangeListener(selectAllListener)
-        visibleCheckboxes.forEach { it.setOnCheckedChangeListener(sectionListener) }
-        checkSelectAll.isChecked = visibleCheckboxes.all { it.isChecked }
 
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(getString(R.string.settings_import_dialog_title))
@@ -2020,6 +2024,17 @@ class SettingsFragment : Fragment() {
 
         dialog.show()
         dialog.applyPrimaryButtonColors()
+    }
+
+    private fun getImportSectionLabel(section: String): String = when (section) {
+        DataMigrationManager.SECTION_PERSONA -> getString(R.string.settings_export_section_persona)
+        DataMigrationManager.SECTION_BEHAVIOR_RULES -> getString(R.string.settings_export_section_behavior_rules)
+        DataMigrationManager.SECTION_RELATIONSHIPS -> getString(R.string.settings_export_section_relationships)
+        DataMigrationManager.SECTION_SYSTEM_PROMPTS -> getString(R.string.settings_export_section_system_prompts)
+        DataMigrationManager.SECTION_TASK_HISTORY -> getString(R.string.settings_export_section_task_history)
+        DataMigrationManager.SECTION_SCHEDULED_TASKS -> getString(R.string.settings_export_section_scheduled_tasks)
+        DataMigrationManager.SECTION_TASK_TEMPLATES -> getString(R.string.settings_export_section_task_templates)
+        else -> section
     }
 
     private fun buildImportOptions(sectionCheckboxes: List<SectionCheckbox>): DataMigrationManager.ExportOptions {

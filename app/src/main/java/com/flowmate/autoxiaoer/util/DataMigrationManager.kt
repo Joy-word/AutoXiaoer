@@ -36,15 +36,15 @@ import java.util.zip.ZipOutputStream
  * autoxiaoer_backup_<timestamp>.zip
  * ├── manifest.json
  * ├── prefs/
- * │   ├── system_prompts.json   ← (optional) SharedPreferences prompt keys
- * │   ├── scheduled_tasks.json  ← (optional) scheduled task list
- * │   └── task_templates.json   ← (optional) task template list
+ * │   └── system_prompts.json   ← (optional) SharedPreferences prompt keys
  * └── files/
  *     ├── persona/...
  *     ├── relationships/...
  *     ├── behavior_rules/...
  *     ├── prompts/...
- *     └── task_history/...
+ *     ├── task_history/...
+ *     ├── scheduled_tasks/...
+ *     └── task_templates/...
  * ```
  */
 object DataMigrationManager {
@@ -55,15 +55,10 @@ object DataMigrationManager {
     private const val FILES_DIR = "files"
     private const val PREFS_PROMPTS_FILE = "prompts.json"
     private const val PREFS_SYSTEM_PROMPTS_FILE = "system_prompts.json"
-    private const val PREFS_SCHEDULED_TASKS_FILE = "scheduled_tasks.json"
-    private const val PREFS_TASK_TEMPLATES_FILE = "task_templates.json"
     private const val FORMAT_VERSION = 2
     private const val LEGACY_FORMAT_VERSION = 1
     private const val EXPORT_TIMESTAMP_FORMAT = "yyyyMMdd_HHmmss"
     private const val SETTINGS_PREFS_NAME = "autoglm_settings"
-    private const val SCHEDULED_TASKS_PREFS_NAME = "scheduled_tasks"
-    private const val KEY_SCHEDULED_TASKS = "tasks"
-    private const val KEY_TASK_TEMPLATES = "task_templates"
 
     const val SECTION_PERSONA = "persona"
     const val SECTION_BEHAVIOR_RULES = "behavior_rules"
@@ -94,6 +89,8 @@ object DataMigrationManager {
         SECTION_RELATIONSHIPS to "relationships",
         SECTION_SYSTEM_PROMPTS to "prompts",
         SECTION_TASK_HISTORY to "task_history",
+        SECTION_SCHEDULED_TASKS to "scheduled_tasks",
+        SECTION_TASK_TEMPLATES to "task_templates",
     )
 
     data class ExportOptions(
@@ -189,12 +186,6 @@ object DataMigrationManager {
                 if (options.systemPrompts) {
                     writeSystemPromptPrefs(zip, context)
                 }
-                if (options.scheduledTasks) {
-                    writeScheduledTasksPrefs(zip, context)
-                }
-                if (options.taskTemplates) {
-                    writeTaskTemplatesPrefs(zip, context)
-                }
                 writeSelectedFileDirs(zip, context, options)
             }
 
@@ -275,22 +266,6 @@ object DataMigrationManager {
         zip.closeEntry()
     }
 
-    private fun writeScheduledTasksPrefs(zip: ZipOutputStream, context: Context) {
-        val prefs = context.getSharedPreferences(SCHEDULED_TASKS_PREFS_NAME, Context.MODE_PRIVATE)
-        val json = prefs.getString(KEY_SCHEDULED_TASKS, null) ?: "[]"
-        zip.putNextEntry(ZipEntry("$PREFS_DIR/$PREFS_SCHEDULED_TASKS_FILE"))
-        zip.write(json.toByteArray())
-        zip.closeEntry()
-    }
-
-    private fun writeTaskTemplatesPrefs(zip: ZipOutputStream, context: Context) {
-        val prefs = context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
-        val json = prefs.getString(KEY_TASK_TEMPLATES, null) ?: "[]"
-        zip.putNextEntry(ZipEntry("$PREFS_DIR/$PREFS_TASK_TEMPLATES_FILE"))
-        zip.write(json.toByteArray())
-        zip.closeEntry()
-    }
-
     private fun writeSelectedFileDirs(zip: ZipOutputStream, context: Context, options: ExportOptions) {
         for ((section, dirName) in SECTION_TO_DIR) {
             val include = when (section) {
@@ -299,6 +274,8 @@ object DataMigrationManager {
                 SECTION_RELATIONSHIPS -> options.relationships
                 SECTION_SYSTEM_PROMPTS -> options.systemPrompts
                 SECTION_TASK_HISTORY -> options.taskHistory
+                SECTION_SCHEDULED_TASKS -> options.scheduledTasks
+                SECTION_TASK_TEMPLATES -> options.taskTemplates
                 else -> false
             }
             if (!include) continue
@@ -345,12 +322,6 @@ object DataMigrationManager {
                         entry.name == "$PREFS_DIR/$PREFS_SYSTEM_PROMPTS_FILE" ||
                             entry.name == "$PREFS_DIR/$PREFS_PROMPTS_FILE" -> {
                             availableSections.add(SECTION_SYSTEM_PROMPTS)
-                        }
-                        entry.name == "$PREFS_DIR/$PREFS_SCHEDULED_TASKS_FILE" -> {
-                            availableSections.add(SECTION_SCHEDULED_TASKS)
-                        }
-                        entry.name == "$PREFS_DIR/$PREFS_TASK_TEMPLATES_FILE" -> {
-                            availableSections.add(SECTION_TASK_TEMPLATES)
                         }
                         entry.name.startsWith("$FILES_DIR/") && !entry.isDirectory -> {
                             val topDir = entry.name
@@ -433,8 +404,6 @@ object DataMigrationManager {
         try {
             var manifest: JSONObject? = null
             var systemPromptsJson: JSONObject? = null
-            var scheduledTasksJson: String? = null
-            var taskTemplatesJson: String? = null
             val fileEntries = mutableListOf<Pair<String, ByteArray>>()
 
             ZipInputStream(FileInputStream(zipFile)).use { zip ->
@@ -447,12 +416,6 @@ object DataMigrationManager {
                         entry.name == "$PREFS_DIR/$PREFS_SYSTEM_PROMPTS_FILE" ||
                             entry.name == "$PREFS_DIR/$PREFS_PROMPTS_FILE" -> {
                             systemPromptsJson = JSONObject(zip.readBytes().toString(Charsets.UTF_8))
-                        }
-                        entry.name == "$PREFS_DIR/$PREFS_SCHEDULED_TASKS_FILE" -> {
-                            scheduledTasksJson = zip.readBytes().toString(Charsets.UTF_8)
-                        }
-                        entry.name == "$PREFS_DIR/$PREFS_TASK_TEMPLATES_FILE" -> {
-                            taskTemplatesJson = zip.readBytes().toString(Charsets.UTF_8)
                         }
                         entry.name.startsWith("$FILES_DIR/") && !entry.isDirectory -> {
                             fileEntries.add(entry.name to zip.readBytes())
@@ -477,16 +440,6 @@ object DataMigrationManager {
             if (systemPromptsJson != null && options.systemPrompts) {
                 restoreSystemPromptPrefs(context, systemPromptsJson!!)
                 importedSections.add(SECTION_SYSTEM_PROMPTS)
-            }
-
-            if (scheduledTasksJson != null && options.scheduledTasks) {
-                restoreScheduledTasksPrefs(context, scheduledTasksJson!!)
-                importedSections.add(SECTION_SCHEDULED_TASKS)
-            }
-
-            if (taskTemplatesJson != null && options.taskTemplates) {
-                restoreTaskTemplatesPrefs(context, taskTemplatesJson!!)
-                importedSections.add(SECTION_TASK_TEMPLATES)
             }
 
             val filesDir = context.filesDir
@@ -538,20 +491,6 @@ object DataMigrationManager {
             }
         }
         editor.apply()
-    }
-
-    private fun restoreScheduledTasksPrefs(context: Context, json: String) {
-        context.getSharedPreferences(SCHEDULED_TASKS_PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_SCHEDULED_TASKS, json)
-            .apply()
-    }
-
-    private fun restoreTaskTemplatesPrefs(context: Context, json: String) {
-        context.getSharedPreferences(SETTINGS_PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_TASK_TEMPLATES, json)
-            .apply()
     }
 
     // ──────────────────────────────────────────────────────────────────────────
