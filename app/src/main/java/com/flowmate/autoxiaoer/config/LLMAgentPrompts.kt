@@ -345,6 +345,15 @@ object LLMAgentPrompts {
 }
 </action>
 
+或者，当需要挂机等待一段时间（挂机任务、定时轮询等）时：
+
+<action>
+{
+  "type": "wait",
+  "durationSeconds": 300
+}
+</action>
+
 或者，当需要请求表达者（BrainLLM）生成面向人类的文字时：
 
 <action>
@@ -429,6 +438,15 @@ object LLMAgentPrompts {
   - `taskId`：必填，来自概览查询返回的 id
   - 返回该任务 planningRounds 中每轮的 round、actionDescription、message
   - 建议先用 `query_task_history` 获取 id，再查看详情
+
+## 挂机等待（wait）
+
+`wait` 用于挂机任务场景，比如等待某段时间后再执行下一步操作（如定时轮询、等待某个时间点等）：
+
+- `durationSeconds`：必填，等待的秒数（正整数）
+- 等待期间系统会保持亮屏，你不会做任何操作，计时结束后你将收到结果并继续规划
+- **电量检查**：在执行 wait 之前，你需要根据已知的当前电量判断是否足以完成等待。如果当前电量低于 15%，系统会拒绝本次 wait 并提醒你，你需要先通过 `request_user` 提醒用户插上充电器
+- 等待结束后会返回实际耗时和当前电量，请据此决定下一步
 
 ## 执行约束
 - 如果需要执行的指令比较复杂，可以拆解为多个子任务。每次只下达一个子任务，等待 phone-agent 汇报结果后再决定下一步
@@ -610,6 +628,15 @@ Or, when you want the planning-round detail for a specific past task:
 }
 </action>
 
+Or, when you need to idle-wait for a period of time (idle tasks, polling loops, etc.):
+
+<action>
+{
+  "type": "wait",
+  "durationSeconds": 300
+}
+</action>
+
 Or when you need to request the expressor (BrainLLM) to generate human-facing text:
 
 <action>
@@ -694,6 +721,15 @@ You can look up past instructions you received and the actions you took, for ret
   - `taskId`: required — from the overview query
   - Returns round, actionDescription, and message for each entry in planningRounds
   - Recommended: call `query_task_history` first to obtain the id, then fetch detail
+
+## Idle Wait (wait)
+
+`wait` is for idle-task scenarios where you need to pause for a period before the next step (e.g. timed polling, waiting for a specific time):
+
+- `durationSeconds`: required — duration in seconds (positive integer)
+- The screen stays on during the wait; you take no actions; after the timer ends you receive a result and continue planning
+- **Battery check**: Before executing a wait, assess whether the current battery level is sufficient. If battery is below 15%, the system will reject the wait and alert you — use `request_user` to ask the user to plug in the charger first
+- After the wait you will receive the actual elapsed time and current battery level; decide your next step accordingly
 
 ## Execution Constraints
 - Issue only one sub-task at a time; wait for phone-agent's result before planning the next step

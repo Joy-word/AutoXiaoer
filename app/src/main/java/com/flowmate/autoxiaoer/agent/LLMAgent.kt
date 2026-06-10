@@ -944,13 +944,103 @@ class LLMAgent(
                                 context.addUserMessage(observation)
                             }
 
+                            ACTION_WAIT -> {
+                                val durationSeconds = action.waitDurationSeconds
+                                if (durationSeconds == null || durationSeconds <= 0) {
+                                    Logger.w(TAG, "wait action missing or invalid durationSeconds")
+                                    context.addUserMessage("你输出的 wait 缺少有效的 durationSeconds 字段（需为正整数秒数），请重新输出。")
+                                    continue
+                                }
+
+                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
+
+                                // Battery check before a long wait
+                                val batteryPct = getBatteryLevel()
+                                if (batteryPct in 0..14) {
+                                    val lowBatteryMsg = if (isEn) {
+                                        "[Battery Warning] Battery is at $batteryPct%, which is too low to sustain a ${durationSeconds}s wait. " +
+                                            "Please plug in the charger before continuing."
+                                    } else {
+                                        "【电量不足】当前电量 $batteryPct%，无法安全维持 ${durationSeconds} 秒的等待操作，请先插上电源再继续。"
+                                    }
+                                    Logger.w(TAG, "Battery too low for wait action: $batteryPct%")
+                                    val lowBatteryObservation = if (isEn) {
+                                        "$lowBatteryMsg\n\nDecide your next action: you can notify the user to charge, or abort the task."
+                                    } else {
+                                        "$lowBatteryMsg\n\n请决定下一步操作：可以通过 request_user 提醒用户插电，或中止任务。"
+                                    }
+                                    historyManager?.recordPlanningRound(
+                                        LLMPlanningRound(
+                                            round = round,
+                                            thinking = thinking,
+                                            actionDescription = actionDescription,
+                                            actionType = ACTION_WAIT,
+                                            message = lowBatteryObservation,
+                                            tokenUsage = roundTokenUsage,
+                                        ),
+                                    )
+                                    context.addUserMessage(lowBatteryObservation)
+                                    continue
+                                }
+
+                                // ScreenKeepAliveManager already holds SCREEN_BRIGHT_WAKE_LOCK
+                                // for the whole task, so no extra wake lock is needed here.
+                                Logger.i(TAG, "wait action: idle-waiting ${durationSeconds}s (battery=$batteryPct%)")
+                                val startMs = System.currentTimeMillis()
+                                var remaining = durationSeconds
+                                while (remaining > 0 && isActive && !cancelRequested.get()) {
+                                    // Pause check: suspend timing while paused, resume when unpaused
+                                    while (pauseRequested.get() && !cancelRequested.get() && isActive) {
+                                        delay(200)
+                                    }
+                                    if (cancelRequested.get() || !isActive) break
+
+                                    val sleepSec = minOf(remaining, 30)
+                                    delay(sleepSec * 1000L)
+                                    remaining -= sleepSec
+                                }
+
+                                // Cancellation check after wait
+                                if (cancelRequested.get() || !isActive) {
+                                    Logger.i(TAG, "LLMAgent cancelled during wait action")
+                                    val result = LLMTaskResult(success = false, message = "任务已取消", planningRounds = round)
+                                    historyManager?.completeTask(false, result.message)
+                                    listener?.onTaskFinished(result)
+                                    return@coroutineScope result
+                                }
+
+                                val elapsed = ((System.currentTimeMillis() - startMs) / 1000).toInt()
+                                val batteryAfter = getBatteryLevel()
+                                val observation = if (isEn) {
+                                    "[Wait Completed] Waited approximately ${elapsed}s with screen on. " +
+                                        (if (batteryAfter >= 0) "Current battery: $batteryAfter%. " else "") +
+                                        "Decide your next action."
+                                } else {
+                                    "【等待完成】已保持亮屏等待约 ${elapsed} 秒。" +
+                                        (if (batteryAfter >= 0) "当前电量：$batteryAfter%。" else "") +
+                                        "请决定下一步操作。"
+                                }
+                                Logger.i(TAG, "wait action done: elapsed=${elapsed}s battery=$batteryAfter%")
+                                historyManager?.recordPlanningRound(
+                                    LLMPlanningRound(
+                                        round = round,
+                                        thinking = thinking,
+                                        actionDescription = actionDescription,
+                                        actionType = ACTION_WAIT,
+                                        message = observation,
+                                        tokenUsage = roundTokenUsage,
+                                    ),
+                                )
+                                context.addUserMessage(observation)
+                            }
+
                             else -> {
                                 Logger.w(TAG, "Unknown action type: ${action.type}")
                                 context.addUserMessage(
                                     "未知的 action type \"${action.type}\"，请使用 execute_subtask、finish、request_user、request_brain、" +
                                         "schedule_task、query_scheduled_tasks、update_scheduled_task、delete_scheduled_task、" +
                                         "read_relationships、update_relationships、read_behavior_rules、update_behavior_rules、" +
-                                        "query_task_history 或 get_task_history_detail。",
+                                        "query_task_history、get_task_history_detail 或 wait。",
                                 )
                             }
                         }
@@ -1217,6 +1307,7 @@ class LLMAgent(
         val behaviorContent: String? = null,
         val historyQueryCount: Int? = null,
         val historyTaskId: String? = null,
+        val waitDurationSeconds: Int? = null,
     )
 
     private data class BrainRequestParams(
@@ -1396,6 +1487,11 @@ class LLMAgent(
                     ParsedAction(type = type, message = null, subTask = null, historyTaskId = taskId)
                 }
 
+                ACTION_WAIT -> {
+                    val duration = json.optInt("durationSeconds", 0).takeIf { it > 0 } ?: return null
+                    ParsedAction(type = type, message = null, subTask = null, waitDurationSeconds = duration)
+                }
+
                 else -> ParsedAction(type = type, message = null, subTask = null)
             }
         } catch (e: Exception) {
@@ -1488,6 +1584,7 @@ class LLMAgent(
         private const val ACTION_UPDATE_BEHAVIOR_RULES = "update_behavior_rules"
         private const val ACTION_QUERY_TASK_HISTORY = "query_task_history"
         private const val ACTION_GET_TASK_HISTORY_DETAIL = "get_task_history_detail"
+        private const val ACTION_WAIT = "wait"
         private const val MAX_HISTORY_QUERY_COUNT = 10
 
         /**
