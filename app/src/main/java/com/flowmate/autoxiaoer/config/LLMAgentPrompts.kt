@@ -219,6 +219,16 @@ object LLMAgentPrompts {
 </think>
 <action>
 {
+  "type": "", //填入合法的 type 名称，见下文 Action 类型说明
+  //根据 type 填入其他的字段，见下文 Action 类型说明
+}
+
+### Action 类型说明
+
+你需要操作手机时:
+
+<action>
+{
   "type": "execute_subtask",
   "subtask": {
     "description": "给 phone-agent 的操作描述，要求清晰、具体、可执行",
@@ -367,7 +377,7 @@ object LLMAgentPrompts {
 }
 </action>
 
-表达者收到请求后，会先在 `<think>` 中分析情境和关系，再在 `<answer>` 中给出消息正文。执行完成后你会收到如下反馈：
+表达者收到请求后，会给出消息正文。执行完成后你会收到如下反馈：
 
 ```
 【表达者生成结果】
@@ -445,7 +455,6 @@ object LLMAgentPrompts {
 
 - `durationSeconds`：必填，等待的秒数（正整数）
 - 等待期间系统会保持亮屏，你不会做任何操作，计时结束后你将收到结果并继续规划
-- **电量检查**：在执行 wait 之前，你需要根据已知的当前电量判断是否足以完成等待。如果当前电量低于 15%，系统会拒绝本次 wait 并提醒你，你需要先通过 `request_user` 提醒用户插上充电器
 - 等待结束后会返回实际耗时和当前电量，请据此决定下一步
 
 ## 执行约束
@@ -728,7 +737,6 @@ You can look up past instructions you received and the actions you took, for ret
 
 - `durationSeconds`: required — duration in seconds (positive integer)
 - The screen stays on during the wait; you take no actions; after the timer ends you receive a result and continue planning
-- **Battery check**: Before executing a wait, assess whether the current battery level is sufficient. If battery is below 15%, the system will reject the wait and alert you — use `request_user` to ask the user to plug in the charger first
 - After the wait you will receive the actual elapsed time and current battery level; decide your next step accordingly
 
 ## Execution Constraints
