@@ -168,9 +168,10 @@ class LLMAgent(
     ): LLMTaskResult {
         val maxAttempts = config.maxTaskRetries + 1
         var lastResult = LLMTaskResult(success = false, message = "未执行", planningRounds = 0)
+        var previousAttemptHistory: TaskHistory? = null
 
         for (attempt in 1..maxAttempts) {
-            val result = runOnce(taskDescription, triggerContext)
+            val result = runOnce(taskDescription, triggerContext, previousAttemptHistory)
             lastResult = result
 
             // Success or user-initiated cancellation — do not retry
@@ -178,6 +179,9 @@ class LLMAgent(
 
             if (attempt < maxAttempts) {
                 Logger.i(TAG, "Task failed (attempt $attempt/$maxAttempts), retrying: ${result.message.take(80)}")
+                // Capture the just-completed failed task before resetting flags.
+                // completeTask() already prepended it to historyList, so firstOrNull() is reliable.
+                previousAttemptHistory = historyManager?.historyList?.value?.firstOrNull()
                 listener?.onTaskRetrying(attempt, result.message)
                 // Reset control flags so the next attempt starts cleanly
                 cancelRequested.set(false)
@@ -198,6 +202,7 @@ class LLMAgent(
     private suspend fun runOnce(
         taskDescription: String,
         triggerContext: TriggerContext? = null,
+        previousAttempt: TaskHistory? = null,
     ): LLMTaskResult = coroutineScope {
         Logger.i(TAG, "LLMAgent starting task: ${taskDescription.take(80)}")
 
@@ -214,6 +219,13 @@ class LLMAgent(
         // Build the initial user message, incorporating any trigger context
         val initialMessage = buildInitialMessage(taskDescription, triggerContext)
         context.addUserMessage(initialMessage)
+
+        // ── 重试上下文注入 ──────────────────────────────────────────────────────
+        // Inject a concise summary of the previous failed attempt so the LLM
+        // knows what was already done and where things broke down.
+        if (previousAttempt != null) {
+            context.addUserMessage(buildRetryContext(previousAttempt))
+        }
 
         var round = 0
 
@@ -1237,6 +1249,66 @@ class LLMAgent(
         if (!ctx.notificationCategory.isNullOrBlank()) {
             sb.appendLine("- 通知类别：${ctx.notificationCategory}")
         }
+    }
+
+    /**
+     * Builds a concise retry-context message from the last planning round of the
+     * previous failed attempt.
+     *
+     * Only the final round's thinking, actionType, subTaskDescription, and observation
+     * (message) are included — enough for the LLM to understand where the previous run
+     * broke down without bloating the context.
+     */
+    private fun buildRetryContext(previousAttempt: TaskHistory): String {
+        val isEn = config.language.lowercase().let { it == "en" || it == "english" }
+        val lastRound = previousAttempt.planningRounds.lastOrNull()
+        val sb = StringBuilder()
+
+        if (isEn) {
+            sb.appendLine("⚠️ [RETRY] The previous attempt failed. Please adjust your strategy based on the information below.")
+            sb.appendLine("Failure reason: ${previousAttempt.completionMessage ?: "unknown"}")
+            if (lastRound != null) {
+                sb.appendLine()
+                sb.appendLine("Last planning round before failure (round ${lastRound.round}):")
+                if (lastRound.thinking.isNotBlank()) {
+                    val brief = if (lastRound.thinking.length > 200) "${lastRound.thinking.take(200)}…" else lastRound.thinking
+                    sb.appendLine("  Thinking: $brief")
+                }
+                sb.appendLine("  Action type: ${lastRound.actionType}")
+                if (!lastRound.subTaskDescription.isNullOrBlank()) {
+                    sb.appendLine("  Sub-task: ${lastRound.subTaskDescription}")
+                }
+                lastRound.message?.takeIf { it.isNotBlank() }?.let { obs ->
+                    val brief = if (obs.length > 200) "${obs.take(200)}…" else obs
+                    sb.appendLine("  Observation: $brief")
+                }
+            }
+            sb.appendLine()
+            sb.append("Please focus on what went wrong and try a different approach.")
+        } else {
+            sb.appendLine("⚠️ 【重试提示】上一次尝试已失败，以下是失败前最后一个规划轮次的信息，请据此调整策略。")
+            sb.appendLine("失败原因：${previousAttempt.completionMessage ?: "未知"}")
+            if (lastRound != null) {
+                sb.appendLine()
+                sb.appendLine("失败前最后一轮（第 ${lastRound.round} 轮）：")
+                if (lastRound.thinking.isNotBlank()) {
+                    val brief = if (lastRound.thinking.length > 200) "${lastRound.thinking.take(200)}…" else lastRound.thinking
+                    sb.appendLine("  思考：$brief")
+                }
+                sb.appendLine("  动作类型：${lastRound.actionType}")
+                if (!lastRound.subTaskDescription.isNullOrBlank()) {
+                    sb.appendLine("  子任务：${lastRound.subTaskDescription}")
+                }
+                lastRound.message?.takeIf { it.isNotBlank() }?.let { obs ->
+                    val brief = if (obs.length > 200) "${obs.take(200)}…" else obs
+                    sb.appendLine("  观察：$brief")
+                }
+            }
+            sb.appendLine()
+            sb.append("请针对以上失败信息调整策略，重新规划并执行。")
+        }
+
+        return sb.toString().trimEnd()
     }
 
     private fun buildObservationMessage(subTask: SubTask, result: SubTaskResult): String {
