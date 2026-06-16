@@ -291,10 +291,25 @@ class LLMAgent(
                         context.addAssistantMessage(response.rawContent)
 
                         // ── Parse action ───────────────────────────────────────
+                        val parseError = runCatching {
+                            val actionBlock = ModelResponseParser.parseLlmAgentActionBlock(response.rawContent)
+                            if (actionBlock == null) "未找到 <action>...</action> 块" else {
+                                org.json.JSONObject(actionBlock.trim())
+                                null // 解析成功，无错误
+                            }
+                        }.getOrElse { e -> e.message }
                         val action = parseAction(response.rawContent)
                         if (action == null) {
-                            Logger.w(TAG, "Could not parse action from LLM response, retrying...")
-                            context.addUserMessage("你的上一次输出格式不正确，请严格按照要求的 <action>...</action> JSON 格式重新输出。")
+                            val errorDetail = parseError ?: "未知解析错误"
+                            Logger.w(TAG, "Could not parse action from LLM response, retrying... Error: $errorDetail")
+                            context.addUserMessage(
+                                """你的上一次输出无法被解析，原因：$errorDetail
+
+请注意：<action> 块内必须是合法的 JSON。如果 description 或其他字段的值中需要表达引号，
+必须将双引号转义为 \"，或改用中文引号「」，而不能直接在字符串值内使用未转义的 " 字符。
+
+请严格按照要求的 <action>...</action> JSON 格式重新输出。"""
+                            )
                             continue
                         }
 
