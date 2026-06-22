@@ -1,23 +1,28 @@
-﻿package com.flowmate.autoxiaoer.agent
+package com.flowmate.autoxiaoer.agent
 
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.os.BatteryManager
+import com.flowmate.autoxiaoer.agent.tools.ExecuteSubtaskTool
+import com.flowmate.autoxiaoer.agent.tools.FinishTool
+import com.flowmate.autoxiaoer.agent.tools.RequestUserTool
+import com.flowmate.autoxiaoer.agent.tools.SubTaskMeta
+import com.flowmate.autoxiaoer.agent.tools.ToolContext
+import com.flowmate.autoxiaoer.agent.tools.ToolRegistry
+import com.flowmate.autoxiaoer.agent.tools.ToolResult
 import com.flowmate.autoxiaoer.clawbot.ClawBotContextStore
-import com.flowmate.autoxiaoer.clawbot.ClawBotManager
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
-import com.flowmate.autoxiaoer.config.RelationshipContext
 import com.flowmate.autoxiaoer.history.HistoryManager
 import com.flowmate.autoxiaoer.history.LLMPlanningRound
 import com.flowmate.autoxiaoer.history.TaskHistory
 import com.flowmate.autoxiaoer.model.ModelClient
+import com.flowmate.autoxiaoer.model.ModelResponse
 import com.flowmate.autoxiaoer.model.ModelResponseParser
 import com.flowmate.autoxiaoer.model.ModelResult
+import com.flowmate.autoxiaoer.model.ParsedToolCall
 import com.flowmate.autoxiaoer.model.TokenUsage
-import com.flowmate.autoxiaoer.schedule.RepeatType
-import com.flowmate.autoxiaoer.schedule.ScheduledTask
-import com.flowmate.autoxiaoer.schedule.ScheduledTaskManager
+import com.flowmate.autoxiaoer.model.ToolDto
 import com.flowmate.autoxiaoer.task.TriggerContext
 import com.flowmate.autoxiaoer.task.TriggerType
 import com.flowmate.autoxiaoer.util.Logger
@@ -25,7 +30,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
-import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -57,10 +61,6 @@ interface LLMAgentListener {
     /**
      * Called after a sub-task completes and the observation message is built,
      * before it is fed back into the LLM context for the next round.
-     *
-     * @param subTask The sub-task that was executed
-     * @param result The result returned by PhoneAgent
-     * @param observation The human-readable observation text sent back to the LLM
      */
     fun onObservationReceived(subTask: SubTask, result: SubTaskResult, observation: String)
 
@@ -69,34 +69,29 @@ interface LLMAgentListener {
 
     /**
      * Called when the task has failed and is about to be retried.
-     *
-     * @param attempt The attempt number that just failed (1-based)
-     * @param reason  The failure message from the failed attempt
      */
     fun onTaskRetrying(attempt: Int, reason: String) {}
 }
 
 /**
- * The controller (控制者) layer of the two-agent architecture.
+ * The controller (控制者) layer of the two-agent architecture, implemented on top of
+ * OpenAI Function-Calling.
  *
- * [LLMAgent] implements a simple ReAct loop:
- *   1. **Think** — call the LLM to reason about the current state and decide on a sub-task
- *   2. **Act**   — dispatch the sub-task to [PhoneAgent] via [PhoneAgent.runSubTask]
- *   3. **Observe** — feed the sub-task result back into the LLM context and loop
+ * Each ReAct round:
+ *   1. **Think** — call the LLM with the registered tool catalogue. The model returns
+ *      `<think>三步思考</think>` in `assistant.content` and a single `tool_call`.
+ *   2. **Act**   — dispatch the tool call to the matching [com.flowmate.autoxiaoer.agent.tools.AgentTool].
+ *   3. **Observe** — the tool returns either a [ToolResult.Continue] observation (echoed
+ *      back as `role: "tool"`) or a [ToolResult.Terminate] that ends the loop.
  *
- * When [brainLLM] is provided and enabled, the LLM is expected to issue a "request_brain"
- * action before sending any human-facing text. The brain generates the final wording and
- * returns it to the controller, which then fills it into the subsequent "request_user" or
- * "execute_subtask" (preGeneratedTexts) action. Persona and interpersonal expression remain
- * fully isolated from task logic this way.
- *
- * The agent terminates when the LLM emits a "finish" or "request_user" action,
- * or when [LLMAgentConfig.maxPlanningSteps] is exceeded.
+ * Persona / interpersonal expression remains fully isolated in [BrainLLM] and is invoked
+ * through the `request_brain` tool.
  *
  * @param config LLM-agent configuration (independent from PhoneAgent's ModelConfig)
  * @param modelClient Pre-built [ModelClient] constructed from [config] by [ComponentManager]
  * @param phoneAgent The PhoneAgent used to execute sub-tasks
  * @param brainLLM Optional [BrainLLM] for persona-aware text generation
+ * @param toolRegistry Tool catalogue advertised to the model. Defaults to [ToolRegistry.default].
  */
 class LLMAgent(
     private val config: LLMAgentConfig,
@@ -105,6 +100,7 @@ class LLMAgent(
     private val historyManager: HistoryManager? = null,
     private val context: Context? = null,
     private val brainLLM: BrainLLM? = null,
+    private val toolRegistry: ToolRegistry = ToolRegistry.default(),
 ) {
     private var listener: LLMAgentListener? = null
 
@@ -118,14 +114,7 @@ class LLMAgent(
         this.listener = listener
     }
 
-    /**
-     * Requests cancellation of the current ReAct loop.
-     *
-     * The loop checks [cancelRequested] at each iteration boundary and after each
-     * sub-task completes, so cancellation takes effect as soon as the current
-     * in-flight LLM/PhoneAgent call returns.
-     * Also cancels any ongoing [ModelClient] network request immediately.
-     */
+    /** Requests cancellation of the current ReAct loop. */
     fun cancel() {
         Logger.i(TAG, "Cancel requested")
         cancelRequested.set(true)
@@ -133,20 +122,13 @@ class LLMAgent(
         modelClient.cancelCurrentRequest()
     }
 
-    /**
-     * Pauses the ReAct loop at the next iteration boundary.
-     *
-     * While paused the loop suspends before issuing the next LLM call.
-     * PhoneAgent is paused separately via [PhoneAgent.pause].
-     */
+    /** Pauses the ReAct loop at the next iteration boundary. */
     fun pause() {
         Logger.i(TAG, "Pause requested")
         pauseRequested.set(true)
     }
 
-    /**
-     * Resumes a paused ReAct loop.
-     */
+    /** Resumes a paused ReAct loop. */
     fun resume() {
         Logger.i(TAG, "Resume requested")
         pauseRequested.set(false)
@@ -157,10 +139,6 @@ class LLMAgent(
      *
      * The task will be attempted up to [LLMAgentConfig.maxTaskRetries] + 1 times in total.
      * User-initiated cancellation is never retried.
-     *
-     * @param taskDescription Natural-language description of the task to accomplish
-     * @param triggerContext Optional context about how the task was triggered
-     * @return [LLMTaskResult] with success/failure status and a summary message
      */
     suspend fun run(
         taskDescription: String,
@@ -174,16 +152,12 @@ class LLMAgent(
             val result = runOnce(taskDescription, triggerContext, previousAttemptHistory)
             lastResult = result
 
-            // Success or user-initiated cancellation — do not retry
             if (result.success || cancelRequested.get() || result.message == "任务已取消") break
 
             if (attempt < maxAttempts) {
                 Logger.i(TAG, "Task failed (attempt $attempt/$maxAttempts), retrying: ${result.message.take(80)}")
-                // Capture the just-completed failed task before resetting flags.
-                // completeTask() already prepended it to historyList, so firstOrNull() is reliable.
                 previousAttemptHistory = historyManager?.historyList?.value?.firstOrNull()
                 listener?.onTaskRetrying(attempt, result.message)
-                // Reset control flags so the next attempt starts cleanly
                 cancelRequested.set(false)
                 pauseRequested.set(false)
             }
@@ -192,13 +166,7 @@ class LLMAgent(
         return lastResult
     }
 
-    /**
-     * Executes one attempt of the full ReAct planning loop for the given task.
-     *
-     * @param taskDescription Natural-language description of the task to accomplish
-     * @param triggerContext Optional context about how the task was triggered
-     * @return [LLMTaskResult] with success/failure status and a summary message
-     */
+    /** Executes one attempt of the full ReAct planning loop. */
     private suspend fun runOnce(
         taskDescription: String,
         triggerContext: TriggerContext? = null,
@@ -206,877 +174,164 @@ class LLMAgent(
     ): LLMTaskResult = coroutineScope {
         Logger.i(TAG, "LLMAgent starting task: ${taskDescription.take(80)}")
 
-        // Reset control flags for this new run
         cancelRequested.set(false)
         pauseRequested.set(false)
 
-        // Own the task history lifecycle: start recording before any planning rounds
         historyManager?.startTask(taskDescription)
 
         val systemPrompt = buildSystemPrompt()
-        val context = LLMAgentContext(systemPrompt)
-
-        // Build the initial user message, incorporating any trigger context
-        val initialMessage = buildInitialMessage(taskDescription, triggerContext)
-        context.addUserMessage(initialMessage)
-
-        // ── 重试上下文注入 ──────────────────────────────────────────────────────
-        // Inject a concise summary of the previous failed attempt so the LLM
-        // knows what was already done and where things broke down.
+        val ctx = LLMAgentContext(systemPrompt)
+        ctx.addUserMessage(buildInitialMessage(taskDescription, triggerContext))
         if (previousAttempt != null) {
-            context.addUserMessage(buildRetryContext(previousAttempt))
+            ctx.addUserMessage(buildRetryContext(previousAttempt))
         }
 
-        var round = 0
+        val toolContext = ToolContext(
+            config = config,
+            phoneAgent = phoneAgent,
+            brainLLM = brainLLM,
+            historyManager = historyManager,
+            appContext = this@LLMAgent.context,
+            triggerContext = triggerContext,
+            listener = listener,
+            cancelRequested = cancelRequested,
+            pauseRequested = pauseRequested,
+        )
 
+        val advertisedTools = toolRegistry.openAIToolDtos()
+
+        var round = 0
         try {
             while (round < config.maxPlanningSteps) {
-                // ── Cancellation check (iteration boundary) ─────────────────
                 if (cancelRequested.get() || !isActive) {
-                    Logger.i(TAG, "LLMAgent cancelled before round ${round + 1}")
-                    val result = LLMTaskResult(success = false, message = "任务已取消", planningRounds = round)
-                    historyManager?.completeTask(false, result.message)
-                    listener?.onTaskFinished(result)
-                    return@coroutineScope result
+                    return@coroutineScope finishCancelled(round)
                 }
-
-                // ── Pause check (iteration boundary) ────────────────────────
                 while (pauseRequested.get() && !cancelRequested.get() && isActive) {
-                    Logger.d(TAG, "LLMAgent paused, waiting to resume...")
-                    delay(200)
+                    delay(PAUSE_POLL_MS)
                 }
                 if (cancelRequested.get() || !isActive) {
-                    Logger.i(TAG, "LLMAgent cancelled while paused")
-                    val result = LLMTaskResult(success = false, message = "任务已取消", planningRounds = round)
-                    historyManager?.completeTask(false, result.message)
-                    listener?.onTaskFinished(result)
-                    return@coroutineScope result
+                    return@coroutineScope finishCancelled(round)
                 }
 
                 round++
                 Logger.i(TAG, "LLMAgent planning round $round / ${config.maxPlanningSteps}")
                 listener?.onPlanningRoundStarted(round)
+                toolContext.currentPlanningRound = round
 
-                // ── Think ──────────────────────────────────────────────────────
-                val initialResult = modelClient.request(context.getMessages(), currentScreenshot = null)
-                val modelResult: ModelResult = if (initialResult is ModelResult.Error) {
-                    Logger.e(TAG, "LLM request failed: ${initialResult.error.message}")
-                    Logger.i(TAG, "Network error in LLMAgent, retrying after 10s...")
-                    delay(10_000L)
+                val response = requestModel(ctx, advertisedTools)
+                    ?: return@coroutineScope finishOnNetworkError(round)
 
-                    if (cancelRequested.get() || !isActive) {
-                        val result = LLMTaskResult(success = false, message = "任务已取消", planningRounds = round)
-                        historyManager?.completeTask(false, result.message)
-                        listener?.onTaskFinished(result)
-                        return@coroutineScope result
-                    }
+                val thinking = response.thinking.ifBlank {
+                    ModelResponseParser.parseLlmAgentThinking(response.rawContent)
+                }
+                Logger.d(TAG, "LLM thinking: ${thinking.take(200)}")
+                listener?.onThinkingUpdate(thinking)
 
-                    val retryResult = modelClient.request(context.getMessages(), currentScreenshot = null)
-                    if (retryResult is ModelResult.Error) {
-                        val msg = "LLM request failed: ${retryResult.error.message}"
-                        Logger.e(TAG, "LLM network retry also failed: $msg")
-                        val result = LLMTaskResult(success = false, message = msg, planningRounds = round)
-                        historyManager?.completeTask(false, msg)
-                        listener?.onTaskFinished(result)
-                        return@coroutineScope result
-                    }
-                    Logger.i(TAG, "LLM network retry succeeded")
-                    retryResult
-                } else {
-                    initialResult
+                val toolCall = response.toolCalls.firstOrNull()
+                if (toolCall == null || toolCall.name.isBlank()) {
+                    Logger.w(TAG, "LLM produced no tool_call; nudging it")
+                    ctx.addAssistantMessage(response.rawContent.ifBlank { "" })
+                    ctx.addUserMessage(
+                        if (toolContext.isEnglish) {
+                            "You must respond with a tool call. Pick the appropriate tool from the catalogue and call it now."
+                        } else {
+                            "请使用工具调用（tool_call）来回应。请从工具列表中选择合适的工具并发起调用，不要只回复纯文本。"
+                        },
+                    )
+                    continue
                 }
 
-                when (modelResult) {
-                    is ModelResult.Error -> { /* unreachable, handled above */ }
+                ctx.addAssistantWithToolCalls(content = response.rawContent, toolCalls = listOf(toolCall))
 
-                    is ModelResult.Success -> {
-                        val response = modelResult.response
-                        val thinking =
-                            response.thinking.ifBlank {
-                                ModelResponseParser.parseLlmAgentThinking(response.rawContent)
-                            }
-                        val roundTokenUsage = response.tokenUsage
-                        Logger.d(TAG, "LLM thinking: ${thinking.take(200)}")
-                        listener?.onThinkingUpdate(thinking)
+                val tool = toolRegistry.find(toolCall.name)
+                if (tool == null) {
+                    val err = if (toolContext.isEnglish) {
+                        "Unknown tool \"${toolCall.name}\". Pick a tool from the advertised catalogue."
+                    } else {
+                        "未知的 tool \"${toolCall.name}\"，请从已声明的工具列表中选择。"
+                    }
+                    ctx.addToolMessage(toolCall.id, toolCall.name, err)
+                    historyManager?.recordPlanningRound(
+                        LLMPlanningRound(
+                            round = round,
+                            thinking = thinking,
+                            actionDescription = formatActionDescription(toolCall),
+                            actionType = toolCall.name,
+                            message = err,
+                            tokenUsage = response.tokenUsage,
+                        ),
+                    )
+                    continue
+                }
 
-                        // Store the assistant turn in context
-                        context.addAssistantMessage(response.rawContent)
+                val args = parseArguments(toolCall.arguments)
+                if (args == null) {
+                    val err = if (toolContext.isEnglish) {
+                        "tool_call arguments are not valid JSON. Please retry."
+                    } else {
+                        "tool_call 的 arguments 不是合法 JSON，请重新输出。"
+                    }
+                    ctx.addToolMessage(toolCall.id, toolCall.name, err)
+                    historyManager?.recordPlanningRound(
+                        LLMPlanningRound(
+                            round = round,
+                            thinking = thinking,
+                            actionDescription = formatActionDescription(toolCall),
+                            actionType = toolCall.name,
+                            message = err,
+                            tokenUsage = response.tokenUsage,
+                        ),
+                    )
+                    continue
+                }
 
-                        // ── Parse action ───────────────────────────────────────
-                        val parseError = runCatching {
-                            val actionBlock = ModelResponseParser.parseLlmAgentActionBlock(response.rawContent)
-                            if (actionBlock == null) "未找到 <action>...</action> 块" else {
-                                org.json.JSONObject(actionBlock.trim())
-                                null // 解析成功，无错误
-                            }
-                        }.getOrElse { e -> e.message }
-                        val action = parseAction(response.rawContent)
-                        if (action == null) {
-                            val errorDetail = parseError ?: "未知解析错误"
-                            Logger.w(TAG, "Could not parse action from LLM response, retrying... Error: $errorDetail")
-                            context.addUserMessage(
-                                """你的上一次输出无法被解析，原因：$errorDetail
-
-请注意：<action> 块内必须是合法的 JSON。如果 description 或其他字段的值中需要表达引号，
-必须将双引号转义为 \"，或改用中文引号「」，而不能直接在字符串值内使用未转义的 " 字符。
-
-请严格按照要求的 <action>...</action> JSON 格式重新输出。"""
-                            )
-                            continue
+                val result = tool.execute(args, toolContext)
+                when (result) {
+                    is ToolResult.Continue -> {
+                        ctx.addToolMessage(toolCall.id, toolCall.name, result.observation)
+                        historyManager?.recordPlanningRound(
+                            buildPlanningRound(
+                                round = round,
+                                thinking = thinking,
+                                toolCall = toolCall,
+                                observation = result.observation,
+                                roundTokenUsage = response.tokenUsage,
+                                brainTokenUsage = result.brainTokenUsage,
+                                subTaskMeta = result.subTaskMeta,
+                            ),
+                        )
+                        if (cancelRequested.get() || !isActive) {
+                            return@coroutineScope finishCancelled(round)
                         }
+                    }
 
-                        val actionDescription =
-                            ModelResponseParser.parseLlmAgentActionBlock(response.rawContent).orEmpty()
-
-                        // ── Act ────────────────────────────────────────────────
-                        when (action.type) {
-                            ACTION_FINISH -> {
-                                val msg = action.message ?: "任务已完成"
-                                Logger.i(TAG, "LLMAgent finished: $msg")
-                                historyManager?.recordPlanningRound(
-                                    LLMPlanningRound(
-                                        round = round,
-                                        thinking = thinking,
-                                        actionDescription = actionDescription,
-                                        actionType = ACTION_FINISH,
-                                        message = "【任务完成】$msg",
-                                        tokenUsage = roundTokenUsage,
-                                    ),
-                                )
-                                val result = LLMTaskResult(success = true, message = msg, planningRounds = round)
-                                historyManager?.completeTask(true, msg)
-                                listener?.onTaskFinished(result)
-                                return@coroutineScope result
-                            }
-
-                            ACTION_REQUEST_USER -> {
-                                val msg = action.message ?: "需要用户介入"
-                                Logger.i(TAG, "LLMAgent requesting user: ${msg.take(80)}")
-
-                                val appCtx = this@LLMAgent.context
-
-                                // If ClawBot is not connected, show the message in the floating window
-                                // and finish the task immediately — no need to continue the loop.
-                                if (appCtx == null || !ClawBotManager.isConnected(appCtx)) {
-                                    Logger.w(TAG, "ClawBot not available for request_user — showing in floating window")
-                                    com.flowmate.autoxiaoer.ui.FloatingWindowService.getInstance()
-                                        ?.showResult(msg, true)
-                                    historyManager?.recordPlanningRound(
-                                        LLMPlanningRound(
-                                            round = round,
-                                            thinking = thinking,
-                                            actionDescription = actionDescription,
-                                            actionType = ACTION_REQUEST_USER,
-                                            message = "【ClawBot 未连接】已将提醒内容显示在悬浮窗，任务结束。",
-                                            tokenUsage = roundTokenUsage,
-                                        ),
-                                    )
-                                    val result = LLMTaskResult(success = true, message = msg, planningRounds = round)
-                                    historyManager?.completeTask(true, msg)
-                                    listener?.onTaskFinished(result)
-                                    return@coroutineScope result
-                                }
-
-                                // ClawBot is connected — send the message via WeChat:
-                                // - If triggered by a ClawBot message: reply using that conversation's context.
-                                // - Otherwise: fall back to the last stored conversation for proactive push.
-                                // If the send fails, feed the failure back into context so the LLM can decide
-                                // how to proceed. If the send succeeds, continue the loop so the LLM can
-                                // finish or proceed with the next step.
-                                val sent = try {
-                                    val fromUserId = triggerContext?.clawBotFromUserId
-                                    val contextToken = triggerContext?.clawBotContextToken
-                                    if (triggerContext?.triggerType == TriggerType.CLAWBOT
-                                        && !fromUserId.isNullOrBlank()
-                                        && !contextToken.isNullOrBlank()
-                                    ) {
-                                        ClawBotManager.sendMessage(
-                                            appCtx,
-                                            fromUserId,
-                                            contextToken,
-                                            msg,
-                                        )
-                                    } else {
-                                        ClawBotManager.sendProactiveMessage(appCtx, msg)
-                                    }
-                                } catch (e: Exception) {
-                                    Logger.e(TAG, "Failed to send ClawBot request_user message", e)
-                                    false
-                                }
-
-                                Logger.i(TAG, "ClawBot request_user sent=$sent")
-
-                                if (sent) {
-                                    val taskId = historyManager?.getCurrentTaskId()
-                                    if (taskId != null) {
-                                        ClawBotContextStore.getInstance(appCtx).appendAgent(msg, taskId)
-                                    }
-                                }
-
-                                // Feed the send result back into context and let the LLM decide next step.
-                                val sendResultObservation = if (sent) {
-                                    "【用户通知结果】已成功将以下消息发送给用户：「$msg」\n\n请根据此结果继续决定下一步操作（如任务已完成可使用 finish）。"
-                                } else {
-                                    "【用户通知结果】消息发送失败，无法将以下内容传达给用户：「$msg」\n\n请根据此情况决定下一步操作（可以重试、调整策略，或使用 finish 结束任务）。"
-                                }
-                                historyManager?.recordPlanningRound(
-                                    LLMPlanningRound(
-                                        round = round,
-                                        thinking = thinking,
-                                        actionDescription = actionDescription,
-                                        actionType = ACTION_REQUEST_USER,
-                                        message = sendResultObservation,
-                                        tokenUsage = roundTokenUsage,
-                                    ),
-                                )
-                                context.addUserMessage(sendResultObservation)
-                            }
-
-                            ACTION_EXECUTE_SUBTASK -> {
-                                val subTask = action.subTask
-                                if (subTask == null) {
-                                    Logger.w(TAG, "execute_subtask action missing subtask field")
-                                    context.addUserMessage("你输出的 execute_subtask 缺少 subtask 字段，请重新输出。")
-                                    continue
-                                }
-
-                                // Capture timestamp now so the planning round sorts before the sub-task steps
-                                val planningRoundTimestamp = System.currentTimeMillis()
-
-                                // Resolve any brain-delegated preGeneratedTexts before dispatching.
-                                val resolvedSubTask = resolveSubTaskTexts(subTask, triggerContext)
-                                Logger.i(TAG, "Dispatching SubTask ${resolvedSubTask.id}: ${resolvedSubTask.description.take(80)}")
-                                listener?.onSubTaskStarted(resolvedSubTask)
-
-                                // ── Observe ────────────────────────────────────
-                                historyManager?.setRecordingPlanningRound(round)
-                                val subTaskResult =
-                                    try {
-                                        phoneAgent.runSubTask(resolvedSubTask)
-                                    } finally {
-                                        historyManager?.clearRecordingPlanningRound()
-                                    }
-                                Logger.i(
-                                    TAG,
-                                    "SubTask ${subTask.id} done: success=${subTaskResult.success}, " +
-                                        "steps=${subTaskResult.stepCount}, summary=${subTaskResult.summary.take(100)}",
-                                )
-                                listener?.onSubTaskCompleted(subTaskResult)
-
-                                // Check for cancellation after sub-task returns
-                                if (cancelRequested.get() || !isActive) {
-                                    Logger.i(TAG, "LLMAgent cancelled after sub-task ${subTask.id}")
-                                    val result = LLMTaskResult(success = false, message = "任务已取消", planningRounds = round)
-                                    historyManager?.completeTask(false, result.message)
-                                    listener?.onTaskFinished(result)
-                                    return@coroutineScope result
-                                }
-
-                                // Feed result back as user observation
-                                val observation = buildObservationMessage(resolvedSubTask, subTaskResult)
-                                listener?.onObservationReceived(resolvedSubTask, subTaskResult, observation)
-                                context.addUserMessage(observation)
-
-                                historyManager?.recordPlanningRound(
-                                    LLMPlanningRound(
-                                        round = round,
-                                        timestamp = planningRoundTimestamp,
-                                        thinking = thinking,
-                                        actionDescription = actionDescription,
-                                        actionType = ACTION_EXECUTE_SUBTASK,
-                                        subTaskDescription = resolvedSubTask.description,
-                                        subTaskId = resolvedSubTask.id,
-                                        message = observation,
-                                        subTaskSuccess = subTaskResult.success,
-                                        subTaskStepCount = subTaskResult.stepCount,
-                                        tokenUsage = roundTokenUsage,
-                                    ),
-                                )
-                            }
-
-                            ACTION_SCHEDULE_TASK -> {
-                                val params = action.scheduleTaskParams
-                                if (params == null) {
-                                    Logger.w(TAG, "schedule_task action missing required fields")
-                                    context.addUserMessage("你输出的 schedule_task 缺少必要字段，请重新输出。")
-                                    continue
-                                }
-
-                                val appContext = this@LLMAgent.context
-                                val resultMessage = if (appContext != null) {
-                                    try {
-                                        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
-                                        val timeStr = fmt.format(java.util.Date(params.scheduledTimeMillis))
-                                        if (params.scheduledTimeMillis <= System.currentTimeMillis()) {
-                                            Logger.w(TAG, "Scheduled task time is in the past: $timeStr")
-                                            "日程记录失败：指定时间「$timeStr」已是过去时刻，无法设置。请重新指定一个未来的时间（当前时间：${fmt.format(java.util.Date(System.currentTimeMillis()))}）。"
-                                        } else {
-                                            val taskManager = ScheduledTaskManager.getInstance(appContext)
-                                            val newTask = ScheduledTask(
-                                                id = taskManager.generateTaskId(),
-                                                taskDescription = params.taskDescription,
-                                                taskBackground = params.taskBackground,
-                                                scheduledTimeMillis = params.scheduledTimeMillis,
-                                                repeatType = params.repeatType,
-                                            )
-                                            taskManager.saveTask(newTask)
-                                            Logger.i(TAG, "Scheduled task created by LLM: id=${newTask.id}, desc=${params.taskDescription.take(50)}")
-                                            "日程已记录成功（id: ${newTask.id}）：「${params.taskDescription}」，执行时间：$timeStr，重复类型：${params.repeatType.name}"
-                                        }
-                                    } catch (e: Exception) {
-                                        Logger.e(TAG, "Failed to create scheduled task", e)
-                                        "日程记录失败：${e.message}"
-                                    }
-                                } else {
-                                    Logger.w(TAG, "Cannot create scheduled task: no Context available")
-                                    "日程记录失败：缺少系统上下文，无法访问任务管理器"
-                                }
-
-                                val observation = "【定时任务操作结果】\n$resultMessage\n\n请根据结果决定下一步操作。"
-                                historyManager?.recordPlanningRound(
-                                    LLMPlanningRound(
-                                        round = round,
-                                        thinking = thinking,
-                                        actionDescription = actionDescription,
-                                        actionType = ACTION_SCHEDULE_TASK,
-                                        message = observation,
-                                        tokenUsage = roundTokenUsage,
-                                    ),
-                                )
-
-                                context.addUserMessage(observation)
-                            }
-
-                            ACTION_QUERY_SCHEDULED_TASKS -> {
-                                val appContext = this@LLMAgent.context
-                                val resultMessage = if (appContext != null) {
-                                    try {
-                                        val taskManager = ScheduledTaskManager.getInstance(appContext)
-                                        val tasks = taskManager.getAllTasks()
-                                        if (tasks.isEmpty()) {
-                                            "【当前日程列表】\n暂无任何日程安排。"
-                                        } else {
-                                            val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
-                                            val sb = StringBuilder("【当前日程列表】\n")
-                                            tasks.forEachIndexed { index, task ->
-                                                sb.appendLine("${index + 1}. id: ${task.id}")
-                                                sb.appendLine("   描述：${task.taskDescription}")
-                                                if (!task.taskBackground.isNullOrBlank()) {
-                                                    sb.appendLine("   备注：${task.taskBackground}")
-                                                }
-                                                sb.appendLine("   执行时间：${fmt.format(java.util.Date(task.scheduledTimeMillis))}")
-                                                sb.appendLine("   重复：${task.repeatType.name}  状态：${if (task.isEnabled) "已启用" else "已禁用"}")
-                                            }
-                                            sb.append("共 ${tasks.size} 个日程。")
-                                            sb.toString()
-                                        }
-                                    } catch (e: Exception) {
-                                        Logger.e(TAG, "Failed to query scheduled tasks", e)
-                                        "日程查询失败：${e.message}"
-                                    }
-                                } else {
-                                    "日程查询失败：缺少系统上下文"
-                                }
-
-                                val observation = "$resultMessage\n\n请根据上述信息决定下一步操作。"
-                                historyManager?.recordPlanningRound(
-                                    LLMPlanningRound(
-                                        round = round,
-                                        thinking = thinking,
-                                        actionDescription = actionDescription,
-                                        actionType = ACTION_QUERY_SCHEDULED_TASKS,
-                                        message = observation,
-                                        tokenUsage = roundTokenUsage,
-                                    ),
-                                )
-                                context.addUserMessage(observation)
-                            }
-
-                            ACTION_UPDATE_SCHEDULED_TASK -> {
-                                val params = action.updateScheduledTaskParams
-                                if (params == null) {
-                                    Logger.w(TAG, "update_scheduled_task action missing required fields")
-                                    context.addUserMessage("你输出的 update_scheduled_task 缺少必要字段，请重新输出。")
-                                    continue
-                                }
-
-                                val appContext = this@LLMAgent.context
-                                val resultMessage = if (appContext != null) {
-                                    try {
-                                        val taskManager = ScheduledTaskManager.getInstance(appContext)
-                                        val existing = taskManager.getTaskById(params.taskId)
-                                        if (existing == null) {
-                                            "更新失败：找不到 id 为「${params.taskId}」的日程"
-                                        } else {
-                                            val updated = existing.copy(
-                                                taskDescription = params.taskDescription ?: existing.taskDescription,
-                                                taskBackground = params.taskBackground ?: existing.taskBackground,
-                                                scheduledTimeMillis = params.scheduledTimeMillis ?: existing.scheduledTimeMillis,
-                                                repeatType = params.repeatType ?: existing.repeatType,
-                                                isEnabled = params.isEnabled ?: existing.isEnabled,
-                                            )
-                                            taskManager.saveTask(updated)
-                                            Logger.i(TAG, "Scheduled task updated by LLM: id=${params.taskId}")
-                                            "日程已更新成功（id: ${params.taskId}）：「${updated.taskDescription}」"
-                                        }
-                                    } catch (e: Exception) {
-                                        Logger.e(TAG, "Failed to update scheduled task", e)
-                                        "日程更新失败：${e.message}"
-                                    }
-                                } else {
-                                    "日程更新失败：缺少系统上下文"
-                                }
-
-                                val observation = "【日程更新结果】\n$resultMessage\n\n请根据结果决定下一步操作。"
-                                historyManager?.recordPlanningRound(
-                                    LLMPlanningRound(
-                                        round = round,
-                                        thinking = thinking,
-                                        actionDescription = actionDescription,
-                                        actionType = ACTION_UPDATE_SCHEDULED_TASK,
-                                        message = observation,
-                                        tokenUsage = roundTokenUsage,
-                                    ),
-                                )
-                                context.addUserMessage(observation)
-                            }
-
-                            ACTION_DELETE_SCHEDULED_TASK -> {
-                                val taskId = action.deleteTaskId
-                                if (taskId == null) {
-                                    Logger.w(TAG, "delete_scheduled_task action missing taskId")
-                                    context.addUserMessage("你输出的 delete_scheduled_task 缺少 taskId 字段，请重新输出。")
-                                    continue
-                                }
-
-                                val appContext = this@LLMAgent.context
-                                val resultMessage = if (appContext != null) {
-                                    try {
-                                        val taskManager = ScheduledTaskManager.getInstance(appContext)
-                                        val existing = taskManager.getTaskById(taskId)
-                                        if (existing == null) {
-                                            "删除失败：找不到 id 为「$taskId」的日程"
-                                        } else {
-                                            taskManager.deleteTask(taskId)
-                                            Logger.i(TAG, "Scheduled task deleted by LLM: id=$taskId")
-                                            "日程已删除（id: $taskId）：「${existing.taskDescription}」"
-                                        }
-                                    } catch (e: Exception) {
-                                        Logger.e(TAG, "Failed to delete scheduled task", e)
-                                        "日程删除失败：${e.message}"
-                                    }
-                                } else {
-                                    "日程删除失败：缺少系统上下文"
-                                }
-
-                                val observation = "【日程删除结果】\n$resultMessage\n\n请根据结果决定下一步操作。"
-                                historyManager?.recordPlanningRound(
-                                    LLMPlanningRound(
-                                        round = round,
-                                        thinking = thinking,
-                                        actionDescription = actionDescription,
-                                        actionType = ACTION_DELETE_SCHEDULED_TASK,
-                                        message = observation,
-                                        tokenUsage = roundTokenUsage,
-                                    ),
-                                )
-                                context.addUserMessage(observation)
-                            }
-
-                            ACTION_REQUEST_BRAIN -> {
-                                val params = action.brainRequestParams
-                                if (params == null) {
-                                    Logger.w(TAG, "request_brain action missing required fields")
-                                    context.addUserMessage("你输出的 request_brain 缺少必要字段，请重新输出。")
-                                    continue
-                                }
-                                Logger.i(TAG, "LLMAgent requesting BrainLLM: recipient=${params.recipient}")
-                                val brainGenResult = brainLLM?.generateMessage(
-                                    recipient = params.recipient,
-                                    incomingMessage = params.incomingMessage,
-                                    intent = params.intent,
-                                    facts = params.facts,
-                                    conversationBrief = params.conversationBrief,
-                                    language = config.language,
-                                )
-                                val brainText = brainGenResult?.text
-                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
-                                val observation = when {
-                                    brainText != null -> {
-                                        // Brain responded successfully
-                                        if (isEn) {
-                                            "[Expressor Result]\n$brainText\n\nPlease place the above content into the next action (request_user's message, or the corresponding value in preGeneratedTexts)."
-                                        } else {
-                                            "【表达者生成结果】\n$brainText\n\n请将以上内容填入后续 action（request_user 的 message 或 preGeneratedTexts 的对应 value）。"
-                                        }
-                                    }
-                                    brainLLM == null -> {
-                                        // Brain not configured
-                                        if (isEn) {
-                                            "[Expressor Not Available] Expressor is not configured. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
-                                        } else {
-                                            "【表达者未启用】表达者未配置。请你根据以下意图自行生成回复内容，再填入后续 action。\n【意图】${params.intent}"
-                                        }
-                                    }
-                                    !brainLLM.isEnabled -> {
-                                        // Brain is configured but disabled in settings
-                                        if (isEn) {
-                                            "[Expressor Disabled] Expressor is configured but currently disabled. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
-                                        } else {
-                                            "【表达者已禁用】表达者已配置但当前未启用。请你根据以下意图自行生成回复内容，再填入后续 action。\n【意图】${params.intent}"
-                                        }
-                                    }
-                                    else -> {
-                                        // Brain is enabled but call failed
-                                        Logger.w(TAG, "BrainLLM call failed for request_brain")
-                                        if (isEn) {
-                                            "[Expressor Disconnected] The expressor failed to respond. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
-                                        } else {
-                                            "【表达者断联】表达者未能响应。请你根据以下意图自行生成回复内容，再填入后续 action。\n【意图】${params.intent}"
-                                        }
-                                    }
-                                }
-                                historyManager?.recordPlanningRound(
-                                    LLMPlanningRound(
-                                        round = round,
-                                        thinking = thinking,
-                                        actionDescription = actionDescription,
-                                        actionType = ACTION_REQUEST_BRAIN,
-                                        message = observation,
-                                        tokenUsage = roundTokenUsage,
-                                        brainTokenUsage = brainGenResult?.tokenUsage,
-                                    ),
-                                )
-                                context.addUserMessage(observation)
-                            }
-
-                            ACTION_READ_RELATIONSHIPS -> {
-                                val summary = RelationshipContext.getContext()
-                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
-                                val observation = if (isEn) {
-                                    "【Relationships】\n$summary\n\nYou can pass relevant entries as `facts` in `request_brain`."
-                                } else {
-                                    "【人际关系】\n$summary\n\n可将其中相关信息作为 request_brain 的 facts 字段传入。"
-                                }
-                                Logger.i(TAG, "LLMAgent read relationships (${summary.length} chars)")
-                                historyManager?.recordPlanningRound(
-                                    LLMPlanningRound(
-                                        round = round,
-                                        thinking = thinking,
-                                        actionDescription = actionDescription,
-                                        actionType = ACTION_READ_RELATIONSHIPS,
-                                        message = observation,
-                                        tokenUsage = roundTokenUsage,
-                                    ),
-                                )
-                                context.addUserMessage(observation)
-                            }
-
-                            ACTION_UPDATE_RELATIONSHIPS -> {
-                                val content = action.relationshipsContent
-                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
-                                if (content.isNullOrBlank()) {
-                                    val err = if (isEn) {
-                                        "update_relationships is missing the required `content` field. Please output the action again."
-                                    } else {
-                                        "update_relationships 缺少 content 字段，请重新输出。"
-                                    }
-                                    context.addUserMessage(err)
-                                } else {
-                                    RelationshipContext.saveNewVersion(content)
-                                    Logger.i(TAG, "LLMAgent updated relationships (${content.length} chars)")
-                                    val observation = if (isEn) {
-                                        "【Relationships Updated】The archive has been saved. The expressor will use the new content on its next call."
-                                    } else {
-                                        "【人际关系已更新】档案已保存，表达者下次被调用时将自动使用新内容。"
-                                    }
-                                    historyManager?.recordPlanningRound(
-                                        LLMPlanningRound(
-                                            round = round,
-                                            thinking = thinking,
-                                            actionDescription = actionDescription,
-                                            actionType = ACTION_UPDATE_RELATIONSHIPS,
-                                            message = observation,
-                                            tokenUsage = roundTokenUsage,
-                                        ),
-                                    )
-                                    context.addUserMessage(observation)
-                                }
-                            }
-
-                            ACTION_READ_BEHAVIOR_RULES -> {
-                                val rules = com.flowmate.autoxiaoer.config.BehaviorContext.getContext()
-                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
-                                val observation = if (isEn) {
-                                    "【Behavior Rules】\n$rules"
-                                } else {
-                                    "【行为准则】\n$rules"
-                                }
-                                Logger.i(TAG, "LLMAgent read behavior rules (${rules.length} chars)")
-                                historyManager?.recordPlanningRound(
-                                    LLMPlanningRound(
-                                        round = round,
-                                        thinking = thinking,
-                                        actionDescription = actionDescription,
-                                        actionType = ACTION_READ_BEHAVIOR_RULES,
-                                        message = observation,
-                                        tokenUsage = roundTokenUsage,
-                                    ),
-                                )
-                                context.addUserMessage(observation)
-                            }
-
-                            ACTION_UPDATE_BEHAVIOR_RULES -> {
-                                val content = action.behaviorContent
-                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
-                                if (content.isNullOrBlank()) {
-                                    val err = if (isEn) {
-                                        "update_behavior_rules is missing the required `content` field. Please output the action again."
-                                    } else {
-                                        "update_behavior_rules 缺少 content 字段，请重新输出。"
-                                    }
-                                    context.addUserMessage(err)
-                                } else {
-                                    com.flowmate.autoxiaoer.config.BehaviorContext.saveNewVersion(content)
-                                    Logger.i(TAG, "LLMAgent updated behavior rules (${content.length} chars)")
-                                    val observation = if (isEn) {
-                                        "【Behavior Rules Updated】The rules have been saved and will take effect on the next task."
-                                    } else {
-                                        "【行为准则已更新】准则已保存，下次任务启动时将自动生效。"
-                                    }
-                                    historyManager?.recordPlanningRound(
-                                        LLMPlanningRound(
-                                            round = round,
-                                            thinking = thinking,
-                                            actionDescription = actionDescription,
-                                            actionType = ACTION_UPDATE_BEHAVIOR_RULES,
-                                            message = observation,
-                                            tokenUsage = roundTokenUsage,
-                                        ),
-                                    )
-                                    context.addUserMessage(observation)
-                                }
-                            }
-
-                            ACTION_QUERY_TASK_HISTORY -> {
-                                val count = action.historyQueryCount
-                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
-                                if (count == null) {
-                                    val err = if (isEn) {
-                                        "query_task_history has a missing or invalid `count` field. It must be an integer from 1 to 5. Please output the action again."
-                                    } else {
-                                        "query_task_history 的 count 未填写或无效，取值应为 1–5 的整数，请重新输出。"
-                                    }
-                                    historyManager?.recordPlanningRound(
-                                        LLMPlanningRound(
-                                            round = round,
-                                            thinking = thinking,
-                                            actionDescription = actionDescription,
-                                            actionType = ACTION_QUERY_TASK_HISTORY,
-                                            message = err,
-                                            tokenUsage = roundTokenUsage,
-                                        ),
-                                    )
-                                    context.addUserMessage(err)
-                                    continue
-                                }
-
-                                val resultMessage = if (historyManager != null) {
-                                    try {
-                                        val tasks = historyManager.historyList.value.take(count)
-                                        formatTaskHistoryOverview(tasks, isEn)
-                                    } catch (e: Exception) {
-                                        Logger.e(TAG, "Failed to query task history overview", e)
-                                        if (isEn) "Task history query failed: ${e.message}" else "历史任务查询失败：${e.message}"
-                                    }
-                                } else {
-                                    if (isEn) "Task history query failed: HistoryManager not available" else "历史任务查询失败：未启用历史记录"
-                                }
-
-                                val observation = if (isEn) {
-                                    "$resultMessage\n\nDecide your next action based on the above."
-                                } else {
-                                    "$resultMessage\n\n请根据上述信息决定下一步操作。"
-                                }
-                                Logger.i(TAG, "LLMAgent queried task history overview: count=$count")
-                                historyManager?.recordPlanningRound(
-                                    LLMPlanningRound(
-                                        round = round,
-                                        thinking = thinking,
-                                        actionDescription = actionDescription,
-                                        actionType = ACTION_QUERY_TASK_HISTORY,
-                                        message = observation,
-                                        tokenUsage = roundTokenUsage,
-                                    ),
-                                )
-                                context.addUserMessage(observation)
-                            }
-
-                            ACTION_GET_TASK_HISTORY_DETAIL -> {
-                                val taskId = action.historyTaskId
-                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
-                                if (taskId == null) {
-                                    val err = if (isEn) {
-                                        "get_task_history_detail is missing the required `taskId` field. Please output the action again."
-                                    } else {
-                                        "get_task_history_detail 缺少 taskId 字段，请重新输出。"
-                                    }
-                                    historyManager?.recordPlanningRound(
-                                        LLMPlanningRound(
-                                            round = round,
-                                            thinking = thinking,
-                                            actionDescription = actionDescription,
-                                            actionType = ACTION_GET_TASK_HISTORY_DETAIL,
-                                            message = err,
-                                            tokenUsage = roundTokenUsage,
-                                        ),
-                                    )
-                                    context.addUserMessage(err)
-                                    continue
-                                }
-
-                                val resultMessage = if (historyManager != null) {
-                                    try {
-                                        val task = historyManager.getTask(taskId)
-                                            ?: historyManager.historyList.value.find { it.id == taskId }
-                                        if (task == null) {
-                                            if (isEn) "Task not found: id=$taskId" else "未找到历史任务：id=$taskId"
-                                        } else {
-                                            formatTaskHistoryDetail(task, isEn)
-                                        }
-                                    } catch (e: Exception) {
-                                        Logger.e(TAG, "Failed to get task history detail", e)
-                                        if (isEn) "Task history detail query failed: ${e.message}" else "历史任务详情查询失败：${e.message}"
-                                    }
-                                } else {
-                                    if (isEn) "Task history detail query failed: HistoryManager not available" else "历史任务详情查询失败：未启用历史记录"
-                                }
-
-                                val observation = if (isEn) {
-                                    "$resultMessage\n\nDecide your next action based on the above."
-                                } else {
-                                    "$resultMessage\n\n请根据上述信息决定下一步操作。"
-                                }
-                                Logger.i(TAG, "LLMAgent queried task history detail: taskId=$taskId")
-                                historyManager?.recordPlanningRound(
-                                    LLMPlanningRound(
-                                        round = round,
-                                        thinking = thinking,
-                                        actionDescription = actionDescription,
-                                        actionType = ACTION_GET_TASK_HISTORY_DETAIL,
-                                        message = observation,
-                                        tokenUsage = roundTokenUsage,
-                                    ),
-                                )
-                                context.addUserMessage(observation)
-                            }
-
-                            ACTION_WAIT -> {
-                                val durationSeconds = action.waitDurationSeconds
-                                if (durationSeconds == null || durationSeconds <= 0) {
-                                    Logger.w(TAG, "wait action missing or invalid durationSeconds")
-                                    context.addUserMessage("你输出的 wait 缺少有效的 durationSeconds 字段（需为正整数秒数），请重新输出。")
-                                    continue
-                                }
-
-                                val isEn = config.language.lowercase().let { it == "en" || it == "english" }
-
-                                // Battery check before a long wait
-                                val batteryPct = getBatteryLevel()
-                                if (batteryPct in 0..14) {
-                                    val lowBatteryMsg = if (isEn) {
-                                        "[Battery Warning] Battery is at $batteryPct%, which is too low to sustain a ${durationSeconds}s wait. " +
-                                            "Please plug in the charger before continuing."
-                                    } else {
-                                        "【电量不足】当前电量 $batteryPct%，无法安全维持 ${durationSeconds} 秒的等待操作，请先插上电源再继续。"
-                                    }
-                                    Logger.w(TAG, "Battery too low for wait action: $batteryPct%")
-                                    val lowBatteryObservation = if (isEn) {
-                                        "$lowBatteryMsg\n\nDecide your next action: you can notify the user to charge, or abort the task."
-                                    } else {
-                                        "$lowBatteryMsg\n\n请决定下一步操作：可以通过 request_user 提醒用户插电，或中止任务。"
-                                    }
-                                    historyManager?.recordPlanningRound(
-                                        LLMPlanningRound(
-                                            round = round,
-                                            thinking = thinking,
-                                            actionDescription = actionDescription,
-                                            actionType = ACTION_WAIT,
-                                            message = lowBatteryObservation,
-                                            tokenUsage = roundTokenUsage,
-                                        ),
-                                    )
-                                    context.addUserMessage(lowBatteryObservation)
-                                    continue
-                                }
-
-                                // ScreenKeepAliveManager already holds SCREEN_BRIGHT_WAKE_LOCK
-                                // for the whole task, so no extra wake lock is needed here.
-                                Logger.i(TAG, "wait action: idle-waiting ${durationSeconds}s (battery=$batteryPct%)")
-                                val startMs = System.currentTimeMillis()
-                                var remaining = durationSeconds
-                                while (remaining > 0 && isActive && !cancelRequested.get()) {
-                                    // Pause check: suspend timing while paused, resume when unpaused
-                                    while (pauseRequested.get() && !cancelRequested.get() && isActive) {
-                                        delay(200)
-                                    }
-                                    if (cancelRequested.get() || !isActive) break
-
-                                    val sleepSec = minOf(remaining, 30)
-                                    delay(sleepSec * 1000L)
-                                    remaining -= sleepSec
-                                }
-
-                                // Cancellation check after wait
-                                if (cancelRequested.get() || !isActive) {
-                                    Logger.i(TAG, "LLMAgent cancelled during wait action")
-                                    val result = LLMTaskResult(success = false, message = "任务已取消", planningRounds = round)
-                                    historyManager?.completeTask(false, result.message)
-                                    listener?.onTaskFinished(result)
-                                    return@coroutineScope result
-                                }
-
-                                val elapsed = ((System.currentTimeMillis() - startMs) / 1000).toInt()
-                                val batteryAfter = getBatteryLevel()
-                                val observation = if (isEn) {
-                                    "[Wait Completed] Waited approximately ${elapsed}s with screen on. " +
-                                        (if (batteryAfter >= 0) "Current battery: $batteryAfter%. " else "") +
-                                        "Decide your next action."
-                                } else {
-                                    "【等待完成】已保持亮屏等待约 ${elapsed} 秒。" +
-                                        (if (batteryAfter >= 0) "当前电量：$batteryAfter%。" else "") +
-                                        "请决定下一步操作。"
-                                }
-                                Logger.i(TAG, "wait action done: elapsed=${elapsed}s battery=$batteryAfter%")
-                                historyManager?.recordPlanningRound(
-                                    LLMPlanningRound(
-                                        round = round,
-                                        thinking = thinking,
-                                        actionDescription = actionDescription,
-                                        actionType = ACTION_WAIT,
-                                        message = observation,
-                                        tokenUsage = roundTokenUsage,
-                                    ),
-                                )
-                                context.addUserMessage(observation)
-                            }
-
-                            else -> {
-                                Logger.w(TAG, "Unknown action type: ${action.type}")
-                                context.addUserMessage(
-                                    "未知的 action type \"${action.type}\"，请使用 execute_subtask、finish、request_user、request_brain、" +
-                                        "schedule_task、query_scheduled_tasks、update_scheduled_task、delete_scheduled_task、" +
-                                        "read_relationships、update_relationships、read_behavior_rules、update_behavior_rules、" +
-                                        "query_task_history、get_task_history_detail 或 wait。",
-                                )
-                            }
-                        }
+                    is ToolResult.Terminate -> {
+                        val obs = result.observation ?: result.message
+                        historyManager?.recordPlanningRound(
+                            buildPlanningRound(
+                                round = round,
+                                thinking = thinking,
+                                toolCall = toolCall,
+                                observation = obs,
+                                roundTokenUsage = response.tokenUsage,
+                                brainTokenUsage = null,
+                                subTaskMeta = null,
+                            ),
+                        )
+                        val taskResult = LLMTaskResult(result.success, result.message, round)
+                        historyManager?.completeTask(result.success, result.message)
+                        listener?.onTaskFinished(taskResult)
+                        return@coroutineScope taskResult
                     }
                 }
             }
 
             // Max planning steps exceeded
-            val msg = "已达到最大规划步数上限（${config.maxPlanningSteps}），任务未能完成"
+            val msg = if (toolContext.isEnglish) {
+                "Reached the maximum planning step limit (${config.maxPlanningSteps}); task did not finish."
+            } else {
+                "已达到最大规划步数上限（${config.maxPlanningSteps}），任务未能完成"
+            }
             Logger.w(TAG, msg)
             val result = LLMTaskResult(success = false, message = msg, planningRounds = round)
             historyManager?.completeTask(false, msg)
@@ -1084,10 +339,7 @@ class LLMAgent(
             result
         } catch (e: CancellationException) {
             Logger.i(TAG, "LLMAgent task cancelled")
-            val result = LLMTaskResult(success = false, message = "任务已取消", planningRounds = round)
-            historyManager?.completeTask(false, result.message)
-            listener?.onTaskFinished(result)
-            result
+            finishCancelled(round)
         } catch (e: Exception) {
             Logger.e(TAG, "LLMAgent unexpected error: ${e.message}", e)
             val result = LLMTaskResult(success = false, message = e.message ?: "未知错误", planningRounds = round)
@@ -1098,47 +350,94 @@ class LLMAgent(
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // BrainLLM helpers
+    // Network helpers
     // ──────────────────────────────────────────────────────────────────────────
 
     /**
-     * Resolves any [BRAIN_KEY_PREFIX] entries in [subTask]'s preGeneratedTexts by calling
-     * [brainLLM] to generate the actual text.  Non-brain keys are left unchanged.
-     *
-     * If [brainLLM] is null / disabled, the original [subTask] is returned as-is so the
-     * controller-generated text (the key's value) is used directly.
+     * Issues one model request with one network-level retry on failure.
+     * Returns null if both attempts failed or the loop was cancelled mid-retry.
      */
-    private suspend fun resolveSubTaskTexts(
-        subTask: SubTask,
-        triggerContext: TriggerContext?,
-    ): SubTask {
-        val original = subTask.preGeneratedTexts
-        if (original.isEmpty() || brainLLM == null) return subTask
+    private suspend fun requestModel(
+        ctx: LLMAgentContext,
+        tools: List<ToolDto>,
+    ): ModelResponse? {
+        val first = modelClient.request(ctx.getMessages(), currentScreenshot = null, tools = tools)
+        if (first is ModelResult.Success) return first.response
 
-        val hasBrainKeys = original.keys.any { it.startsWith(BRAIN_KEY_PREFIX) }
-        if (!hasBrainKeys) return subTask
+        val firstError = (first as ModelResult.Error).error.message
+        Logger.e(TAG, "LLM request failed: $firstError")
+        Logger.i(TAG, "Network error in LLMAgent, retrying after ${NETWORK_RETRY_DELAY_MS}ms...")
+        delay(NETWORK_RETRY_DELAY_MS)
+        if (cancelRequested.get()) return null
 
-        val resolved = mutableMapOf<String, String>()
-        for ((key, value) in original) {
-            if (key.startsWith(BRAIN_KEY_PREFIX)) {
-                val purpose = key.removePrefix(BRAIN_KEY_PREFIX)
-                val generated = brainLLM.generateMessage(
-                    recipient = triggerContext?.clawBotFromUserId ?: "朋友",
-                    incomingMessage = if (!triggerContext?.notificationContent.isNullOrBlank())
-                        mapOf("sender" to (triggerContext?.clawBotFromUserId ?: ""), "content" to (triggerContext?.notificationContent ?: ""))
-                    else emptyMap(),
-                    intent = value,
-                    facts = emptyMap(),
-                    conversationBrief = if (purpose.isNotBlank()) purpose else null,
-                    language = config.language,
-                ).text
-                // Fallback: brain was invoked but failed → use LLMAgent's own text with fun tagline.
-                resolved[purpose] = generated ?: "$value（没过脑子版）"
-            } else {
-                resolved[key] = value
-            }
+        val retry = modelClient.request(ctx.getMessages(), currentScreenshot = null, tools = tools)
+        if (retry is ModelResult.Success) {
+            Logger.i(TAG, "LLM network retry succeeded")
+            return retry.response
         }
-        return subTask.copy(preGeneratedTexts = resolved)
+        Logger.e(TAG, "LLM network retry also failed: ${(retry as ModelResult.Error).error.message}")
+        return null
+    }
+
+    private suspend fun finishCancelled(round: Int): LLMTaskResult {
+        Logger.i(TAG, "LLMAgent cancelled at round $round")
+        val result = LLMTaskResult(success = false, message = "任务已取消", planningRounds = round)
+        historyManager?.completeTask(false, result.message)
+        listener?.onTaskFinished(result)
+        return result
+    }
+
+    private suspend fun finishOnNetworkError(round: Int): LLMTaskResult {
+        val msg = "LLM request failed"
+        val result = LLMTaskResult(success = false, message = msg, planningRounds = round)
+        historyManager?.completeTask(false, msg)
+        listener?.onTaskFinished(result)
+        return result
+    }
+
+    private fun parseArguments(raw: String): JSONObject? {
+        val trimmed = raw.trim()
+        if (trimmed.isEmpty()) return JSONObject()
+        return runCatching { JSONObject(trimmed) }.getOrNull()
+    }
+
+    /**
+     * Encodes a tool call into the stable display string used for `actionDescription`
+     * in [HistoryManager]. Format mirrors the OpenAI shape so [com.flowmate.autoxiaoer.agent.tools.GetTaskHistoryDetailTool]
+     * can replay it back to the model verbatim.
+     */
+    private fun formatActionDescription(toolCall: ParsedToolCall): String {
+        val argsValue: Any = runCatching { JSONObject(toolCall.arguments) }.getOrElse { toolCall.arguments }
+        return JSONObject().apply {
+            put("name", toolCall.name)
+            put("arguments", argsValue)
+        }.toString()
+    }
+
+    private fun buildPlanningRound(
+        round: Int,
+        thinking: String,
+        toolCall: ParsedToolCall,
+        observation: String,
+        roundTokenUsage: TokenUsage?,
+        brainTokenUsage: TokenUsage?,
+        subTaskMeta: SubTaskMeta?,
+    ): LLMPlanningRound {
+        val timestamp = subTaskMeta?.planningRoundTimestamp ?: System.currentTimeMillis()
+        return LLMPlanningRound(
+            round = round,
+            timestamp = timestamp,
+            thinking = thinking,
+            actionDescription = formatActionDescription(toolCall),
+            actionType = toolCall.name,
+            subTaskDescription = subTaskMeta?.subTaskDescription,
+            subTaskId = subTaskMeta?.subTaskId,
+            subTaskSuccess = subTaskMeta?.subTaskSuccess,
+            subTaskStepCount = subTaskMeta?.subTaskStepCount,
+            message = observation,
+            tokenUsage = roundTokenUsage,
+            brainTokenUsage = brainTokenUsage,
+        )
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -1197,7 +496,10 @@ class LLMAgent(
                 TriggerType.MANUAL -> { /* No extra context needed for manual triggers */ }
                 TriggerType.CLAWBOT -> {
                     sb.appendLine("【触发来源】ClawBot 消息")
-                    sb.appendLine("【注意事项】如果需要回复用户消息，请使用 request_user action 输出回复内容，发送成功后你会收到反馈并继续执行后续步骤；如果已回复用户的提问，请使用 finish action 输出回复内容，发送成功后任务将结束。")
+                    sb.appendLine(
+                        "【注意事项】如果需要回复用户消息，请调用 ${RequestUserTool.NAME} 工具发送回复，" +
+                            "发送成功后你会收到反馈并继续执行后续步骤；如果已回复用户的提问，请调用 ${FinishTool.NAME} 工具结束任务。",
+                    )
                     if (!triggerContext.clawBotFromUserId.isNullOrBlank()) {
                         sb.appendLine("【发送方】${triggerContext.clawBotFromUserId}")
                     }
@@ -1210,14 +512,6 @@ class LLMAgent(
         return sb.toString().trimEnd()
     }
 
-    /**
-     * Appends raw notification fields to [sb] without interpretation.
-     * The LLM receives the original values and reasons about them directly.
-     *
-     * When [TriggerContext.notificationTexts] is non-empty (same-session notifications were
-     * merged in the queue), all accumulated message texts are rendered as a numbered list so
-     * the LLM can see every individual message rather than only the last one.
-     */
     private fun appendNotificationContext(sb: StringBuilder, ctx: TriggerContext) {
         val appLabel = ctx.notificationApp ?: ctx.notificationPackageName ?: "未知应用"
         sb.appendLine("【触发来源】收到来自「$appLabel」的新通知（包名：${ctx.notificationPackageName ?: "未知"}）")
@@ -1229,7 +523,6 @@ class LLMAgent(
         }
 
         if (ctx.notificationTexts.isNotEmpty()) {
-            // Multiple messages merged from the same session — render as a list
             sb.appendLine("- 消息共 ${ctx.notificationTexts.size} 条（按时间顺序）：")
             ctx.notificationTexts.forEachIndexed { index, text ->
                 sb.appendLine("  ${index + 1}. $text")
@@ -1254,10 +547,6 @@ class LLMAgent(
     /**
      * Builds a concise retry-context message from the last planning round of the
      * previous failed attempt.
-     *
-     * Only the final round's thinking, actionType, subTaskDescription, and observation
-     * (message) are included — enough for the LLM to understand where the previous run
-     * broke down without bloating the context.
      */
     private fun buildRetryContext(previousAttempt: TaskHistory): String {
         val isEn = config.language.lowercase().let { it == "en" || it == "english" }
@@ -1311,381 +600,15 @@ class LLMAgent(
         return sb.toString().trimEnd()
     }
 
-    private fun buildObservationMessage(subTask: SubTask, result: SubTaskResult): String {
-        return if (result.success) {
-            """
-            【子任务执行结果】
-            步骤 ${subTask.id}「${subTask.description}」已成功完成。
-            执行了 ${result.stepCount} 个操作步骤。
-            结果摘要：${result.summary}
-
-            请根据上述结果决定下一步操作。
-            """.trimIndent()
-            } else {
-                val reason = result.failureReason ?: result.summary
-                if (result.needsUserTakeOver) {
-                    """
-                    【子任务执行结果】
-                    步骤 ${subTask.id}「${subTask.description}」需要用户介入。
-                    原因：$reason
-
-                    请决定是否继续、调整策略，或请求用户处理。
-                    """.trimIndent()
-                } else {
-                    val sb = StringBuilder()
-                    sb.appendLine("【子任务执行结果】")
-                    sb.appendLine("步骤 ${subTask.id}「${subTask.description}」执行失败。")
-                    sb.appendLine("执行了 ${result.stepCount} 个操作步骤。")
-                    sb.appendLine("失败原因：$reason")
-                    if (result.lastStepAction != null) {
-                        sb.appendLine("最后执行的操作：${result.lastStepAction}")
-                    }
-                    if (!result.lastStepThinking.isNullOrBlank()) {
-                        sb.appendLine("最后一步的思考：${result.lastStepThinking}")
-                    }
-                    sb.appendLine()
-                    sb.append("请重新规划：可以尝试不同方式完成同一目标，或跳过此步骤继续，或请求用户介入。")
-                    sb.toString()
-                }
-        }
-    }
-
-    // ──────────────────────────────────────────────────────────────────────────
-    // Action parsing
-    // ──────────────────────────────────────────────────────────────────────────
-
-    private data class ScheduleTaskParams(
-        val taskDescription: String,
-        val taskBackground: String?,
-        val scheduledTimeMillis: Long,
-        val repeatType: RepeatType,
-    )
-
-    private data class UpdateScheduledTaskParams(
-        val taskId: String,
-        val taskDescription: String?,
-        val taskBackground: String?,
-        val scheduledTimeMillis: Long?,
-        val repeatType: RepeatType?,
-        val isEnabled: Boolean?,
-    )
-
-    /**
-     * Parses a human-readable time string in "yyyy-MM-dd HH:mm" format into a Unix millisecond
-     * timestamp. Returns null if the string is blank or unparseable.
-     */
-    private fun parseScheduledTime(timeStr: String): Long? {
-        if (timeStr.isBlank()) return null
-        return runCatching {
-            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
-                .parse(timeStr)?.time
-        }.getOrNull()
-    }
-
-    private data class ParsedAction(
-        val type: String,
-        val message: String?,
-        val subTask: SubTask?,
-        val scheduleTaskParams: ScheduleTaskParams? = null,
-        val updateScheduledTaskParams: UpdateScheduledTaskParams? = null,
-        val deleteTaskId: String? = null,
-        val brainRequestParams: BrainRequestParams? = null,
-        val relationshipsContent: String? = null,
-        val behaviorContent: String? = null,
-        val historyQueryCount: Int? = null,
-        val historyTaskId: String? = null,
-        val waitDurationSeconds: Int? = null,
-    )
-
-    private data class BrainRequestParams(
-        val recipient: String,
-        val incomingMessage: Map<String, String>,
-        val intent: String,
-        val facts: Map<String, String>,
-        val conversationBrief: String?,
-    )
-
-    /**
-     * Extracts the JSON object inside the first `<action>...</action>` block
-     * and maps it to a [ParsedAction].
-     *
-     * Returns null when the block is missing or the JSON is malformed.
-     */
-    private fun parseAction(rawContent: String): ParsedAction? {
-        return try {
-            val actionBlock = ModelResponseParser.parseLlmAgentActionBlock(rawContent) ?: return null
-            val json = JSONObject(actionBlock.trim())
-            val type = json.optString("type").ifBlank { return null }
-
-            when (type) {
-                ACTION_FINISH, ACTION_REQUEST_USER -> {
-                    ParsedAction(
-                        type = type,
-                        message = json.optString("message").ifBlank { null },
-                        subTask = null,
-                    )
-                }
-
-                ACTION_EXECUTE_SUBTASK -> {
-                    val subtaskJson = json.optJSONObject("subtask") ?: return null
-                    val description = subtaskJson.optString("description").ifBlank { return null }
-
-                    val preGeneratedTexts = mutableMapOf<String, String>()
-                    subtaskJson.optJSONObject("preGeneratedTexts")?.let { textsJson ->
-                        textsJson.keys().forEach { key ->
-                            preGeneratedTexts[key] = textsJson.optString(key)
-                        }
-                    }
-
-                    // Use round count + 1 as sequential id; caller increments separately.
-                    // A stable id is not strictly required here — SubTaskResult just echoes it.
-                    val subTask = SubTask(
-                        id = System.currentTimeMillis().toInt() and 0xFFFF, // transient unique id
-                        description = description,
-                        preGeneratedTexts = preGeneratedTexts,
-                    )
-
-                    ParsedAction(type = type, message = null, subTask = subTask)
-                }
-
-                ACTION_SCHEDULE_TASK -> {
-                    val taskDescription = json.optString("taskDescription").ifBlank { return null }
-                    val taskBackground = json.optString("taskBackground").ifBlank { null }
-                    val scheduledTimeMillis = parseScheduledTime(json.optString("scheduledTime")) ?: return null
-                    val repeatTypeStr = json.optString("repeatType").ifBlank { RepeatType.ONCE.name }
-                    val repeatType = runCatching { RepeatType.valueOf(repeatTypeStr.uppercase()) }
-                        .getOrDefault(RepeatType.ONCE)
-                    ParsedAction(
-                        type = type,
-                        message = null,
-                        subTask = null,
-                        scheduleTaskParams = ScheduleTaskParams(
-                            taskDescription = taskDescription,
-                            taskBackground = taskBackground,
-                            scheduledTimeMillis = scheduledTimeMillis,
-                            repeatType = repeatType,
-                        ),
-                    )
-                }
-
-                ACTION_QUERY_SCHEDULED_TASKS -> {
-                    ParsedAction(type = type, message = null, subTask = null)
-                }
-
-                ACTION_UPDATE_SCHEDULED_TASK -> {
-                    val taskId = json.optString("taskId").ifBlank { return null }
-                    val taskDescription = json.optString("taskDescription").ifBlank { null }
-                    val taskBackground = json.optString("taskBackground").ifBlank { null }
-                    val scheduledTimeMillis = parseScheduledTime(json.optString("scheduledTime"))
-                    val repeatTypeStr = json.optString("repeatType").ifBlank { null }
-                    val repeatType = repeatTypeStr?.let {
-                        runCatching { RepeatType.valueOf(it.uppercase()) }.getOrNull()
-                    }
-                    val isEnabled = if (json.has("isEnabled")) json.optBoolean("isEnabled") else null
-                    ParsedAction(
-                        type = type,
-                        message = null,
-                        subTask = null,
-                        updateScheduledTaskParams = UpdateScheduledTaskParams(
-                            taskId = taskId,
-                            taskDescription = taskDescription,
-                            taskBackground = taskBackground,
-                            scheduledTimeMillis = scheduledTimeMillis,
-                            repeatType = repeatType,
-                            isEnabled = isEnabled,
-                        ),
-                    )
-                }
-
-                ACTION_DELETE_SCHEDULED_TASK -> {
-                    val taskId = json.optString("taskId").ifBlank { return null }
-                    ParsedAction(type = type, message = null, subTask = null, deleteTaskId = taskId)
-                }
-
-                ACTION_REQUEST_BRAIN -> {
-                    val recipient = json.optString("recipient").ifBlank { return null }
-                    val incomingMessageJson = json.optJSONObject("incomingMessage")
-                    val incomingMessage = buildMap {
-                        incomingMessageJson?.keys()?.forEach { key ->
-                            put(key, incomingMessageJson.optString(key))
-                        }
-                    }
-                    val intent = json.optString("intent").ifBlank { return null }
-                    val factsJson = json.optJSONObject("facts")
-                    val facts = buildMap {
-                        factsJson?.keys()?.forEach { key ->
-                            put(key, factsJson.optString(key))
-                        }
-                    }
-                    val conversationBrief = json.optString("conversationBrief").ifBlank { null }
-                    ParsedAction(
-                        type = type,
-                        message = null,
-                        subTask = null,
-                        brainRequestParams = BrainRequestParams(
-                            recipient = recipient,
-                            incomingMessage = incomingMessage,
-                            intent = intent,
-                            facts = facts,
-                            conversationBrief = conversationBrief,
-                        ),
-                    )
-                }
-
-                ACTION_READ_RELATIONSHIPS -> {
-                    ParsedAction(type = type, message = null, subTask = null)
-                }
-
-                ACTION_UPDATE_RELATIONSHIPS -> {
-                    val content = json.optString("content").ifBlank { null }
-                    ParsedAction(
-                        type = type,
-                        message = null,
-                        subTask = null,
-                        relationshipsContent = content,
-                    )
-                }
-
-                ACTION_READ_BEHAVIOR_RULES -> {
-                    ParsedAction(type = type, message = null, subTask = null)
-                }
-
-                ACTION_UPDATE_BEHAVIOR_RULES -> {
-                    val content = json.optString("content").ifBlank { null }
-                    ParsedAction(
-                        type = type,
-                        message = null,
-                        subTask = null,
-                        behaviorContent = content,
-                    )
-                }
-
-                ACTION_QUERY_TASK_HISTORY -> {
-                    ParsedAction(
-                        type = type,
-                        message = null,
-                        subTask = null,
-                        historyQueryCount = parseHistoryQueryCount(json),
-                    )
-                }
-
-                ACTION_GET_TASK_HISTORY_DETAIL -> {
-                    val taskId = json.optString("taskId").ifBlank { return null }
-                    ParsedAction(type = type, message = null, subTask = null, historyTaskId = taskId)
-                }
-
-                ACTION_WAIT -> {
-                    val duration = json.optInt("durationSeconds", 0).takeIf { it > 0 } ?: return null
-                    ParsedAction(type = type, message = null, subTask = null, waitDurationSeconds = duration)
-                }
-
-                else -> ParsedAction(type = type, message = null, subTask = null)
-            }
-        } catch (e: Exception) {
-            Logger.w(TAG, "Failed to parse LLM action JSON: ${e.message}")
-            null
-        }
-    }
-
-    /**
-     * Parses [query_task_history] count: missing or invalid → null; above max → clamped to [MAX_HISTORY_QUERY_COUNT].
-     */
-    private fun parseHistoryQueryCount(json: JSONObject): Int? {
-        if (!json.has("count") || json.isNull("count")) return null
-        val count =
-            when (val raw = json.get("count")) {
-                is Number -> raw.toInt()
-                is String -> raw.trim().toIntOrNull()
-                else -> null
-            } ?: return null
-        if (count < 1) return null
-        return minOf(count, MAX_HISTORY_QUERY_COUNT)
-    }
-
-    private fun wrapHistoryJsonBlock(title: String, json: JSONObject): String =
-        "$title\n```json\n${json.toString(2)}\n```"
-
-    private fun taskHistoryOverviewToJson(tasks: List<TaskHistory>): JSONObject {
-        val fmt = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
-        val tasksArray = JSONArray()
-        tasks.forEach { task ->
-            tasksArray.put(
-                JSONObject().apply {
-                    put("id", task.id)
-                    put("taskDescription", task.taskDescription)
-                    put("completionMessage", task.completionMessage ?: "")
-                    put("success", task.success)
-                    put("startTime", fmt.format(java.util.Date(task.startTime)))
-                    put("endTime", task.endTime?.let { fmt.format(java.util.Date(it)) } ?: "")
-                },
-            )
-        }
-        return JSONObject().apply {
-            put("tasks", tasksArray)
-            put("count", tasks.size)
-        }
-    }
-
-    private fun taskHistoryDetailToJson(task: TaskHistory): JSONObject {
-        val roundsArray = JSONArray()
-        task.planningRounds.forEach { round ->
-            roundsArray.put(
-                JSONObject().apply {
-                    put("round", round.round)
-                    put("actionDescription", round.actionDescription)
-                    put("message", round.message ?: "")
-                },
-            )
-        }
-        return JSONObject().apply {
-            put("id", task.id)
-            put("taskDescription", task.taskDescription)
-            put("planningRounds", roundsArray)
-        }
-    }
-
-    private fun formatTaskHistoryOverview(tasks: List<TaskHistory>, isEn: Boolean): String {
-        val title = if (isEn) "[Task History Overview]" else "【历史任务概览】"
-        return wrapHistoryJsonBlock(title, taskHistoryOverviewToJson(tasks))
-    }
-
-    private fun formatTaskHistoryDetail(task: TaskHistory, isEn: Boolean): String {
-        val title = if (isEn) "[Task History Detail]" else "【历史任务详情】"
-        return wrapHistoryJsonBlock(title, taskHistoryDetailToJson(task))
-    }
-
     companion object {
         private const val TAG = "LLMAgent"
-
-        private const val ACTION_EXECUTE_SUBTASK = "execute_subtask"
-        private const val ACTION_FINISH = "finish"
-        private const val ACTION_REQUEST_USER = "request_user"
-        private const val ACTION_REQUEST_BRAIN = "request_brain"
-        private const val ACTION_SCHEDULE_TASK = "schedule_task"
-        private const val ACTION_QUERY_SCHEDULED_TASKS = "query_scheduled_tasks"
-        private const val ACTION_UPDATE_SCHEDULED_TASK = "update_scheduled_task"
-        private const val ACTION_DELETE_SCHEDULED_TASK = "delete_scheduled_task"
-        private const val ACTION_READ_RELATIONSHIPS = "read_relationships"
-        private const val ACTION_UPDATE_RELATIONSHIPS = "update_relationships"
-        private const val ACTION_READ_BEHAVIOR_RULES = "read_behavior_rules"
-        private const val ACTION_UPDATE_BEHAVIOR_RULES = "update_behavior_rules"
-        private const val ACTION_QUERY_TASK_HISTORY = "query_task_history"
-        private const val ACTION_GET_TASK_HISTORY_DETAIL = "get_task_history_detail"
-        private const val ACTION_WAIT = "wait"
-        private const val MAX_HISTORY_QUERY_COUNT = 10
+        private const val PAUSE_POLL_MS = 200L
+        private const val NETWORK_RETRY_DELAY_MS = 10_000L
 
         /**
-         * If a preGeneratedTexts key starts with this prefix the value is treated as a
-         * "brain consultation request" — the value is the intent description and the
-         * actual text will be generated by [BrainLLM] at runtime.
-         *
-         * Example:
-         * ```json
-         * "preGeneratedTexts": {
-         *   "brain:回复内容": "告诉他我已经看到了，稍后回复"
-         * }
-         * ```
+         * Re-exported convenience constant so callers (especially settings UI) can keep
+         * using `LLMAgent.BRAIN_KEY_PREFIX` without depending on the `tools` package.
          */
-        const val BRAIN_KEY_PREFIX = "brain:"
+        const val BRAIN_KEY_PREFIX = ExecuteSubtaskTool.BRAIN_KEY_PREFIX
     }
 }
