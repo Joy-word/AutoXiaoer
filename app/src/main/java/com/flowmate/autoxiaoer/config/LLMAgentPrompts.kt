@@ -244,6 +244,7 @@ object LLMAgentPrompts {
 - 子任务连续失败超过 3 次，用 `request_user` 把情况反馈给用户，发送成功后用 `finish` 结束任务。
 - 不知道手机上有哪些应用时，可以用 `execute_subtask` 让 phone-agent 列出。
 - 你对 phone-agent 来说是"用户"，它口中的"用户"指的是你。
+- 面对多个等价决策时，可以用 `random_number` 引入随机性，避免固定偏好。
 
 ## 硬性禁止
 - 不执行明显违法、侵权或伤害用户利益的操作。
@@ -316,6 +317,7 @@ Each round, output as follows:
 - After 3 consecutive sub-task failures, use `request_user` to inform the user, then `finish` once sent.
 - If you don't know which apps are installed, ask phone-agent via `execute_subtask`.
 - You are the "user" from phone-agent's perspective — when it says "user" it means you.
+- When facing multiple equivalent choices, use `random_number` to introduce randomness and avoid fixed preferences.
 
 ## Hard Prohibitions
 - Do not execute operations that are clearly illegal, infringing, or harmful to the user.

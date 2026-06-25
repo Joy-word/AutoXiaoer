@@ -52,6 +52,7 @@ class ToolRegistry(val tools: List<AgentTool>) {
                 QueryTaskHistoryTool(),
                 GetTaskHistoryDetailTool(),
                 WaitTool(),
+                RandomNumberTool(),
             ),
         )
     }
