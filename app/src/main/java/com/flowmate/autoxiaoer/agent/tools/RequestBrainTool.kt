@@ -83,36 +83,21 @@ class RequestBrainTool : AgentTool {
         val text = result?.text
         val observation = when {
             text != null -> {
-                if (ctx.isEnglish) {
-                    "[Expressor Result]\n$text\n\n" +
-                        "Place the above content into the next action " +
-                        "(request_user's message, or the corresponding value in preGeneratedTexts)."
-                } else {
-                    "【表达者生成结果】\n$text\n\n" +
-                        "请将以上内容填入后续 action（request_user 的 message 或 preGeneratedTexts 的对应 value）。"
-                }
+                if (ctx.isEnglish) "[Expressor Result]\n$text"
+                else "【表达者生成结果】\n$text"
             }
             brain == null -> {
-                if (ctx.isEnglish) {
-                    "[Expressor Not Available] Expressor is not configured. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
-                } else {
-                    "【表达者未启用】表达者未配置。请你根据以下意图自行生成回复内容，再填入后续 action。\n【意图】$intent"
-                }
+                if (ctx.isEnglish) "[Expressor Not Available] Expressor is not configured. Intent: $intent. Please decide on your own."
+                else "【表达者未启用】表达者未配置。\n【意图】$intent\n请根据意图自行决策。"
             }
             !brain.isEnabled -> {
-                if (ctx.isEnglish) {
-                    "[Expressor Disabled] Expressor is configured but currently disabled. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
-                } else {
-                    "【表达者已禁用】表达者已配置但当前未启用。请你根据以下意图自行生成回复内容，再填入后续 action。\n【意图】$intent"
-                }
+                if (ctx.isEnglish) "[Expressor Disabled] Expressor is configured but currently disabled. Intent: $intent. Please decide on your own."
+                else "【表达者已禁用】表达者已配置但当前未启用。\n【意图】$intent\n请根据意图自行决策。"
             }
             else -> {
                 Logger.w(TAG, "BrainLLM call failed for request_brain")
-                if (ctx.isEnglish) {
-                    "[Expressor Disconnected] The expressor failed to respond. Please generate the reply content yourself based on the context and intent provided, then fill it into the next action."
-                } else {
-                    "【表达者断联】表达者未能响应。请你根据以下意图自行生成回复内容，再填入后续 action。\n【意图】$intent"
-                }
+                if (ctx.isEnglish) "[Expressor Disconnected] The expressor failed to respond. Intent: $intent. Please decide on your own."
+                else "【表达者断联】表达者未能响应。\n【意图】$intent\n请根据意图自行决策。"
             }
         }
 

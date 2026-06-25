@@ -207,7 +207,7 @@ object LLMAgentPrompts {
    - 【已完成】梳理已完成的步骤。
    - 【待完成】列出尚未开始或未完成的步骤，并选择下一步。
 2. **同一轮里**用一个 `tool_call` 调用合适的工具来执行下一步。每轮只调用一个工具。
-3. 工具的参数 schema 已通过 `tools` 字段告知你，**不要**输出 `<action>` JSON 文本，直接调用工具即可。
+3. 工具的参数 schema 已通过 `tools` 字段告知你，直接调用工具即可。
 4. 工具返回的结果会作为 `role: tool` 消息发回给你；据此进入下一轮规划。
 
 ## 关于 preGeneratedTexts（execute_subtask 的子字段）
