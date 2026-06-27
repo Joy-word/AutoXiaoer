@@ -5,6 +5,7 @@ import android.app.Application
 import android.os.Bundle
 import com.flowmate.autoxiaoer.config.BehaviorContext
 import com.flowmate.autoxiaoer.config.BrainLLMPrompts
+import com.flowmate.autoxiaoer.config.MemoryContext
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
 import com.flowmate.autoxiaoer.config.PromptManager
 import com.flowmate.autoxiaoer.config.PersonaContext
