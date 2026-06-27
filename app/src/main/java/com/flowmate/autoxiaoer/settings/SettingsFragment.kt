@@ -2116,6 +2116,11 @@ class SettingsFragment : Fragment() {
             BehaviorContext.init(ctx)
         }
         if (sectionSet.isEmpty() ||
+            sectionSet.contains(DataMigrationManager.SECTION_MEMORY)
+        ) {
+            MemoryContext.init(ctx)
+        }
+        if (sectionSet.isEmpty() ||
             sectionSet.contains(DataMigrationManager.SECTION_SCHEDULED_TASKS)
         ) {
             ScheduledTaskManager.getInstance(ctx).reloadAfterImport()

@@ -54,6 +54,9 @@ class AutoGLMApplication : Application() {
         // Initialize behavior context (must be before any prompt loading)
         BehaviorContext.init(this)
 
+        // Initialize experience-memory context
+        MemoryContext.init(this)
+
         // Import dev profiles if available (debug builds only)
         importDevProfilesIfNeeded()
 

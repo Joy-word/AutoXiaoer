@@ -67,6 +67,7 @@ object DataMigrationManager {
     const val SECTION_TASK_HISTORY = "task_history"
     const val SECTION_SCHEDULED_TASKS = "scheduled_tasks"
     const val SECTION_TASK_TEMPLATES = "task_templates"
+    const val SECTION_MEMORY = "memory"
 
     private val exportTimestampFormat = SimpleDateFormat(EXPORT_TIMESTAMP_FORMAT, Locale.getDefault())
 
@@ -91,6 +92,7 @@ object DataMigrationManager {
         SECTION_TASK_HISTORY to "task_history",
         SECTION_SCHEDULED_TASKS to "scheduled_tasks",
         SECTION_TASK_TEMPLATES to "task_templates",
+        SECTION_MEMORY to "memory",
     )
 
     data class ExportOptions(
@@ -101,10 +103,12 @@ object DataMigrationManager {
         val taskHistory: Boolean = false,
         val scheduledTasks: Boolean = false,
         val taskTemplates: Boolean = false,
+        /** Experience memory (memory/apps/, memory/contacts/, memory/notes/). */
+        val memory: Boolean = false,
     ) {
         fun hasAnySelected(): Boolean =
             persona || behaviorRules || relationships || systemPrompts ||
-                taskHistory || scheduledTasks || taskTemplates
+                taskHistory || scheduledTasks || taskTemplates || memory
 
         fun selectedSections(): List<String> = buildList {
             if (persona) add(SECTION_PERSONA)
@@ -114,6 +118,7 @@ object DataMigrationManager {
             if (taskHistory) add(SECTION_TASK_HISTORY)
             if (scheduledTasks) add(SECTION_SCHEDULED_TASKS)
             if (taskTemplates) add(SECTION_TASK_TEMPLATES)
+            if (memory) add(SECTION_MEMORY)
         }
 
         fun isSectionSelected(section: String): Boolean = when (section) {
@@ -124,6 +129,7 @@ object DataMigrationManager {
             SECTION_TASK_HISTORY -> taskHistory
             SECTION_SCHEDULED_TASKS -> scheduledTasks
             SECTION_TASK_TEMPLATES -> taskTemplates
+            SECTION_MEMORY -> memory
             else -> false
         }
 
@@ -142,6 +148,7 @@ object DataMigrationManager {
                 taskHistory = SECTION_TASK_HISTORY in sections,
                 scheduledTasks = SECTION_SCHEDULED_TASKS in sections,
                 taskTemplates = SECTION_TASK_TEMPLATES in sections,
+                memory = SECTION_MEMORY in sections,
             )
         }
     }
