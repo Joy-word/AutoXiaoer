@@ -78,6 +78,8 @@ data class TokenUsage(
  * @property timeToFirstToken Time in milliseconds until the first token was received
  * @property totalTime Total time in milliseconds for the complete response
  * @property tokenUsage Token consumption statistics, or null if not provided by the API
+ * @property toolCalls Tool calls produced by the model in OpenAI Function-Calling format.
+ *   Empty list when the request did not include `tools` or the model chose to reply in plain text.
  *
  */
 data class ModelResponse(
@@ -87,6 +89,20 @@ data class ModelResponse(
     val timeToFirstToken: Long?,
     val totalTime: Long?,
     val tokenUsage: TokenUsage? = null,
+    val toolCalls: List<ParsedToolCall> = emptyList(),
+)
+
+/**
+ * A fully assembled tool call extracted from a streaming response.
+ *
+ * @property id Tool call id assigned by the API; must be echoed back in the matching `role: tool` reply.
+ * @property name Function name to invoke.
+ * @property arguments Raw JSON string of the arguments object (per OpenAI spec, even structured args are wire-encoded as a string).
+ */
+data class ParsedToolCall(
+    val id: String,
+    val name: String,
+    val arguments: String,
 )
 
 /**
@@ -114,9 +130,30 @@ sealed class ChatMessage {
     /**
      * Assistant message representing the model's response.
      *
-     * @property content The assistant's response content
+     * @property content The assistant's response content (may be empty when only tool calls are produced)
+     * @property toolCalls Tool calls produced by the assistant in OpenAI Function-Calling format.
+     *   When non-empty, the message is serialized with a `tool_calls` array so the API can match
+     *   subsequent `role: tool` replies by id.
      */
-    data class Assistant(val content: String) : ChatMessage()
+    data class Assistant(
+        val content: String,
+        val toolCalls: List<ParsedToolCall> = emptyList(),
+    ) : ChatMessage()
+
+    /**
+     * Tool message carrying the result of a previously issued tool call.
+     *
+     * Sent back to the model in the next request so it can observe the outcome.
+     *
+     * @property toolCallId The id of the tool call this reply belongs to (must match assistant.tool_calls[i].id)
+     * @property name The function name that was invoked
+     * @property content Stringified observation/result returned to the model
+     */
+    data class Tool(
+        val toolCallId: String,
+        val name: String,
+        val content: String,
+    ) : ChatMessage()
 }
 
 /**
@@ -124,12 +161,26 @@ sealed class ChatMessage {
  *
  * Converts [ChatMessage] instances to the JSON format expected by the API.
  *
- * @property role The role of the message sender ("system", "user", or "assistant")
- * @property content The message content as a JSON element (string or array for multi-modal)
+ * @property role The role of the message sender ("system", "user", "assistant", or "tool")
+ * @property content The message content as a JSON element (string or array for multi-modal).
+ *   For assistant messages with only tool calls, the API still expects `content`; we send an
+ *   empty string in that case.
+ * @property toolCalls Tool calls produced by an assistant message; null for other roles or
+ *   when the assistant produced plain text only.
+ * @property toolCallId Set on `role: tool` messages to identify the matching tool call.
+ * @property name Function name; set on `role: tool` messages to mirror the tool that was invoked.
  *
  */
 @Serializable
-data class MessageDto(val role: String, val content: JsonElement) {
+data class MessageDto(
+    val role: String,
+    val content: JsonElement,
+    @SerialName("tool_calls")
+    val toolCalls: List<ToolCallDto>? = null,
+    @SerialName("tool_call_id")
+    val toolCallId: String? = null,
+    val name: String? = null,
+) {
     companion object {
         /**
          * Creates a MessageDto from a ChatMessage.
@@ -150,9 +201,20 @@ data class MessageDto(val role: String, val content: JsonElement) {
             }
 
             is ChatMessage.Assistant -> {
+                val toolCalls = message.toolCalls.takeIf { it.isNotEmpty() }?.map { ToolCallDto.fromParsed(it) }
                 MessageDto(
                     role = "assistant",
                     content = JsonPrimitive(message.content),
+                    toolCalls = toolCalls,
+                )
+            }
+
+            is ChatMessage.Tool -> {
+                MessageDto(
+                    role = "tool",
+                    content = JsonPrimitive(message.content),
+                    toolCallId = message.toolCallId,
+                    name = message.name,
                 )
             }
 
@@ -212,6 +274,61 @@ data class MessageDto(val role: String, val content: JsonElement) {
 }
 
 /**
+ * Tool call payload as sent in `assistant.tool_calls[]` per OpenAI Function-Calling spec.
+ */
+@Serializable
+data class ToolCallDto(
+    val id: String,
+    val type: String = "function",
+    val function: FunctionCallDto,
+) {
+    companion object {
+        fun fromParsed(parsed: ParsedToolCall): ToolCallDto = ToolCallDto(
+            id = parsed.id,
+            function = FunctionCallDto(name = parsed.name, arguments = parsed.arguments),
+        )
+    }
+}
+
+/**
+ * Function call payload nested inside [ToolCallDto].
+ *
+ * @property name The function name to invoke.
+ * @property arguments The JSON-stringified arguments object.
+ */
+@Serializable
+data class FunctionCallDto(
+    val name: String,
+    val arguments: String,
+)
+
+/**
+ * Tool definition advertised to the model in the `tools` request field.
+ *
+ * @property type Always `"function"` for OpenAI-compatible APIs.
+ * @property function The function spec (name, description, JSON Schema parameters).
+ */
+@Serializable
+data class ToolDto(
+    val type: String = "function",
+    val function: FunctionDto,
+)
+
+/**
+ * Function spec inside [ToolDto].
+ *
+ * @property name Unique tool name; matched against [ParsedToolCall.name] in the response.
+ * @property description Natural-language description shown to the model.
+ * @property parameters JSON Schema object describing the arguments.
+ */
+@Serializable
+data class FunctionDto(
+    val name: String,
+    val description: String,
+    val parameters: JsonElement,
+)
+
+/**
  * Content part for multi-modal messages.
  *
  * Represents a single part of a multi-modal message, which can be either
@@ -253,6 +370,10 @@ data class ImageUrl(val url: String)
  * @property topP Top-p (nucleus) sampling parameter
  * @property frequencyPenalty Frequency penalty (-2.0 to 2.0)
  * @property stream Whether to stream the response
+ * @property tools Optional tool definitions advertised to the model. When null the request is
+ *   a plain chat completion (no tool calling). When non-null the model may emit `tool_calls`.
+ * @property toolChoice Optional tool-choice directive (`"auto" | "none" | "required"` or a
+ *   `{"type":"function","function":{"name":"..."}}` object). Only sent when [tools] is non-null.
  *
  */
 @Serializable
@@ -267,6 +388,9 @@ data class ChatCompletionRequest(
     @SerialName("frequency_penalty")
     val frequencyPenalty: Float,
     val stream: Boolean = true,
+    val tools: List<ToolDto>? = null,
+    @SerialName("tool_choice")
+    val toolChoice: JsonElement? = null,
 )
 
 /**
@@ -309,6 +433,34 @@ data class Delta(
     /** Reasoning stream from models that split thinking into a separate delta field (e.g. GLM). */
     @SerialName("reasoning_content") val reasoningContent: String? = null,
     val reasoning: String? = null,
+    /**
+     * Streamed tool call deltas. OpenAI-compatible APIs send tool_calls as fragments —
+     * each fragment carries an `index` (which slot it belongs to) plus partial `id` /
+     * `function.name` / `function.arguments`. The receiver must concatenate fragments by
+     * index until the stream ends.
+     */
+    @SerialName("tool_calls") val toolCalls: List<DeltaToolCall>? = null,
+)
+
+/**
+ * Streaming tool-call fragment. Fields are nullable because each chunk usually only carries
+ * a subset of the fields.
+ */
+@Serializable
+data class DeltaToolCall(
+    val index: Int = 0,
+    val id: String? = null,
+    val type: String? = null,
+    val function: DeltaFunctionCall? = null,
+)
+
+/**
+ * Streaming function-call fragment within [DeltaToolCall].
+ */
+@Serializable
+data class DeltaFunctionCall(
+    val name: String? = null,
+    val arguments: String? = null,
 )
 
 /**
@@ -388,6 +540,9 @@ class ModelClient(private val config: ModelConfig) {
         Json {
             ignoreUnknownKeys = true
             encodeDefaults = true
+            // Drop null-valued properties from serialised JSON so optional fields like
+            // `tool_calls` / `tool_call_id` / `name` only appear when actually used.
+            explicitNulls = false
         }
 
     private val client: OkHttpClient by lazy {
@@ -427,12 +582,19 @@ class ModelClient(private val config: ModelConfig) {
      * @param maxContentLength Maximum total character length of the accumulated response content.
      *   When exceeded the SSE stream is cancelled immediately and the already-received content
      *   is used as-is. Set to 0 to disable the limit.
+     * @param tools Optional tool definitions to advertise to the model. When non-null and non-empty,
+     *   the request is sent with OpenAI Function-Calling enabled and the response may contain
+     *   [ModelResponse.toolCalls]. When null the request is a plain chat completion.
+     * @param toolChoice Optional tool-choice directive forwarded to the API. Defaults to "auto"
+     *   when [tools] is non-null. Use "required" to force a tool call, or "none" to forbid one.
      * @return ModelResult containing either the parsed response or an error
      */
     suspend fun request(
         messages: List<ChatMessage>,
         currentScreenshot: String? = null,
         maxContentLength: Int = 0,
+        tools: List<ToolDto>? = null,
+        toolChoice: String? = null,
     ): ModelResult =
         withContext(Dispatchers.IO) {
             val startTime = System.currentTimeMillis()
@@ -452,7 +614,12 @@ class ModelClient(private val config: ModelConfig) {
                             MessageDto.fromChatMessage(message)
                         }
                     }
-                Logger.d(TAG, "Preparing request with ${messageDtos.size} messages")
+                Logger.d(TAG, "Preparing request with ${messageDtos.size} messages, tools=${tools?.size ?: 0}")
+
+                val effectiveTools = tools?.takeIf { it.isNotEmpty() }
+                val effectiveToolChoice = effectiveTools?.let {
+                    JsonPrimitive(toolChoice ?: "auto")
+                }
 
                 val requestBody =
                     ChatCompletionRequest(
@@ -463,6 +630,8 @@ class ModelClient(private val config: ModelConfig) {
                         topP = config.topP,
                         frequencyPenalty = config.frequencyPenalty,
                         stream = true,
+                        tools = effectiveTools,
+                        toolChoice = effectiveToolChoice,
                     )
 
                 val requestJson = json.encodeToString(requestBody)
@@ -479,6 +648,7 @@ class ModelClient(private val config: ModelConfig) {
 
                 val contentBuilder = StringBuilder()
                 val reasoningBuilder = StringBuilder()
+                val toolCallAssembler = ToolCallAssembler()
                 var lastTokenUsage: TokenUsage? = null
 
                 fun buildSuccessResponse(
@@ -495,6 +665,7 @@ class ModelClient(private val config: ModelConfig) {
                         timeToFirstToken = timeToFirstToken,
                         totalTime = totalTime,
                         tokenUsage = lastTokenUsage,
+                        toolCalls = toolCallAssembler.build(),
                     )
                 }
 
@@ -517,6 +688,7 @@ class ModelClient(private val config: ModelConfig) {
                                         TAG,
                                         "Response complete: content=${rawContent.length} chars, " +
                                             "reasoning=${reasoningBuilder.length} chars, " +
+                                            "toolCalls=${toolCallAssembler.size()}, " +
                                             "TTFT=${timeToFirstToken}ms, usage=$lastTokenUsage",
                                     )
 
@@ -539,14 +711,16 @@ class ModelClient(private val config: ModelConfig) {
                                     val delta = chunk.choices.firstOrNull()?.delta
                                     val content = delta?.content
                                     val reasoningChunk = delta?.reasoningContent ?: delta?.reasoning
+                                    val toolCallDeltas = delta?.toolCalls
 
-                                    if (content != null || reasoningChunk != null) {
+                                    if (content != null || reasoningChunk != null || !toolCallDeltas.isNullOrEmpty()) {
                                         if (timeToFirstToken == null) {
                                             timeToFirstToken = System.currentTimeMillis() - startTime
                                             Logger.d(TAG, "First token received after ${timeToFirstToken}ms")
                                         }
                                         content?.let { contentBuilder.append(it) }
                                         reasoningChunk?.let { reasoningBuilder.append(it) }
+                                        toolCallDeltas?.forEach { toolCallAssembler.consume(it) }
 
                                         // Stream truncation: cancel immediately when content exceeds limit
                                         if (maxContentLength > 0 && contentBuilder.length > maxContentLength) {
@@ -575,7 +749,10 @@ class ModelClient(private val config: ModelConfig) {
                                     val totalTime = System.currentTimeMillis() - startTime
                                     val rawContent = contentBuilder.toString()
 
-                                    if (rawContent.isNotEmpty() || reasoningBuilder.isNotEmpty()) {
+                                    if (rawContent.isNotEmpty() ||
+                                        reasoningBuilder.isNotEmpty() ||
+                                        toolCallAssembler.size() > 0
+                                    ) {
                                         continuation.resume(
                                             ModelResult.Success(buildSuccessResponse(rawContent, totalTime)),
                                         )
@@ -798,5 +975,40 @@ class ModelClient(private val config: ModelConfig) {
         private const val HTTP_STATUS_NOT_FOUND = 404
         private const val MILLIS_PER_SECOND = 1000L
         private const val TEST_MAX_TOKENS = 10
+    }
+}
+
+/**
+ * Assembles streaming [DeltaToolCall] fragments into complete [ParsedToolCall] objects.
+ *
+ * OpenAI-compatible APIs send tool_calls split across many chunks; each chunk carries
+ * an `index`, a partial `id`, and partial `function.name` / `function.arguments`. This
+ * helper concatenates fragments by index and produces the final list when [build] is
+ * called at stream end.
+ */
+private class ToolCallAssembler {
+    private data class Slot(
+        val idBuilder: StringBuilder = StringBuilder(),
+        val nameBuilder: StringBuilder = StringBuilder(),
+        val argumentsBuilder: StringBuilder = StringBuilder(),
+    )
+
+    private val slots = sortedMapOf<Int, Slot>()
+
+    fun consume(delta: DeltaToolCall) {
+        val slot = slots.getOrPut(delta.index) { Slot() }
+        delta.id?.let { slot.idBuilder.append(it) }
+        delta.function?.name?.let { slot.nameBuilder.append(it) }
+        delta.function?.arguments?.let { slot.argumentsBuilder.append(it) }
+    }
+
+    fun size(): Int = slots.size
+
+    fun build(): List<ParsedToolCall> = slots.values.map { slot ->
+        ParsedToolCall(
+            id = slot.idBuilder.toString(),
+            name = slot.nameBuilder.toString(),
+            arguments = slot.argumentsBuilder.toString(),
+        )
     }
 }
