@@ -110,7 +110,7 @@
     <string name="settings_brain_llm_prompt_reset_done">已恢复默认表达者 System Prompt</string>
     <string name="settings_persona_agent_name_helper">控制者和表达者在 prompt 中引用的名字</string>
     <string name="settings_persona_enable_expressor">启用表达者 (BrainLLM)</string>
-    <string name="settings_persona_enable_expressor_desc">启用后，回复朋友的文字会先经过表达者生成，更具人格感。</string>
+    <string name="settings_persona_enable_expressor_desc">启用后，回复朋友的文字会先经过表达者生成，更具人格感。若关闭，人设和人际关系的内容将不被使用。</string>
     <string name="history_action_request_brain">请求表达者</string>
     <string name="history_planning_round_label">控制者</string>
     <string name="settings_model_section">模型配置</string>
