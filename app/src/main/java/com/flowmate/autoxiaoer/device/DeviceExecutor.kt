@@ -26,7 +26,7 @@ import kotlinx.coroutines.withContext
  * @property userService The Shizuku UserService for executing shell commands
  *
  */
-class DeviceExecutor(private val userService: IUserService) {
+class DeviceExecutor(private val userService: IUserService) : IDeviceExecutor {
     /**
      * Performs a tap at the specified absolute coordinates.
      *
@@ -38,7 +38,7 @@ class DeviceExecutor(private val userService: IUserService) {
      * @return Result of the command execution
      *
      */
-    suspend fun tap(x: Int, y: Int): String = withContext(Dispatchers.IO) {
+    override suspend fun tap(x: Int, y: Int): String = withContext(Dispatchers.IO) {
         executeCommand("input tap $x $y")
     }
 
@@ -53,7 +53,7 @@ class DeviceExecutor(private val userService: IUserService) {
      * @return Result of the command execution
      *
      */
-    suspend fun doubleTap(x: Int, y: Int): String = withContext(Dispatchers.IO) {
+    override suspend fun doubleTap(x: Int, y: Int): String = withContext(Dispatchers.IO) {
         val result1 = executeCommand("input tap $x $y")
         delay(DOUBLE_TAP_INTERVAL_MS)
         val result2 = executeCommand("input tap $x $y")
@@ -72,7 +72,7 @@ class DeviceExecutor(private val userService: IUserService) {
      * @return Result of the command execution
      *
      */
-    suspend fun longPress(x: Int, y: Int, durationMs: Int = DEFAULT_LONG_PRESS_DURATION_MS): String =
+    override suspend fun longPress(x: Int, y: Int, durationMs: Int = DEFAULT_LONG_PRESS_DURATION_MS): String =
         withContext(Dispatchers.IO) {
             executeCommand("input swipe $x $y $x $y $durationMs")
         }
@@ -88,7 +88,7 @@ class DeviceExecutor(private val userService: IUserService) {
      * @return Result of the command execution
      *
      */
-    suspend fun swipe(points: List<Point>, durationMs: Int): String = withContext(Dispatchers.IO) {
+    override suspend fun swipe(points: List<Point>, durationMs: Int): String = withContext(Dispatchers.IO) {
         if (points.size < 2) {
             return@withContext "Error: Swipe requires at least 2 points"
         }
@@ -223,7 +223,7 @@ class DeviceExecutor(private val userService: IUserService) {
      * @return Result of the command execution
      *
      */
-    suspend fun pressKey(keyCode: Int): String = withContext(Dispatchers.IO) {
+    override suspend fun pressKey(keyCode: Int): String = withContext(Dispatchers.IO) {
         executeCommand("input keyevent $keyCode")
     }
 
@@ -237,7 +237,7 @@ class DeviceExecutor(private val userService: IUserService) {
      * @return Result of the command execution
      *
      */
-    suspend fun launchApp(packageName: String): String = withContext(Dispatchers.IO) {
+    override suspend fun launchApp(packageName: String): String = withContext(Dispatchers.IO) {
         // First, try to resolve the launcher activity
         val resolveCmd =
             "pm resolve-activity --brief " +
@@ -279,7 +279,7 @@ class DeviceExecutor(private val userService: IUserService) {
      * @return The package name of the current foreground app, or empty string if not found
      *
      */
-    suspend fun getCurrentApp(): String = withContext(Dispatchers.IO) {
+    override suspend fun getCurrentApp(): String = withContext(Dispatchers.IO) {
         val result = executeCommand("dumpsys window | grep -E 'mCurrentFocus|mFocusedApp'")
         parseCurrentApp(result)
     }

@@ -405,10 +405,58 @@
                             android:visibility="gone"
                             tools:visibility="visible">
 
+                            <!-- Backend selection -->
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginBottom="8dp"
+                                android:text="@string/settings_input_backend_title"
+                                android:textAppearance="?attr/textAppearanceLabelMedium"
+                                android:textColor="@color/text_secondary" />
+
+                            <RadioGroup
+                                android:id="@+id/rgInputBackend"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginBottom="4dp"
+                                android:orientation="horizontal">
+
+                                <RadioButton
+                                    android:id="@+id/rbBackendShizuku"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="@string/settings_input_backend_shizuku" />
+
+                                <RadioButton
+                                    android:id="@+id/rbBackendAccessibility"
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="@string/settings_input_backend_accessibility" />
+
+                            </RadioGroup>
+
+                            <TextView
+                                android:id="@+id/tvBackendHelper"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginBottom="12dp"
+                                android:text="@string/settings_input_backend_helper_shizuku"
+                                android:textAppearance="?attr/textAppearanceBodySmall"
+                                android:textColor="@color/text_secondary" />
+
                             <!-- Shizuku Permission -->
                             <include
                                 android:id="@+id/permissionShizuku"
                                 layout="@layout/item_permission_status" />
+
+                            <!-- Accessibility Permission -->
+                            <include
+                                android:id="@+id/permissionAccessibility"
+                                layout="@layout/item_permission_status"
+                                android:visibility="gone"
+                                tools:visibility="visible" />
 
                             <!-- Overlay Permission -->
                             <include

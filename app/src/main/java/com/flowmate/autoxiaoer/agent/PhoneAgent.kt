@@ -10,6 +10,7 @@ import com.flowmate.autoxiaoer.history.HistoryManager
 import com.flowmate.autoxiaoer.model.ModelClient
 import com.flowmate.autoxiaoer.model.ModelResult
 import com.flowmate.autoxiaoer.model.TokenUsage
+import com.flowmate.autoxiaoer.screenshot.IScreenshotService
 import com.flowmate.autoxiaoer.screenshot.ScreenshotService
 import com.flowmate.autoxiaoer.util.ErrorHandler
 import com.flowmate.autoxiaoer.util.Logger
@@ -105,7 +106,7 @@ enum class PhoneAgentState {
 class PhoneAgent(
     private val modelClient: ModelClient,
     private val actionHandler: ActionHandler,
-    private val screenshotService: ScreenshotService,
+    private val screenshotService: IScreenshotService,
     private val config: PhoneAgentConfig = PhoneAgentConfig(),
     private val historyManager: HistoryManager? = null,
 ) {
