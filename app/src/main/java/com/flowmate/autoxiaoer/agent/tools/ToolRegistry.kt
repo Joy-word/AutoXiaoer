@@ -59,5 +59,23 @@ class ToolRegistry(val tools: List<AgentTool>) {
                 RandomNumberTool(),
             ),
         )
+
+        /**
+         * Returns a [ToolRegistry] that includes [RequestBrainTool] only when [brainEnabled]
+         * is true. When the expressor is disabled or not configured, the `request_brain` tool
+         * is excluded entirely — saving tokens and preventing accidental calls.
+         */
+        fun forBrainState(brainEnabled: Boolean): ToolRegistry {
+            val tools = default().tools.toMutableList()
+            if (!brainEnabled) {
+                tools.removeAll {
+                    it.name == RequestBrainTool.NAME ||
+                        it.name == ReadRelationshipsTool.NAME ||
+                        it.name == UpdateRelationshipsTool.NAME ||
+                        it.name == RandomNumberTool.NAME
+                }
+            }
+            return ToolRegistry(tools)
+        }
     }
 }

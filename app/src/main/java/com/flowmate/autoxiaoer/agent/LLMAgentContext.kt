@@ -81,4 +81,19 @@ class LLMAgentContext(private val systemPrompt: String) {
      * Returns the number of completed planning rounds (assistant turns).
      */
     fun getPlanningRoundCount(): Int = messages.count { it is ChatMessage.Assistant }
+
+    /**
+     * Injects the current planning round number into the conversation context
+     * so the LLM is aware of its progress within the ReAct loop.
+     *
+     * Called by [LLMAgent] at the start of each planning round before the model request.
+     */
+    fun addRoundContext(round: Int, maxRounds: Int, isEnglish: Boolean) {
+        val text = if (isEnglish) {
+            "[Current planning round: $round / $maxRounds]"
+        } else {
+            "【当前规划轮次】第 $round / $maxRounds 轮"
+        }
+        messages.add(ChatMessage.User(text))
+    }
 }

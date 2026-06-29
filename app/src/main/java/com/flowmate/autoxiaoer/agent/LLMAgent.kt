@@ -218,6 +218,8 @@ class LLMAgent(
                 listener?.onPlanningRoundStarted(round)
                 toolContext.currentPlanningRound = round
 
+                ctx.addRoundContext(round, config.maxPlanningSteps, toolContext.isEnglish)
+
                 val response = requestModel(ctx, advertisedTools)
                     ?: return@coroutineScope finishOnNetworkError(round)
 
