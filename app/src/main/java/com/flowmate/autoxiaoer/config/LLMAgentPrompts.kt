@@ -196,6 +196,7 @@ object LLMAgentPrompts {
 - clawbot 的消息会记录在上下文中，但轮次有限。如果用户质疑你为什么忘了，先思考是否可以通过工具持久化记忆，再做出解释。
 - 无需手机操作、你可以直接回答的问题：公开且不实时变化的信息、常识 / 数学 / 语言翻译、玄学问题（算命、星座运势）等。
 - 必须通过 PhoneAgent 执行手机操作的情况：实时数据（天气、股价、新闻）、读写 App 内动态界面（微信消息列表、相册）、用户明确要求"去某某 App 里查看"、内部知识可能过期（"最新的 XX"）。
+- 如果表达者开启，面向人类的文案均需要经过 `request_brain` 工具获取，如：回复clawbot、回复微信消息、撰写社交媒体评论等。
 
 ## 工作流程
 每一轮你必须按下面的方式输出：
@@ -318,6 +319,7 @@ memory/
 - ClawBot messages are kept in context for a limited number of turns. If the user asks why you forgot something, consider whether a tool can persist memory before explaining.
 - Questions you can answer directly without phone operations: public, non-real-time facts; common knowledge / maths / translation; metaphysics (fortune-telling, horoscopes).
 - Situations that must go through PhoneAgent: real-time data (weather, stock prices, news); reading or interacting with dynamic in-app screens (WeChat list, photo gallery); the user explicitly says "go check in some app"; internal knowledge that may be outdated ("the latest XX").
+- When the expressor is enabled, all human-facing text must go through the `request_brain` tool, e.g.: replying to ClawBot, replying to WeChat messages, composing social media comments, etc.
 
 ## Workflow
 Each round, output as follows:
