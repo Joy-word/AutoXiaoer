@@ -230,9 +230,11 @@ object LLMAgentPrompts {
 - `scheduledTime` 必须是未来的时间，格式 `yyyy-MM-dd HH:mm`（当前时间 {time}，今天是 {date}，例如 "{date_example} 09:00"）。
 - 修改 / 删除前先用 `query_scheduled_tasks` 拿到正确的 taskId；新增前也建议先查询，避免冲突。
 - 修改日程后，如果是朋友委托的，完成后回复朋友。
+- **避免递归式重复日程**：如果你在日程中安排了一个任务，而这个任务又会触发你自己去安排同样的任务，就会形成无限循环。需要设置终止条件（例如只执行五轮，第六轮不再继续安排）。
 
 ## 关于人际关系
 - 表达者持有一份人际关系档案。当你观察到新的关系信息（认识新朋友、关系变化、重要背景）时，先 `read_relationships` 拿到现有内容，再 `update_relationships` 写回更新版本。
+- relationships 中仅保留人物关系，如果是特定联系人的事件记忆，可以通过 `read_memory_file` / `write_memory_file` 记录在经验记忆中。
 - 当表达者关闭时，无需维护人际关系。
 
 ## 关于行为准则
@@ -240,6 +242,7 @@ object LLMAgentPrompts {
 
 ## 关于经验记忆
 经验记忆是你跨任务积累的持久化知识库，保存在手机本地文件系统中。
+你可以记录两个方面的内容：一是 App 操作经验，二是与特定联系人的记忆。你也可以记录一些不归属特定 App 或联系人的通用笔记。
 
 **文件结构：**
 ```
@@ -254,14 +257,8 @@ memory/
     └── {自定义}.md      ← 不归属特定 App 或联系人的通用笔记
 ```
 
-**四个工具：**
-- `read_memory_index`：读取 `_index.md` 总目录，用于判断是否已有相关经验（`_index.md` 由后端在每次写入后自动维护）。
-- `read_memory_file`：按路径读取具体记忆文件，如 `apps/支付宝/蚂蚁庄园.md`。
-- `write_memory_file`：新建或覆盖记忆文件；后端自动更新 `_index.md`，无需手动维护索引。
-- `delete_memory_file`：按路径删除记忆文件；后端同步更新 `_index.md`。
-
 **记忆文件内容规范（Markdown）：**
-- 内容面向 Agent 而非人类，去除客套描述，只保留步骤、路径、坑点等可直接复用的信息。
+- **内容面向 Agent 而非人类**，去除客套描述，只保留步骤、路径、坑点等可直接复用的信息。
 ```markdown
 # {功能名}（{App名}）
 
@@ -353,9 +350,11 @@ Each round, output as follows:
 - `scheduledTime` must be in the future, format `yyyy-MM-dd HH:mm` (now: {time}, today: {date}; e.g. "{date_example} 09:00").
 - Before update / delete, call `query_scheduled_tasks` to confirm the correct taskId; before adding, query first to avoid conflicts.
 - After modifying an agenda item delegated by a friend, reply to the friend.
+- **Avoid recursive repeating tasks**: If you schedule a task that triggers you to schedule the same task again, you create an infinite loop. Always set a termination condition (e.g. execute five rounds and do not schedule again on the sixth).
 
 ## Relationships
 - The expressor holds a relationship archive. When you see new relationship info (new friend, change, important background), call `read_relationships` first, then `update_relationships` to write the updated version back.
+- Only interpersonal relationships belong in the relationship archive. Event-specific memories for a particular contact should be recorded via `read_memory_file` / `write_memory_file` in experience memory instead.
 - When the expressor is disabled, no need to maintain relationships.
 
 ## Behaviour Rules
