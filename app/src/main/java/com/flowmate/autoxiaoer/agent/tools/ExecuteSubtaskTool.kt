@@ -19,43 +19,32 @@ class ExecuteSubtaskTool : AgentTool {
     override val description: String =
         "Dispatch one concrete operation to phone-agent (the executor that drives the screen). " +
             "Issue ONE sub-task at a time and wait for the observation before the next step. " +
-            "preGeneratedTexts must contain any text that needs to be typed verbatim during the sub-task."
+            "preGeneratedTexts must contain any text that needs to be typed verbatim during the sub-task; " +
+            "pass an empty object {} when no text input is needed."
     override val parametersSchema =
-        objectSchema(required = listOf("subtask")) {
-            objectField(
-                name = "subtask",
-                description = "The sub-task payload.",
-                required = listOf("description"),
-            ) {
-                stringField(
-                    "description",
-                    "Specific, actionable instruction including target app, screen, and action.",
-                )
-                stringMapField(
-                    "preGeneratedTexts",
-                    "Map of purpose label → exact text to type. " +
-                        "Human-facing wording must come from request_brain first. " +
-                        "Pass an empty object when no text input is needed.",
-                )
-            }
+        objectSchema(required = listOf("description")) {
+            stringField(
+                "description",
+                "Specific, actionable instruction including target app, screen, and action.",
+            )
+            stringMapField(
+                "preGeneratedTexts",
+                "Map of purpose label → exact text to type. " +
+                    "Human-facing wording must come from request_brain first. " +
+                    "Pass an empty object when no text input is needed.",
+            )
         }
 
     override suspend fun execute(args: JSONObject, ctx: ToolContext): ToolResult = coroutineScope {
-        val subtaskJson = args.optJSONObject("subtask")
-            ?: return@coroutineScope ToolResult.Continue(
-                if (ctx.isEnglish) "execute_subtask is missing the `subtask` field. Please retry."
-                else "你输出的 execute_subtask 缺少 subtask 字段，请重新输出。",
-            )
-
-        val description = subtaskJson.optString("description").ifBlank {
+        val description = args.optString("description").ifBlank {
             return@coroutineScope ToolResult.Continue(
-                if (ctx.isEnglish) "execute_subtask.subtask.description must not be blank."
-                else "execute_subtask.subtask.description 不能为空。",
+                if (ctx.isEnglish) "execute_subtask.description must not be blank."
+                else "execute_subtask.description 不能为空。",
             )
         }
 
         val preGeneratedTexts = mutableMapOf<String, String>()
-        subtaskJson.optJSONObject("preGeneratedTexts")?.let { textsJson ->
+        args.optJSONObject("preGeneratedTexts")?.let { textsJson ->
             textsJson.keys().forEach { key ->
                 preGeneratedTexts[key] = textsJson.optString(key)
             }
