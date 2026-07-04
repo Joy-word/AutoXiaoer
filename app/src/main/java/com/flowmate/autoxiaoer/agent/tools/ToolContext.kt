@@ -7,6 +7,7 @@ import com.flowmate.autoxiaoer.agent.LLMAgentListener
 import com.flowmate.autoxiaoer.agent.PhoneAgent
 import com.flowmate.autoxiaoer.history.HistoryManager
 import com.flowmate.autoxiaoer.task.TriggerContext
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -49,4 +50,15 @@ class ToolContext(
      * execute_subtask) can attribute them to the correct round in [HistoryManager].
      */
     var currentPlanningRound: Int? = null
+
+    /**
+     * Per-resource read tokens used to enforce "read before write" on preference resources.
+     *
+     * A token is inserted by the corresponding `read_*` tool and must be supplied verbatim
+     * by the matching `update_*` tool. The token is removed on first successful use so that
+     * each update requires a fresh read.
+     *
+     * Keys are resource names (e.g. `"relationships"`, `"behavior_rules"`).
+     */
+    val readTokens: ConcurrentHashMap<String, String> = ConcurrentHashMap()
 }
