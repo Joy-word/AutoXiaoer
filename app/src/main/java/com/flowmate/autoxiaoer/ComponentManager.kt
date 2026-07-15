@@ -5,6 +5,7 @@ import com.flowmate.autoxiaoer.action.ActionHandler
 import com.flowmate.autoxiaoer.agent.BrainLLM
 import com.flowmate.autoxiaoer.agent.LLMAgent
 import com.flowmate.autoxiaoer.agent.PhoneAgent
+import com.flowmate.autoxiaoer.agent.tools.ToolRegistry
 import com.flowmate.autoxiaoer.agent.PhoneAgentListener
 import com.flowmate.autoxiaoer.app.AppResolver
 import com.flowmate.autoxiaoer.device.DeviceExecutor
@@ -248,6 +249,7 @@ class ComponentManager private constructor(private val context: Context) {
             historyManager = historyManager,
             context = context,
             brainLLM = brainLLMInternal,
+            toolRegistry = ToolRegistry.forBrainState(brainLLMInternal?.isEnabled == true),
         )
 
         Logger.i(TAG, "All service-dependent components initialized")
@@ -329,6 +331,7 @@ class ComponentManager private constructor(private val context: Context) {
             historyManager = historyManager,
             context = context,
             brainLLM = brainLLMInternal,
+            toolRegistry = ToolRegistry.forBrainState(brainLLMInternal?.isEnabled == true),
         )
 
         Logger.i(TAG, "PhoneAgent, LLMAgent and BrainLLM reinitialized with new configuration")

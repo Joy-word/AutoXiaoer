@@ -1338,12 +1338,12 @@ Please re-analyze the current screenshot and output correct coordinates (within 
             sb.appendLine()
             sb.appendLine()
             if (config.language.lowercase() == "en" || config.language.lowercase() == "english") {
-                sb.appendLine("【Pre-generated content — use verbatim, do NOT generate your own】")
+                sb.appendLine("【When you need to type text, use the following pre-generated content EXACTLY as provided.】")
                 subTask.preGeneratedTexts.forEach { (purpose, content) ->
                     sb.appendLine("- $purpose: 「$content」")
                 }
             } else {
-                sb.appendLine("【预生成内容——直接使用以下内容，不要自行生成】")
+                sb.appendLine("【当需要输入文字时，请直接使用下面提供的预生成内容】")
                 subTask.preGeneratedTexts.forEach { (purpose, content) ->
                     sb.appendLine("- $purpose：「$content」")
                 }

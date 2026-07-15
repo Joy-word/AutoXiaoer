@@ -29,10 +29,24 @@ class ScheduledTaskScheduler(private val context: Context) {
             return false
         }
 
-        val triggerTime = task.scheduledTimeMillis
-        if (triggerTime <= System.currentTimeMillis()) {
-            Logger.w(TAG, "Task ${task.id} scheduled time is in the past, skipping")
-            return false
+        val now = System.currentTimeMillis()
+        val triggerTime: Long
+        if (task.scheduledTimeMillis <= now) {
+            // One-time tasks that are in the past cannot be recovered
+            if (task.repeatType == RepeatType.ONCE) {
+                Logger.w(TAG, "One-time task ${task.id} scheduled time is in the past, skipping")
+                return false
+            }
+            // For repeating tasks, calculate the next valid execution time from now
+            val nextTime = calculateNextExecutionTime(task, now)
+            if (nextTime == null) {
+                Logger.w(TAG, "Task ${task.id} could not calculate next execution time, skipping")
+                return false
+            }
+            triggerTime = nextTime
+            Logger.i(TAG, "Task ${task.id} original time was in the past, rescheduled to ${formatTime(triggerTime)}")
+        } else {
+            triggerTime = task.scheduledTimeMillis
         }
 
         try {
