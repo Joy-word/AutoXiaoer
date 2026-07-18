@@ -64,6 +64,9 @@ data class HistoryStep(
  * @property tokenUsage Token consumption for the LLMAgent (controller) call in this round, or null if unavailable
  * @property brainTokenUsage Token consumption for the BrainLLM call in this round (only set for
  *   [actionType] == "request_brain"), or null if unavailable or not applicable
+ * @property plan Raw text inside the model's `<plan>...</plan>` block for this round, or null if the
+ *   model did not re-emit a plan this round (i.e. it judged the task overview / done / remaining
+ *   items unchanged since the last round that did emit one).
  * @property steps PhoneAgent execution steps belonging to this round (e.g. sub-task steps)
  */
 data class LLMPlanningRound(
@@ -79,6 +82,7 @@ data class LLMPlanningRound(
     val message: String? = null,
     val tokenUsage: TokenUsage? = null,
     val brainTokenUsage: TokenUsage? = null,
+    val plan: String? = null,
     val steps: MutableList<HistoryStep> = mutableListOf(),
 )
 

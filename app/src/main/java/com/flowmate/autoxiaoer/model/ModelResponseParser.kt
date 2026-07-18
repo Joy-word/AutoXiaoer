@@ -230,6 +230,14 @@ object ModelResponseParser {
     fun parseLlmAgentActionBlock(content: String): String? = extractTaggedBlock(content, "action")?.trim()
 
     /**
+     * Returns the inner text of the first `<plan>...</plan>` block for LLMAgent, or null if absent
+     * or blank. The model only emits this block when the plan (task overview / done / remaining)
+     * actually changed in the current round; [LLMAgent] retains the last non-null value across
+     * rounds and echoes it back via [LLMAgentContext.addRoundContext].
+     */
+    fun parseLlmAgentPlan(content: String): String? = extractTaggedBlock(content, "plan")?.trim()?.ifBlank { null }
+
+    /**
      * Returns the inner text of the first `<tag>...</tag>` block, or null if absent.
      */
     internal fun extractTaggedBlock(text: String, tag: String): String? {

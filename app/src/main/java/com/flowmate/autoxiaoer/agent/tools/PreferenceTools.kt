@@ -46,6 +46,8 @@ class UpdateRelationshipsTool : AgentTool {
     override val name: String = NAME
     override val description: String =
         "Replace the entire relationship archive with the provided content. " +
+            "This archive only records content related to you and your friends. " +
+            "This is a full overwrite, not a merge, so update carefully. " +
             "Read the existing archive first, then write back an updated version."
     override val parametersSchema =
         objectSchema(required = listOf("content", "read_token")) {

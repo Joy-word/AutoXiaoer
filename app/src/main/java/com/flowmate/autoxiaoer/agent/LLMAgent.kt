@@ -200,6 +200,10 @@ class LLMAgent(
 
         val advertisedTools = toolRegistry.openAIToolDtos()
 
+        // Framework-managed plan state: retains the last <plan> block emitted by the model
+        // so it is echoed back each round instead of relying on the model to retype it.
+        var currentPlan = ""
+
         var round = 0
         try {
             while (round < config.maxPlanningSteps) {
@@ -218,7 +222,7 @@ class LLMAgent(
                 listener?.onPlanningRoundStarted(round)
                 toolContext.currentPlanningRound = round
 
-                ctx.addRoundContext(round, config.maxPlanningSteps, toolContext.isEnglish)
+                ctx.addRoundContext(round, config.maxPlanningSteps, toolContext.isEnglish, currentPlan)
 
                 val response = requestModel(ctx, advertisedTools)
                     ?: return@coroutineScope finishOnNetworkError(round)
@@ -228,6 +232,23 @@ class LLMAgent(
                 }
                 Logger.d(TAG, "LLM thinking: ${thinking.take(200)}")
                 listener?.onThinkingUpdate(thinking)
+
+                val newPlan = ModelResponseParser.parseLlmAgentPlan(response.rawContent)
+                if (round == 1 && newPlan == null) {
+                    Logger.w(TAG, "LLM produced no <plan> block on round 1; nudging it")
+                    ctx.addAssistantMessage(response.rawContent.ifBlank { "" })
+                    ctx.addUserMessage(
+                        if (toolContext.isEnglish) {
+                            "You must output a <plan> block before your first tool call, covering the task overview, done, and remaining items."
+                        } else {
+                            "第一轮必须先输出 <plan> 块，包含【任务全貌】【已完成】【待完成】三段，再进行工具调用。"
+                        },
+                    )
+                    continue
+                }
+                if (newPlan != null) {
+                    currentPlan = newPlan
+                }
 
                 val toolCall = response.toolCalls.firstOrNull()
                 if (toolCall == null || toolCall.name.isBlank()) {
@@ -261,6 +282,7 @@ class LLMAgent(
                             actionType = toolCall.name,
                             message = err,
                             tokenUsage = response.tokenUsage,
+                            plan = newPlan,
                         ),
                     )
                     continue
@@ -282,6 +304,7 @@ class LLMAgent(
                             actionType = toolCall.name,
                             message = err,
                             tokenUsage = response.tokenUsage,
+                            plan = newPlan,
                         ),
                     )
                     continue
@@ -300,6 +323,7 @@ class LLMAgent(
                                 roundTokenUsage = response.tokenUsage,
                                 brainTokenUsage = result.brainTokenUsage,
                                 subTaskMeta = result.subTaskMeta,
+                                plan = newPlan,
                             ),
                         )
                         if (cancelRequested.get() || !isActive) {
@@ -318,6 +342,7 @@ class LLMAgent(
                                 roundTokenUsage = response.tokenUsage,
                                 brainTokenUsage = null,
                                 subTaskMeta = null,
+                                plan = newPlan,
                             ),
                         )
                         val taskResult = LLMTaskResult(result.success, result.message, round)
@@ -424,6 +449,7 @@ class LLMAgent(
         roundTokenUsage: TokenUsage?,
         brainTokenUsage: TokenUsage?,
         subTaskMeta: SubTaskMeta?,
+        plan: String? = null,
     ): LLMPlanningRound {
         val timestamp = subTaskMeta?.planningRoundTimestamp ?: System.currentTimeMillis()
         return LLMPlanningRound(
@@ -439,6 +465,7 @@ class LLMAgent(
             message = observation,
             tokenUsage = roundTokenUsage,
             brainTokenUsage = brainTokenUsage,
+            plan = plan,
         )
     }
 

@@ -83,17 +83,39 @@ class LLMAgentContext(private val systemPrompt: String) {
     fun getPlanningRoundCount(): Int = messages.count { it is ChatMessage.Assistant }
 
     /**
-     * Injects the current planning round number into the conversation context
-     * so the LLM is aware of its progress within the ReAct loop.
+     * Injects the current planning round number, and the last known plan, into the
+     * conversation context so the LLM is aware of its progress within the ReAct loop.
+     *
+     * The plan text is framework-managed: [LLMAgent] retains whatever the model last put
+     * inside a `<plan>` block and echoes it back here every round. The model is not expected
+     * to recall or retype the plan from earlier turns — it only needs to emit a new `<plan>`
+     * block when the task overview / done / remaining items actually change.
      *
      * Called by [LLMAgent] at the start of each planning round before the model request.
+     *
+     * @param currentPlan The last `<plan>` block content recorded so far, or blank if none yet
+     *   (expected only before round 1's response has been parsed).
      */
-    fun addRoundContext(round: Int, maxRounds: Int, isEnglish: Boolean) {
-        val text = if (isEnglish) {
+    fun addRoundContext(round: Int, maxRounds: Int, isEnglish: Boolean, currentPlan: String) {
+        val roundLine = if (isEnglish) {
             "[Current planning round: $round / $maxRounds]"
         } else {
             "【当前规划轮次】第 $round / $maxRounds 轮"
         }
-        messages.add(ChatMessage.User(text))
+        val planLine = if (currentPlan.isBlank()) {
+            if (isEnglish) {
+                "[No plan recorded — you must output a <plan> block this round.]"
+            } else {
+                "【计划】尚无记录，本轮必须先输出 <plan> 块。"
+            }
+        } else {
+            val label = if (isEnglish) {
+                "[Plan from the previous round — update the <plan> block first based on the tool result]"
+            } else {
+                "【上一轮计划】- 请先根据 tool 结果更新 <plan> 块）"
+            }
+            "$label\n$currentPlan"
+        }
+        messages.add(ChatMessage.User("$roundLine\n\n$planLine"))
     }
 }
