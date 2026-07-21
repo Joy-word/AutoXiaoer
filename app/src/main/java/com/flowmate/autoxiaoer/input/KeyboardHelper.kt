@@ -79,8 +79,8 @@ object KeyboardHelper {
      * @return Status message describing keyboard availability
      */
     fun getKeyboardStatusMessage(context: Context): String = when (getAutoGLMKeyboardStatus(context)) {
-        KeyboardStatus.ENABLED -> "AutoGLM Keyboard 已启用"
-        KeyboardStatus.NOT_ENABLED -> "请启用 AutoGLM Keyboard"
+        KeyboardStatus.ENABLED -> "XiaoEr Keyboard 已启用"
+        KeyboardStatus.NOT_ENABLED -> "请启用 XiaoEr Keyboard"
     }
 
     /**

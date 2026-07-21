@@ -128,7 +128,7 @@ class TextInputManager(private val userService: IUserService) {
 
         // AutoGLM Keyboard not available
         Logger.e(TAG, "AutoGLM Keyboard not available")
-        return InputResult.failure("AutoGLM Keyboard 未启用。请在系统设置中启用 AutoGLM Keyboard。")
+        return InputResult.failure("XiaoEr Keyboard 未启用。请在系统设置中启用 XiaoEr Keyboard。")
     }
 
     /**
