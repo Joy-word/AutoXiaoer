@@ -1761,6 +1761,7 @@ class SettingsFragment : Fragment() {
             dialogView.findViewById<CheckBox>(R.id.checkExportTaskHistory),
             dialogView.findViewById<CheckBox>(R.id.checkExportScheduledTasks),
             dialogView.findViewById<CheckBox>(R.id.checkExportTaskTemplates),
+            dialogView.findViewById<CheckBox>(R.id.checkExportMemory),
         )
 
         lateinit var sectionListener: CompoundButton.OnCheckedChangeListener
@@ -1816,6 +1817,7 @@ class SettingsFragment : Fragment() {
             taskHistory = checkboxes[4].isChecked,
             scheduledTasks = checkboxes[5].isChecked,
             taskTemplates = checkboxes[6].isChecked,
+            memory = checkboxes[7].isChecked,
         )
     }
 
@@ -2035,6 +2037,7 @@ class SettingsFragment : Fragment() {
         DataMigrationManager.SECTION_TASK_HISTORY -> getString(R.string.settings_export_section_task_history)
         DataMigrationManager.SECTION_SCHEDULED_TASKS -> getString(R.string.settings_export_section_scheduled_tasks)
         DataMigrationManager.SECTION_TASK_TEMPLATES -> getString(R.string.settings_export_section_task_templates)
+        DataMigrationManager.SECTION_MEMORY -> getString(R.string.settings_export_section_memory)
         else -> section
     }
 
@@ -2050,6 +2053,7 @@ class SettingsFragment : Fragment() {
             taskHistory = isChecked(DataMigrationManager.SECTION_TASK_HISTORY),
             scheduledTasks = isChecked(DataMigrationManager.SECTION_SCHEDULED_TASKS),
             taskTemplates = isChecked(DataMigrationManager.SECTION_TASK_TEMPLATES),
+            memory = isChecked(DataMigrationManager.SECTION_MEMORY),
         )
     }
 

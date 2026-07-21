@@ -283,6 +283,7 @@ object DataMigrationManager {
                 SECTION_TASK_HISTORY -> options.taskHistory
                 SECTION_SCHEDULED_TASKS -> options.scheduledTasks
                 SECTION_TASK_TEMPLATES -> options.taskTemplates
+                SECTION_MEMORY -> options.memory
                 else -> false
             }
             if (!include) continue
