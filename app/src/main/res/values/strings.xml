@@ -280,6 +280,7 @@
     <string name="settings_logs_cleared">日志已清空</string>
     <string name="settings_logs_export_failed">导出失败</string>
     <string name="settings_logs_empty">暂无日志</string>
+    <string name="settings_logs_exporting">导出中...</string>
     <string name="settings_clear_logs_confirm">确定要清空所有日志吗？</string>
     
     <!-- AutoGLM Keyboard -->

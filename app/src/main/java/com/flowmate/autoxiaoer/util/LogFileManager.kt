@@ -128,17 +128,22 @@ object LogFileManager {
     }
 
     /**
-     * Exports all logs as a zip file and returns a share intent.
+     * Builds a sanitized zip file containing all logs and device info.
      *
      * Sensitive data is sanitized before export:
      * - URLs are partially masked
      * - Profile names are masked
      * - App lists are removed
      *
+     * This only writes the zip to the app's cache directory; it does not
+     * save a copy anywhere else or launch a share sheet. Call this on a
+     * background thread (e.g. `Dispatchers.IO`) since it performs file I/O
+     * and CPU-bound regex sanitization.
+     *
      * @param context Context for file operations
-     * @return Share intent for the exported zip file, or null if export failed
+     * @return The created zip [File], or null if export failed
      */
-    fun exportLogs(context: Context): Intent? = try {
+    fun createLogsZipFile(context: Context): File? = try {
         val exportDir = File(context.cacheDir, "export")
         exportDir.mkdirs()
 
@@ -161,7 +166,21 @@ object LogFileManager {
             }
         }
 
-        // Create share intent
+        zipFile
+    } catch (e: Exception) {
+        Logger.e(TAG, "Failed to create logs zip", e)
+        null
+    }
+
+    /**
+     * Creates a share [Intent] (chooser target) for an already-created logs zip file.
+     * This is a lightweight, non-blocking operation (just wraps a [FileProvider] URI).
+     *
+     * @param context Context for file operations
+     * @param zipFile The zip file previously created by [createLogsZipFile]
+     * @return Share intent for the zip file
+     */
+    fun createShareIntent(context: Context, zipFile: File): Intent {
         val uri =
             FileProvider.getUriForFile(
                 context,
@@ -169,15 +188,12 @@ object LogFileManager {
                 zipFile,
             )
 
-        Intent(Intent.ACTION_SEND).apply {
+        return Intent(Intent.ACTION_SEND).apply {
             type = "application/zip"
             putExtra(Intent.EXTRA_STREAM, uri)
             putExtra(Intent.EXTRA_SUBJECT, "AutoGLM Debug Logs")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-    } catch (e: Exception) {
-        Logger.e(TAG, "Failed to export logs", e)
-        null
     }
 
     /**
