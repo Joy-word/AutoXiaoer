@@ -82,5 +82,12 @@
             android:text="@string/settings_export_section_task_templates"
             android:textSize="16sp" />
 
+        <CheckBox
+            android:id="@+id/checkExportMemory"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/settings_export_section_memory"
+            android:textSize="16sp" />
+
     </LinearLayout>
 </ScrollView>
