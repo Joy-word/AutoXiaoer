@@ -281,6 +281,7 @@
     <string name="settings_logs_cleared">日志已清空</string>
     <string name="settings_logs_export_failed">导出失败</string>
     <string name="settings_logs_empty">暂无日志</string>
+    <string name="settings_logs_exporting">导出中...</string>
     <string name="settings_clear_logs_confirm">确定要清空所有日志吗？</string>
     
     <!-- AutoGLM Keyboard -->
@@ -434,6 +435,7 @@
     <string name="settings_export_section_task_history">历史任务</string>
     <string name="settings_export_section_scheduled_tasks">定时任务</string>
     <string name="settings_export_section_task_templates">任务模板</string>
+    <string name="settings_export_section_memory">经验记忆</string>
     <string name="settings_export_nothing_selected">请至少选择一项导出内容</string>
     <string name="settings_export_success">数据已导出，请选择保存位置</string>
     <string name="settings_export_failed">导出失败</string>

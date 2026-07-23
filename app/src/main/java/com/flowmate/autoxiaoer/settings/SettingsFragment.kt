@@ -112,6 +112,7 @@ class SettingsFragment : Fragment() {
     private lateinit var logSizeText: TextView
     private lateinit var btnExportLogs: Button
     private lateinit var btnClearLogs: Button
+    private var isExportingLogs = false
 
     // Data migration views
     private lateinit var btnExportData: Button
@@ -635,6 +636,8 @@ class SettingsFragment : Fragment() {
     }
 
     private fun exportDebugLogs() {
+        if (isExportingLogs) return
+
         Logger.i(TAG, "Exporting debug logs")
 
         val logFiles = LogFileManager.getLogFiles()
@@ -643,11 +646,46 @@ class SettingsFragment : Fragment() {
             return
         }
 
-        val shareIntent = LogFileManager.exportLogs(requireContext())
-        if (shareIntent != null) {
-            startActivity(Intent.createChooser(shareIntent, getString(R.string.settings_export_logs)))
-        } else {
-            Toast.makeText(requireContext(), R.string.settings_logs_export_failed, Toast.LENGTH_SHORT).show()
+        val ctx = requireContext()
+        val originalText = btnExportLogs.text
+        isExportingLogs = true
+        btnExportLogs.isEnabled = false
+        btnExportLogs.text = getString(R.string.settings_logs_exporting)
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                // Build the zip and save a copy to Downloads first, mirroring performExport().
+                val zipFile = withContext(Dispatchers.IO) {
+                    LogFileManager.createLogsZipFile(ctx)
+                }
+                if (zipFile == null) {
+                    Toast.makeText(ctx, R.string.settings_logs_export_failed, Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+
+                val savedPath = withContext(Dispatchers.IO) {
+                    DataMigrationManager.saveToDownloads(ctx, zipFile)
+                }
+                if (savedPath != null) {
+                    Toast.makeText(ctx, "已保存到: $savedPath", Toast.LENGTH_LONG).show()
+                }
+
+                // Also try to launch the share sheet (useful on real devices).
+                try {
+                    val shareIntent = LogFileManager.createShareIntent(ctx, zipFile)
+                    startActivity(Intent.createChooser(shareIntent, getString(R.string.settings_export_logs)))
+                } catch (e: Exception) {
+                    Logger.e(TAG, "Share intent failed (file already saved to Downloads)", e)
+                }
+
+                if (savedPath == null) {
+                    Toast.makeText(ctx, R.string.settings_logs_export_failed, Toast.LENGTH_SHORT).show()
+                }
+            } finally {
+                isExportingLogs = false
+                btnExportLogs.isEnabled = true
+                btnExportLogs.text = originalText
+            }
         }
     }
 
@@ -1761,6 +1799,7 @@ class SettingsFragment : Fragment() {
             dialogView.findViewById<CheckBox>(R.id.checkExportTaskHistory),
             dialogView.findViewById<CheckBox>(R.id.checkExportScheduledTasks),
             dialogView.findViewById<CheckBox>(R.id.checkExportTaskTemplates),
+            dialogView.findViewById<CheckBox>(R.id.checkExportMemory),
         )
 
         lateinit var sectionListener: CompoundButton.OnCheckedChangeListener
@@ -1816,6 +1855,7 @@ class SettingsFragment : Fragment() {
             taskHistory = checkboxes[4].isChecked,
             scheduledTasks = checkboxes[5].isChecked,
             taskTemplates = checkboxes[6].isChecked,
+            memory = checkboxes[7].isChecked,
         )
     }
 
@@ -2035,6 +2075,7 @@ class SettingsFragment : Fragment() {
         DataMigrationManager.SECTION_TASK_HISTORY -> getString(R.string.settings_export_section_task_history)
         DataMigrationManager.SECTION_SCHEDULED_TASKS -> getString(R.string.settings_export_section_scheduled_tasks)
         DataMigrationManager.SECTION_TASK_TEMPLATES -> getString(R.string.settings_export_section_task_templates)
+        DataMigrationManager.SECTION_MEMORY -> getString(R.string.settings_export_section_memory)
         else -> section
     }
 
@@ -2050,6 +2091,7 @@ class SettingsFragment : Fragment() {
             taskHistory = isChecked(DataMigrationManager.SECTION_TASK_HISTORY),
             scheduledTasks = isChecked(DataMigrationManager.SECTION_SCHEDULED_TASKS),
             taskTemplates = isChecked(DataMigrationManager.SECTION_TASK_TEMPLATES),
+            memory = isChecked(DataMigrationManager.SECTION_MEMORY),
         )
     }
 
