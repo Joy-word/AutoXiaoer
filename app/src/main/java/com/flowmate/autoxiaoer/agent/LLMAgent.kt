@@ -16,6 +16,7 @@ import com.flowmate.autoxiaoer.config.LLMAgentPrompts
 import com.flowmate.autoxiaoer.history.HistoryManager
 import com.flowmate.autoxiaoer.history.LLMPlanningRound
 import com.flowmate.autoxiaoer.history.TaskHistory
+import com.flowmate.autoxiaoer.model.ChatMessage
 import com.flowmate.autoxiaoer.model.ModelClient
 import com.flowmate.autoxiaoer.model.ModelResponse
 import com.flowmate.autoxiaoer.model.ModelResponseParser
@@ -234,14 +235,14 @@ class LLMAgent(
                 listener?.onThinkingUpdate(thinking)
 
                 val newPlan = ModelResponseParser.parseLlmAgentPlan(response.rawContent)
-                if (round == 1 && newPlan == null) {
-                    Logger.w(TAG, "LLM produced no <plan> block on round 1; nudging it")
+                if (newPlan == null) {
+                    Logger.w(TAG, "LLM produced no <plan> block on round $round; nudging it")
                     ctx.addAssistantMessage(response.rawContent.ifBlank { "" })
                     ctx.addUserMessage(
                         if (toolContext.isEnglish) {
-                            "You must output a <plan> block before your first tool call, covering the task overview, done, and remaining items."
+                            "You must output a <plan> block every round before your tool call, covering the task overview, done, and remaining items."
                         } else {
-                            "第一轮必须先输出 <plan> 块，包含【任务全貌】【已完成】【待完成】三段，再进行工具调用。"
+                            "每轮都必须先输出 <plan> 块，包含【任务全貌】【已完成】【待完成】三段，再进行工具调用。"
                         },
                     )
                     continue
@@ -388,8 +389,12 @@ class LLMAgent(
         ctx: LLMAgentContext,
         tools: List<ToolDto>,
     ): ModelResponse? {
+        logModelInput(ctx)
         val first = modelClient.request(ctx.getMessages(), currentScreenshot = null, tools = tools)
-        if (first is ModelResult.Success) return first.response
+        if (first is ModelResult.Success) {
+            logModelResponse(first.response)
+            return first.response
+        }
 
         val firstError = (first as ModelResult.Error).error.message
         Logger.e(TAG, "LLM request failed: $firstError")
@@ -400,10 +405,42 @@ class LLMAgent(
         val retry = modelClient.request(ctx.getMessages(), currentScreenshot = null, tools = tools)
         if (retry is ModelResult.Success) {
             Logger.i(TAG, "LLM network retry succeeded")
+            logModelResponse(retry.response)
             return retry.response
         }
         Logger.e(TAG, "LLM network retry also failed: ${(retry as ModelResult.Error).error.message}")
         return null
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Debug logging helpers for prompt optimisation
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Logs the last user message (current round input) and total message count
+     * before each model request, so the prompt engineer can see what the LLM
+     * is being asked each round without the noise of full conversation history.
+     */
+    private fun logModelInput(ctx: LLMAgentContext) {
+        val messages = ctx.getMessages()
+        val lastUser = messages.lastOrNull { it is ChatMessage.User } as? ChatMessage.User
+        val inputPreview = lastUser?.text ?: "(no user message)"
+        Logger.d(
+            TAG,
+            "📤 [LLM Input] totalMessages=${messages.size} | lastUserMessage:\n$inputPreview",
+        )
+    }
+
+    /**
+     * Logs the full model response (raw content, thinking, tool calls) after
+     * each successful request, so the prompt engineer can correlate input→output.
+     */
+    private fun logModelResponse(response: ModelResponse) {
+        val tcSummary = response.toolCalls.joinToString(", ") { "${it.name}(${it.arguments})" }
+        Logger.d(
+            TAG,
+            "📥 [LLM Output] rawLen=${response.rawContent.length} | thinking=${response.thinking} | toolCalls=[$tcSummary] | rawContent:\n${response.rawContent}",
+        )
     }
 
     private suspend fun finishCancelled(round: Int): LLMTaskResult {

@@ -213,6 +213,13 @@ object LLMAgentPrompts {
         这里描述待完成任务
      </plan>
    - 如无变化，复述上一轮的 plan 即可。
+   - 做计划时，需要思考是否将经验记忆列入计划。
+        - 经验读取：
+             - 需要读取：涉及 App 操作且用户未给出具体步骤 / 涉及特定联系人 / 曾做过类似任务 → 调用 `read_memory_index`，再按需读具体文件，然后再接其他规划。
+             - 不需要读取：用户已给出完整步骤 / 纯对话无操作 → 直接进入三步思考。
+        - 经验整理：
+             - 需要写入：发现新操作路径 / 遇到坑或注意事项 / 联系人有新信息 → 先调用 `write_memory_file`，再调用 `finish`。
+             - 不需要写入：与已有记录完全一致 / 纯对话 → 直接调用 `finish`。
 2. **<think>（本轮思考，每轮必须）**
    - 只针对**这一轮要做的单个决策**进行简短推理：为什么选这个工具/动作，预期能推进【待完成】里的哪一项。
    - 示例:
@@ -230,9 +237,11 @@ object LLMAgentPrompts {
 【已完成】
   无
 【待完成】
-  1. 打开天气 App
-  2. 截图并描述天气信息
-  3. 回复用户
+  1. 查看相关的经验记忆
+  2. 打开天气 App
+  3. 截图并描述天气信息
+  4. 回复用户
+  5. 判断是否进行经验整理、更新新的相关记忆
 </plan>
 
 <think>
@@ -241,13 +250,6 @@ object LLMAgentPrompts {
 
 [此处调用 execute_subtask 工具]
 
-## **将经验读取与整理纳入 `<plan>`：**
-- 经验读取：
-  - 需要读取：涉及 App 操作且用户未给出具体步骤 / 涉及特定联系人 / 曾做过类似任务 → 调用 `read_memory_index`，再按需读具体文件，然后再开始正常规划。
-  - 不需要读取：用户已给出完整步骤 / 纯对话无操作 → 直接进入三步思考。
-- 经验整理：
-  - 需要写入：发现新操作路径 / 遇到坑或注意事项 / 联系人有新信息 → 先调用 `write_memory_file`，再调用 `finish`。
-  - 不需要写入：与已有记录完全一致 / 纯对话 → 直接调用 `finish`。
 
 ## 关于 preGeneratedTexts（execute_subtask 的子字段）
 - 凡是需要在手机上输入文字的（发消息、填表单、写评论等），一律由你提前生成好内容。
@@ -353,13 +355,18 @@ memory/
 ## Workflow
 At the start of every round, the system echoes the [Current Plan] back to you in a user message — the content of the `<plan>` block you emitted most recently. Each round, output as follows:
 
-1. **`<plan>` (plan, only output when it needs updating)**
-   - You must output `<plan>...</plan>` when:
-     a. It is round 1 (mandatory).
-     b. The task goal changed (new user request, original goal cancelled or re-scoped).
-     c. The previous tool result changed [Completed] or [Remaining] (a step finished, a new to-do surfaced, a step is no longer needed).
-   - Content is always the same three sections: [Full picture], [Completed], [Remaining].
-   - When none of the above applies, just repeat the current plan verbatim.
+1. **`<plan>` (plan, mandatory every round)**
+   - Every round you must first update and output `<plan>...</plan>` based on the previous round's plan:
+   - Example:
+      <plan>
+      [Full picture]
+        Describe the full picture of the task here
+      [Completed]
+        Describe completed items here
+      [Remaining]
+        Describe remaining items here
+     </plan>
+   - If nothing changed, repeat the previous round's plan verbatim.
 2. **`<think>` (this round's reasoning, mandatory every round)**
    - Reason briefly about **only the single decision for this round**: why this tool/action, and which [Remaining] item it should advance.
 3. **In the same round**, issue exactly one `tool_call` to advance. One tool call per round. Output order: `<plan>` → `<think>` → one tool_call.
