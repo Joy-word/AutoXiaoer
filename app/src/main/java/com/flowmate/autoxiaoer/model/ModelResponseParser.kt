@@ -231,9 +231,14 @@ object ModelResponseParser {
 
     /**
      * Returns the inner text of the first `<plan>...</plan>` block for LLMAgent, or null if absent
-     * or blank. The model only emits this block when the plan (task overview / done / remaining)
-     * actually changed in the current round; [LLMAgent] retains the last non-null value across
-     * rounds and echoes it back via [LLMAgentContext.addRoundContext].
+     * or blank.
+     *
+     * Unlike `<think>`, the model is expected to emit a `<plan>` block **every round**, even when
+     * the task overview / done / remaining items haven't changed from the previous round. This
+     * redundancy is intentional: it lets [LLMAgent] safely truncate the conversation context (e.g.
+     * keep only the most recent N rounds) for token-cost optimization while still guaranteeing the
+     * model always has its own up-to-date plan in the trimmed window, without depending on
+     * [LLMAgentContext.addRoundContext] to backfill it from an older turn that may have been dropped.
      */
     fun parseLlmAgentPlan(content: String): String? = extractTaggedBlock(content, "plan")?.trim()?.ifBlank { null }
 
