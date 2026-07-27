@@ -87,6 +87,11 @@ object ModelResponseParser {
         for (tag in TAGGED_THINKING_NAMES) {
             stripped = stripped.replace(Regex("""<$tag>[\s\S]*?</$tag>"""), "")
         }
+        // Strip the LLMAgent <plan> block as well: the plan is surfaced separately via
+        // parseLlmAgentPlan(), so it must not leak into `thinking`. Without this, a tool-call
+        // round (no <action>/do()/finish()) whose only text is a <plan> block would make the
+        // fallback treat the whole plan as thinking, hiding the model's real reasoning_content.
+        stripped = stripped.replace(Regex("""<plan>[\s\S]*?</plan>"""), "")
         return stripped
             .replace(Regex("""<answer>\s*"""), "")
             .replace(Regex("""\s*</answer>"""), "")
@@ -220,7 +225,14 @@ object ModelResponseParser {
         if (tagged.isNotBlank()) return tagged
 
         val actionStart = content.indexOf("<action>")
-        val beforeAction = if (actionStart > 0) content.substring(0, actionStart).trim() else ""
+        // Drop the <plan> block from the fallback text: the plan is surfaced separately, so a
+        // tool-call round whose only text is a <plan> block should fall through to reasoning.
+        val beforeAction =
+            if (actionStart > 0) {
+                content.substring(0, actionStart)
+            } else {
+                content.replace(Regex("""<plan>[\s\S]*?</plan>"""), "")
+            }.trim()
         return beforeAction.ifBlank { reasoningSideChannel.trim() }
     }
 
