@@ -99,6 +99,14 @@ class SettingsFragment : Fragment() {
     private lateinit var clawBotStatusText: TextView
     private lateinit var btnClawBotAction: Button
 
+    // Advanced settings views
+    private lateinit var advancedSettingsCard: View
+    private lateinit var advancedSettingsHeader: View
+    private lateinit var advancedSettingsContent: View
+    private lateinit var btnAdvancedExpandCollapse: ImageButton
+    private lateinit var switchLimitContextRounds: android.widget.Switch
+    private var isAdvancedExpanded = false
+
     // ClawBot session-expired receiver
     private val clawBotSessionExpiredReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -200,6 +208,13 @@ class SettingsFragment : Fragment() {
         btnExportData = view.findViewById(R.id.btnExportData)
         btnImportData = view.findViewById(R.id.btnImportData)
 
+        // Advanced settings
+        advancedSettingsCard = view.findViewById(R.id.advancedSettingsCard)
+        advancedSettingsHeader = view.findViewById(R.id.advancedSettingsHeader)
+        advancedSettingsContent = view.findViewById(R.id.advancedSettingsContent)
+        btnAdvancedExpandCollapse = view.findViewById(R.id.btnAdvancedExpandCollapse)
+        switchLimitContextRounds = view.findViewById(R.id.switchLimitContextRounds)
+
         // BrainLLM settings entry button
         view.findViewById<Button>(R.id.btnBrainLLMSettings)
             .setOnClickListener { showBrainLLMSettingsDialog() }
@@ -249,6 +264,8 @@ class SettingsFragment : Fragment() {
     private fun loadCurrentSettings() {
         Logger.d(TAG, "Loading current settings")
         updateLogSizeDisplay()
+        val llmConfig = settingsManager.getLLMAgentConfig()
+        switchLimitContextRounds.isChecked = llmConfig.limitContextRounds
     }
 
     /**
@@ -258,6 +275,19 @@ class SettingsFragment : Fragment() {
         // Permissions center expand/collapse
         permissionsHeader.setOnClickListener { togglePermissionsExpanded() }
         btnExpandCollapse.setOnClickListener { togglePermissionsExpanded() }
+
+        // Advanced settings expand/collapse
+        advancedSettingsHeader.setOnClickListener { toggleAdvancedExpanded() }
+        btnAdvancedExpandCollapse.setOnClickListener { toggleAdvancedExpanded() }
+
+        // Limit context rounds switch
+        switchLimitContextRounds.setOnCheckedChangeListener { _, isChecked ->
+            val current = settingsManager.getLLMAgentConfig()
+            if (current.limitContextRounds != isChecked) {
+                settingsManager.saveLLMAgentConfig(current.copy(limitContextRounds = isChecked))
+                com.flowmate.autoxiaoer.ComponentManager.getInstance(requireContext()).reinitializeAgents()
+            }
+        }
 
         // Permission action buttons
         setupPermissionActionListeners()
@@ -312,6 +342,17 @@ class SettingsFragment : Fragment() {
         permissionsContent.visibility = if (isPermissionsExpanded) View.VISIBLE else View.GONE
         btnExpandCollapse.setImageResource(
             if (isPermissionsExpanded) R.drawable.ic_expand_less else R.drawable.ic_expand_more,
+        )
+    }
+
+    /**
+     * Toggles the advanced settings card expanded/collapsed state.
+     */
+    private fun toggleAdvancedExpanded() {
+        isAdvancedExpanded = !isAdvancedExpanded
+        advancedSettingsContent.visibility = if (isAdvancedExpanded) View.VISIBLE else View.GONE
+        btnAdvancedExpandCollapse.setImageResource(
+            if (isAdvancedExpanded) R.drawable.ic_expand_less else R.drawable.ic_expand_more,
         )
     }
 
@@ -1258,7 +1299,7 @@ class SettingsFragment : Fragment() {
                     return@setPositiveButton
                 }
 
-                val newConfig = LLMAgentConfig(
+                val newConfig = config.copy(
                     baseUrl = baseUrl,
                     apiKey = apiKey,
                     modelName = modelName,

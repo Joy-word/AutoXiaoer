@@ -60,6 +60,94 @@ class LLMAgentContext(private val systemPrompt: String) {
     fun getMessages(): List<ChatMessage> = messages.toList()
 
     /**
+     * Returns a trimmed snapshot that keeps the system prompt, the initial task message,
+     * an optional retry-context message, and the most recent [maxRounds] **complete**
+     * planning rounds. Used when [LLMAgentConfig.limitContextRounds] is enabled to reduce
+     * token consumption while preserving message-sequence integrity required by the
+     * OpenAI function-calling protocol.
+     *
+     * A "complete round" is defined as an unbroken block ending with a [ChatMessage.Tool]
+     * message whose immediately-preceding assistant turn carries `tool_calls`. The scan
+     * works backwards from the tail of the message list so that partial/nudge turns at
+     * the current round boundary are naturally included.
+     *
+     * Always preserves (never trimmed):
+     *  - System prompt
+     *  - First user message (original task description from `buildInitialMessage`)
+     *  - Second user message if it looks like a retry-context summary
+     *
+     * @param maxRounds Number of complete assistant+tool round pairs to keep from the end.
+     */
+    fun getTrimmedMessages(maxRounds: Int): List<ChatMessage> {
+        val system = messages.firstOrNull { it is ChatMessage.System }
+            ?: return messages.toList()
+        val nonSystem = messages.filter { it !is ChatMessage.System }
+
+        // Always keep the initial task message (1st user) and optional retry context (2nd user).
+        val pinned = mutableListOf<ChatMessage>()
+        var pinCount = 0
+        for (msg in nonSystem) {
+            if (msg is ChatMessage.User && pinCount < 2) {
+                pinned.add(msg)
+                pinCount++
+                if (pinCount == 2) break
+            }
+        }
+        val pinnedSet = pinned.toSet()
+
+        // Walk backwards collecting complete assistant(tool_calls)+tool groups.
+        // A "group" is: everything from the assistant-with-tool-calls message up to and
+        // including all consecutive tool messages that follow it.  Round-context user
+        // messages that immediately precede the assistant are folded into the same group
+        // so we never split a round-context/assistant/tool triple.
+        val groups = ArrayDeque<List<ChatMessage>>() // front = oldest kept group
+        var i = nonSystem.size - 1
+        var roundsCollected = 0
+
+        while (i >= 0 && roundsCollected < maxRounds) {
+            val msg = nonSystem[i]
+            if (msg in pinnedSet) { i--; continue }
+
+            if (msg is ChatMessage.Tool) {
+                // Collect all trailing tool messages for this round.
+                val group = mutableListOf<ChatMessage>()
+                while (i >= 0 && nonSystem[i] is ChatMessage.Tool) {
+                    group.add(0, nonSystem[i])
+                    i--
+                }
+                // Now find the assistant message with tool_calls.
+                while (i >= 0) {
+                    val candidate = nonSystem[i]
+                    if (candidate is ChatMessage.Assistant && candidate.toolCalls.isNotEmpty()) {
+                        group.add(0, candidate)
+                        i--
+                        break
+                    }
+                    // Anything between the tool messages and the assistant (shouldn't normally
+                    // exist, but include it to avoid orphaned messages).
+                    group.add(0, candidate)
+                    i--
+                }
+                // Optionally pull in the immediately-preceding round-context user message.
+                if (i >= 0 && nonSystem[i] is ChatMessage.User && nonSystem[i] !in pinnedSet) {
+                    group.add(0, nonSystem[i])
+                    i--
+                }
+                groups.addFirst(group)
+                roundsCollected++
+            } else {
+                // Non-tool trailing message (e.g. nudge user message at current boundary):
+                // include it as a single-item group without counting as a full round.
+                groups.addFirst(listOf(msg))
+                i--
+            }
+        }
+
+        val recentMessages = groups.flatten()
+        return listOf(system) + pinned + recentMessages
+    }
+
+    /**
      * Total number of messages including the system prompt.
      */
     fun getMessageCount(): Int = messages.size

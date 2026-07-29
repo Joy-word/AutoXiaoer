@@ -166,6 +166,7 @@ class SettingsManager private constructor(private val context: Context) {
         private const val KEY_LLM_AGENT_LANGUAGE = "llm_agent_language"
         private const val KEY_LLM_AGENT_CUSTOM_PROMPT_CN = "llm_agent_custom_prompt_cn"
         private const val KEY_LLM_AGENT_CUSTOM_PROMPT_EN = "llm_agent_custom_prompt_en"
+        private const val KEY_LLM_AGENT_LIMIT_CONTEXT_ROUNDS = "llm_agent_limit_context_rounds"
 
         // BrainLLMConfig keys
         private const val KEY_BRAIN_LLM_BASE_URL = "brain_llm_base_url"
@@ -968,6 +969,10 @@ class SettingsManager private constructor(private val context: Context) {
                 if (isChineseLanguage()) KEY_LLM_AGENT_CUSTOM_PROMPT_CN else KEY_LLM_AGENT_CUSTOM_PROMPT_EN,
                 "",
             ) ?: "",
+            limitContextRounds = prefs.getBoolean(
+                KEY_LLM_AGENT_LIMIT_CONTEXT_ROUNDS,
+                DEFAULT_LLM_AGENT_CONFIG.limitContextRounds,
+            ),
         )
     }
 
@@ -985,6 +990,7 @@ class SettingsManager private constructor(private val context: Context) {
             putFloat(KEY_LLM_AGENT_TEMPERATURE, config.temperature)
             putInt(KEY_LLM_AGENT_MAX_PLANNING_STEPS, config.maxPlanningSteps)
             putString(KEY_LLM_AGENT_LANGUAGE, config.language)
+            putBoolean(KEY_LLM_AGENT_LIMIT_CONTEXT_ROUNDS, config.limitContextRounds)
             apply()
         }
         securePrefs.edit().apply {

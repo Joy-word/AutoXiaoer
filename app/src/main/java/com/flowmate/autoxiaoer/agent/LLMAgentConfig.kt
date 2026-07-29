@@ -16,6 +16,9 @@
  *   Cancellation is never retried.
  * @property language Response language: "cn" for Chinese, "en" for English
  * @property customSystemPrompt If non-empty, overrides the built-in system prompt
+ * @property limitContextRounds When true, only the most recent 3 rounds (6 messages) are sent
+ *   to the model each turn, keeping the system prompt intact. Reduces token usage when the
+ *   model emits a plan every round and early history is not needed.
  */
 data class LLMAgentConfig(
     val baseUrl: String = "https://open.bigmodel.cn/api/paas/v4",
@@ -27,4 +30,5 @@ data class LLMAgentConfig(
     val maxTaskRetries: Int = 1,
     val language: String = "cn",
     val customSystemPrompt: String = "",
+    val limitContextRounds: Boolean = false,
 )

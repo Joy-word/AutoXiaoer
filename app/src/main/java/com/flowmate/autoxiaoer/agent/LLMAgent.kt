@@ -390,7 +390,12 @@ class LLMAgent(
         tools: List<ToolDto>,
     ): ModelResponse? {
         logModelInput(ctx)
-        val first = modelClient.request(ctx.getMessages(), currentScreenshot = null, tools = tools)
+        val messages = if (config.limitContextRounds) {
+            ctx.getTrimmedMessages(maxRounds = 3)
+        } else {
+            ctx.getMessages()
+        }
+        val first = modelClient.request(messages, currentScreenshot = null, tools = tools)
         if (first is ModelResult.Success) {
             logModelResponse(first.response)
             return first.response
@@ -402,7 +407,7 @@ class LLMAgent(
         delay(NETWORK_RETRY_DELAY_MS)
         if (cancelRequested.get()) return null
 
-        val retry = modelClient.request(ctx.getMessages(), currentScreenshot = null, tools = tools)
+        val retry = modelClient.request(messages, currentScreenshot = null, tools = tools)
         if (retry is ModelResult.Success) {
             Logger.i(TAG, "LLM network retry succeeded")
             logModelResponse(retry.response)
