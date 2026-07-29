@@ -976,7 +976,7 @@ class SettingsFragment : Fragment() {
         }
         container.addView(btnTestConn)
 
-        val (maxTokensLayout, maxTokensEdit) = makeInputLayout("最大 Token 数 (Max Tokens)")
+        val (maxTokensLayout, maxTokensEdit) = makeInputLayout("输出最大 Token 数 (Max Output Tokens)")
         maxTokensEdit.setText(config.maxTokens.toString())
         maxTokensEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
         container.addView(maxTokensLayout)
@@ -1181,7 +1181,7 @@ class SettingsFragment : Fragment() {
         }
         container.addView(btnTestConn)
 
-        val (maxTokensLayout2, maxTokensEdit) = makeInputLayout("最大 Token 数 (Max Tokens)")
+        val (maxTokensLayout2, maxTokensEdit) = makeInputLayout("输出最大 Token 数 (Max Output Tokens)")
         maxTokensEdit.setText(config.maxTokens.toString())
         maxTokensEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
         container.addView(maxTokensLayout2)
