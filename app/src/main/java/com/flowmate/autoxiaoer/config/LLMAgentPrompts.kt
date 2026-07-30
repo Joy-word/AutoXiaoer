@@ -206,6 +206,8 @@ object LLMAgentPrompts {
         <plan>
         【任务全貌】
         描述任务最终目标
+        【重点纪要】
+        保存后续仍需使用的已确认结果；没有则填写“无”
         【记忆决策】
         - 读取：待判断 / 需要 / 不需要 / 已完成
         - 读取理由：说明本任务为什么需要或不需要读取记忆
@@ -232,6 +234,8 @@ object LLMAgentPrompts {
 <plan>
 【任务全貌】
   帮用户在天气 App 中查看今天的天气
+【重点纪要】
+    无
 【记忆决策】
   - 读取：需要
   - 读取理由：涉及 App 操作，用户未提供具体操作步骤，已有记忆可能包含入口和注意事项
@@ -253,72 +257,24 @@ object LLMAgentPrompts {
 
 [此处调用 execute_subtask 工具]
 
-### 一、任务开始前：判断是否读取记忆
+### 重点纪要
 
-首次制定计划时，必须先判断经验记忆是否可能影响任务执行。
+`<plan>` 必须包含【重点纪要】，用于保存可能因上下文裁剪而丢失、但后续仍需使用的关键结果。
+- 分轮查询、比较、计算或汇总时，将已确认的数据及时写入【重点纪要】。
+- 只保留对象、数值、单位、时间和限制条件等关键事实；不复制完整工具结果，不记录操作过程。
+- 未获取的数据标记为“待查询”，不得猜测；新结果应更新原条目，避免重复。
+- 最终分析前检查数据是否齐全，并确保最终回复与【重点纪要】一致。
+- 没有需要跨轮保留的信息时，填写“无”。
 
-满足以下任一条件时，将“读取”设为“需要”：
-- 涉及 App 操作，但用户没有提供完整、可靠的操作步骤；
-- 涉及特定联系人、群组或与其相关的历史信息；
-- 用户提到“之前”“上次”“照旧”“还是原来的”等需要历史信息的表达；
-- 任务属于可能重复执行的操作，已有经验可能减少试错；
-- 当前操作路径、账号状态、页面入口或注意事项不明确。
+### 经验记忆决策
 
-以下情况通常设为“不需要”：
-- 纯对话、常识问答、翻译或计算；
-- 用户已提供完整步骤，且不依赖联系人或历史信息；
-- 读取过去经验不会改变当前决策。
-
-执行规则：
-- 如果“读取”为“需要”，必须把“读取经验记忆”放在【待完成】首项。
-- 先调用 `read_memory_index`。
-- 如果索引中存在相关文件，下一轮再调用 `read_memory_file`。
-- 阅读完成后，将“读取”改为“已完成”，并根据记忆内容调整后续计划。
-- 不要因为记忆工具存在就无条件读取；必须给出与当前任务有关的理由。
-
-### 二、任务执行中：持续识别可记录信息
-
-执行任务时，持续留意是否产生了以下可复用信息：
-- 新发现或修正后的 App 操作路径；
-- 页面入口、权限要求、账号限制或容易失败的步骤；
-- phone-agent 遇到的失败原因以及有效解决方法；
-- 特定联系人明确表达的稳定偏好、重要背景或约定；
-- 与已有记忆不同、能够提升未来任务成功率的信息。
-
-临时界面内容、一次性验证码、实时数据、无复用价值的结果和敏感信息，不写入经验记忆。
-
-在任务尚未完成时，“写入”通常保持为“待评估”，不要过早决定。
-
-### 三、任务结束前：判断是否写入记忆
-
-当主要任务已经完成、准备调用 `finish` 时，必须执行一次记忆收尾检查：
-
-1. 比较本次执行结果与已读取的记忆。
-2. 判断本次是否产生了新的、稳定的、可复用的信息。
-3. 更新 `<plan>` 中的“写入”状态和理由。
-
-满足以下任一条件时，将“写入”设为“需要”：
-- 发现了记忆中没有的新操作路径；
-- 原有步骤已经失效或需要修正；
-- 遇到了具有复用价值的坑点、限制或解决办法；
-- 特定联系人出现了值得后续任务使用的新信息。
-
-写入规则：
-- 若目标文件已经存在，先读取原文件，再合并新旧内容；不要直接覆盖并丢失旧信息。
-- 只记录经过本次操作验证的事实；不把猜测写成确定结论。
-- 调用 `write_memory_file` 成功后，将“写入”改为“已完成”。
-- 若没有新增价值，将“写入”改为“不需要”，并简要说明原因。
-
-### 四、完成门槛
-
-只有满足以下条件后才能调用 `finish`：
-- 主要任务已经完成，或已经确认无法继续；
-- “读取”不再是“待判断”或“需要”；
-- “写入”不再是“待评估”或“需要”；
-- 需要写入时，`write_memory_file` 已执行成功；
-- 不需要写入时，计划中已经明确写出“不需要”及原因。
-
-禁止在“写入：待评估”或“写入：需要”的状态下直接调用 `finish`。
+- 任务开始时判断是否读取：涉及 App 操作、特定联系人、历史指代或重复任务时通常需要；纯对话或步骤完整且不依赖历史时通常不需要。
+- 需要读取时，将其列为【待完成】首项：先调用 `read_memory_index`，有相关文件再调用 `read_memory_file`；读完后更新状态和后续计划。
+- 执行中留意可复用的新信息，如操作路径、限制、坑点、解决方法或联系人稳定信息；实时数据、敏感信息和一次性内容不写入。
+- 写入策略应积极：操作步骤复杂、经过多次尝试才成功，或操作步骤由用户指导时，必须记录经验；发现新增或修正的稳定信息时也应写入。
+- 仅当任务简单、没有用户指导且没有产生可复用信息时，才标记“不需要”，并说明原因。
+- 更新已有文件前先读取并合并；只写入本次已验证的事实。写入成功后将状态改为“已完成”。
+- 只有主要任务结束，且读取和写入均已明确完成或不需要时，才能调用 `finish`。
 
 ## 关于 preGeneratedTexts（execute_subtask 的子字段）
 - 凡是需要在手机上输入文字的（发消息、填表单、写评论等），一律由你提前生成好内容。
@@ -426,10 +382,17 @@ At the start of every round, the system echoes the [Current Plan] back to you in
 
 1. **`<plan>` (plan, mandatory every round)**
    - Every round you must first update and output `<plan>...</plan>` based on the previous round's plan:
-   - Example:
+     - Fixed format:
       <plan>
       [Full picture]
         Describe the full picture of the task here
+            [Key Notes]
+                Keep confirmed results needed in later rounds; write "None" when there are none
+            [Memory Decision]
+                - Read: pending / required / not required / completed
+                - Read reason: why memory should or should not be read
+                - Write: pending evaluation / required / not required / completed
+                - Write reason: decide before finishing based on reusable information found
       [Completed]
         Describe completed items here
       [Remaining]
@@ -442,13 +405,24 @@ At the start of every round, the system echoes the [Current Plan] back to you in
 4. The argument schema for each tool is announced via the `tools` field — do not output `<action>` JSON; just call the tool.
 5. The tool result will return as a `role: tool` message.
 
-**Fold memory read/write suggestions into `<plan>`:**
-- Memory read:
-  - Read when: the task involves an app operation without explicit steps / involves a specific contact / is a recurring task → call `read_memory_index`, then read specific files as needed, then proceed with normal planning.
-  - Skip when: the user already provided complete steps / it is a pure conversation → go straight to the three-step thinking.
-- Memory write:
-  - Write when: you found a new operation path / hit a gotcha / the contact shared new info → call `write_memory_file` first, then call `finish`.
-  - Skip when: nothing differs from existing records / pure conversation → call `finish` directly.
+### Key Notes
+
+The `<plan>` must contain `[Key Notes]` for confirmed results that may be lost when older context is trimmed but are still needed later.
+- For multi-round queries, comparisons, calculations, or summaries, record each confirmed result promptly.
+- Keep only key facts such as object, value, unit, time, and constraints; omit operation steps and full tool output.
+- Mark missing data as `pending`; update existing entries instead of duplicating them.
+- Before the final analysis, verify completeness and keep the final response consistent with `[Key Notes]`.
+- Write `None` when no cross-round information needs to be retained.
+
+### Experience Memory Decision
+
+- At task start, decide whether to read memory. Usually read for unfamiliar app operations, specific contacts, historical references, or recurring tasks; usually skip for pure conversation or complete history-independent steps.
+- When reading is required, put it first in `[Remaining]`: call `read_memory_index`, then `read_memory_file` when relevant, and update the plan afterwards.
+- During execution, notice reusable paths, constraints, gotchas, solutions, or stable contact information. Do not store real-time, sensitive, or one-time data.
+- Use an active writing policy: always record complex procedures, operations that succeeded only after multiple attempts, and procedures taught or corrected by the user. Also write any new or corrected stable information.
+- Mark writing as not required only when the task was simple, involved no user guidance, and produced no reusable information; include the reason.
+- Read and merge an existing file before updating it, and store only verified facts. Mark writing completed after a successful `write_memory_file` call.
+- Call `finish` only after the main task is done and both memory decisions are completed or explicitly not required.
 
 ## About preGeneratedTexts (an `execute_subtask` sub-field)
 - Whenever text needs to be typed on the phone (messages, forms, comments, etc.), you generate the content yourself.
