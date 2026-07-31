@@ -240,7 +240,7 @@ object LLMAgentPrompts {
   - 读取：需要
   - 读取理由：涉及 App 操作，用户未提供具体操作步骤，已有记忆可能包含入口和注意事项
   - 写入：待评估
-  - 写入理由：需要在实际操作完成后判断是否发现新的路径或坑点
+  - 写入理由：步骤复杂、未记录过的app、有新的用户关系或事件等需要记录
 【已完成】
   暂无
 【待完成】
@@ -268,12 +268,12 @@ object LLMAgentPrompts {
 
 ### 经验记忆决策
 
-- 任务开始时判断是否读取：涉及 App 操作、特定联系人、历史指代或重复任务时通常需要；纯对话或步骤完整且不依赖历史时通常不需要。
+- 经验记忆是为了让下一次的同类型操作更顺畅，少走弯路，并且可以通过更简单的指令执行任务。
+- 任务开始时判断是否读取经验记忆：涉及 App 操作、特定联系人、历史指代或重复任务时通常需要；纯对话或步骤完整且不依赖历史时通常不需要。
 - 需要读取时，将其列为【待完成】首项：先调用 `read_memory_index`，有相关文件再调用 `read_memory_file`；读完后更新状态和后续计划。
 - 执行中留意可复用的新信息，如操作路径、限制、坑点、解决方法或联系人稳定信息；实时数据、敏感信息和一次性内容不写入。
-- 写入策略应积极：操作步骤复杂、经过多次尝试才成功，或操作步骤由用户指导时，必须记录经验；发现新增或修正的稳定信息时也应写入。
-- 仅当任务简单、没有用户指导且没有产生可复用信息时，才标记“不需要”，并说明原因。
-- 更新已有文件前先读取并合并；只写入本次已验证的事实。写入成功后将状态改为“已完成”。
+- 写入经验应积极：操作步骤复杂 或 轮次超过 10 次 或 经过多次尝试才成功，或操作步骤由用户指导时，必须记录经验；发现新增或修正的稳定信息时也应写入。仅当任务简单、没有用户指导且没有产生可复用信息时，才标记“不需要”，并说明原因。
+- 更新已有文件前先读取；只写入本次已验证的事实。写入成功后将状态改为“已完成”。
 - 只有主要任务结束，且读取和写入均已明确完成或不需要时，才能调用 `finish`。
 
 ## 关于 preGeneratedTexts（execute_subtask 的子字段）
@@ -416,12 +416,12 @@ The `<plan>` must contain `[Key Notes]` for confirmed results that may be lost w
 
 ### Experience Memory Decision
 
-- At task start, decide whether to read memory. Usually read for unfamiliar app operations, specific contacts, historical references, or recurring tasks; usually skip for pure conversation or complete history-independent steps.
+- Experience memory exists to make future tasks of the same type smoother, avoid detours, and allow tasks to be completed with simpler instructions.
+- At task start, decide whether to read experience memory. Usually read for app operations, specific contacts, historical references, or recurring tasks; usually skip for pure conversation or complete history-independent steps.
 - When reading is required, put it first in `[Remaining]`: call `read_memory_index`, then `read_memory_file` when relevant, and update the plan afterwards.
 - During execution, notice reusable paths, constraints, gotchas, solutions, or stable contact information. Do not store real-time, sensitive, or one-time data.
-- Use an active writing policy: always record complex procedures, operations that succeeded only after multiple attempts, and procedures taught or corrected by the user. Also write any new or corrected stable information.
-- Mark writing as not required only when the task was simple, involved no user guidance, and produced no reusable information; include the reason.
-- Read and merge an existing file before updating it, and store only verified facts. Mark writing completed after a successful `write_memory_file` call.
+- Use an active writing policy: record experience when the procedure is complex, the task takes more than 10 rounds, it succeeds only after multiple attempts, or the procedure was taught by the user. Also write any new or corrected stable information. Mark writing as not required only when the task was simple, involved no user guidance, and produced no reusable information; include the reason.
+- Read an existing file before updating it; store only facts verified during this task. Mark writing completed after a successful `write_memory_file` call.
 - Call `finish` only after the main task is done and both memory decisions are completed or explicitly not required.
 
 ## About preGeneratedTexts (an `execute_subtask` sub-field)
