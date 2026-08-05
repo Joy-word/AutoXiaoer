@@ -183,8 +183,11 @@ class LLMAgentContext(private val systemPrompt: String) {
      *
      * @param currentPlan The last `<plan>` block content recorded so far, or blank if none yet
      *   (expected only before round 1's response has been parsed).
+     * @param nudge Optional one-off reminder folded in when the previous round's response was
+     *   malformed (e.g. missing `<plan>` or tool_call). The malformed response itself is never
+     *   persisted to context; this is the only trace of that failed attempt.
      */
-    fun addRoundContext(round: Int, maxRounds: Int, isEnglish: Boolean, currentPlan: String) {
+    fun addRoundContext(round: Int, maxRounds: Int, isEnglish: Boolean, currentPlan: String, nudge: String? = null) {
         val roundLine = if (isEnglish) {
             "[Current planning round: $round / $maxRounds]"
         } else {
@@ -204,6 +207,11 @@ class LLMAgentContext(private val systemPrompt: String) {
             }
             "$label\n$currentPlan"
         }
-        messages.add(ChatMessage.User("$roundLine\n\n$planLine"))
+        val text = if (nudge.isNullOrBlank()) {
+            "$roundLine\n\n$planLine"
+        } else {
+            "$roundLine\n\n$planLine\n\n$nudge"
+        }
+        messages.add(ChatMessage.User(text))
     }
 }
