@@ -242,7 +242,7 @@ class LLMAgent(
                         if (toolContext.isEnglish) {
                             "You must output a <plan> block every round before your tool call, covering Full picture, Key Notes, Memory Decision, Completed, and Remaining."
                         } else {
-                            "每轮都必须先输出 <plan> 块，包含【任务全貌】【重点纪要】【记忆决策】【已完成】【待完成】五段，再进行工具调用。"
+                            "每轮都必须先输出 <plan> 块，至少包含【任务全貌】，再进行工具调用。"
                         },
                     )
                     continue
