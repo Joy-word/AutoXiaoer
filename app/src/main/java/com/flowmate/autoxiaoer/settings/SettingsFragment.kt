@@ -796,7 +796,7 @@ class SettingsFragment : Fragment() {
         val modelConfig = settingsManager.getModelConfig()
         val PhoneAgentConfig = settingsManager.getPhoneAgentConfig()
 
-        val scrollView = android.widget.ScrollView(ctx)
+        val scrollView = androidx.core.widget.NestedScrollView(ctx)
         val container = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             val paddingPx = (16 * resources.displayMetrics.density).toInt()
@@ -1000,7 +1000,7 @@ class SettingsFragment : Fragment() {
         val ctx = requireContext()
         val config = settingsManager.getBrainLLMConfig()
 
-        val scrollView = android.widget.ScrollView(ctx)
+        val scrollView = androidx.core.widget.NestedScrollView(ctx)
         val container = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             val paddingPx = (16 * resources.displayMetrics.density).toInt()
@@ -1206,7 +1206,7 @@ class SettingsFragment : Fragment() {
         val ctx = requireContext()
         val config = settingsManager.getLLMAgentConfig()
 
-        val scrollView = android.widget.ScrollView(ctx)
+        val scrollView = androidx.core.widget.NestedScrollView(ctx)
         val container = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             val paddingPx = (16 * resources.displayMetrics.density).toInt()
@@ -1459,7 +1459,7 @@ class SettingsFragment : Fragment() {
         val ctx = requireContext()
         val brainConfig = settingsManager.getBrainLLMConfig()
 
-        val scrollView = android.widget.ScrollView(ctx)
+        val scrollView = androidx.core.widget.NestedScrollView(ctx)
         val container = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             val paddingPx = (16 * resources.displayMetrics.density).toInt()
