@@ -63,6 +63,8 @@ sealed class ToolResult {
         val observation: String,
         val subTaskMeta: SubTaskMeta? = null,
         val brainTokenUsage: TokenUsage? = null,
+        /** Screenshot to attach to the *next* round's model request for visual review. */
+        val reviewScreenshotBase64: String? = null,
     ) : ToolResult()
 
     /**

@@ -207,6 +207,8 @@ class LLMAgent(
         // One-off reminder for the next round when the previous response was malformed;
         // the malformed response itself is discarded rather than persisted to context.
         var pendingNudge: String? = null
+        // Screenshot to attach to the next round's model request for visual review.
+        var pendingReviewScreenshot: String? = null
 
         var round = 0
         try {
@@ -229,7 +231,7 @@ class LLMAgent(
                 ctx.addRoundContext(round, config.maxPlanningSteps, toolContext.isEnglish, currentPlan, pendingNudge)
                 pendingNudge = null
 
-                val response = requestModel(ctx, advertisedTools)
+                val response = requestModel(ctx, advertisedTools, pendingReviewScreenshot)
                     ?: return@coroutineScope finishOnNetworkError(round)
 
                 val thinking = response.thinking.ifBlank {
@@ -264,6 +266,7 @@ class LLMAgent(
                 }
 
                 ctx.addAssistantWithToolCalls(content = response.rawContent, toolCalls = listOf(toolCall))
+                pendingReviewScreenshot = null
 
                 val tool = toolRegistry.find(toolCall.name)
                 if (tool == null) {
@@ -313,6 +316,7 @@ class LLMAgent(
                 when (result) {
                     is ToolResult.Continue -> {
                         ctx.addToolMessage(toolCall.id, toolCall.name, result.observation)
+                        pendingReviewScreenshot = result.reviewScreenshotBase64
                         historyManager?.recordPlanningRound(
                             buildPlanningRound(
                                 round = round,
@@ -386,6 +390,7 @@ class LLMAgent(
     private suspend fun requestModel(
         ctx: LLMAgentContext,
         tools: List<ToolDto>,
+        screenshotBase64: String? = null,
     ): ModelResponse? {
         logModelInput(ctx)
         val messages = if (config.limitContextRounds) {
@@ -393,7 +398,7 @@ class LLMAgent(
         } else {
             ctx.getMessages()
         }
-        val first = modelClient.request(messages, currentScreenshot = null, tools = tools)
+        val first = modelClient.request(messages, currentScreenshot = screenshotBase64, tools = tools)
         if (first is ModelResult.Success) {
             logModelResponse(first.response)
             return first.response
@@ -405,7 +410,7 @@ class LLMAgent(
         delay(NETWORK_RETRY_DELAY_MS)
         if (cancelRequested.get()) return null
 
-        val retry = modelClient.request(messages, currentScreenshot = null, tools = tools)
+        val retry = modelClient.request(messages, currentScreenshot = screenshotBase64, tools = tools)
         if (retry is ModelResult.Success) {
             Logger.i(TAG, "LLM network retry succeeded")
             logModelResponse(retry.response)

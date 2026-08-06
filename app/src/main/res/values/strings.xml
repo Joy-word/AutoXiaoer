@@ -187,6 +187,11 @@
     <string name="settings_advanced_card_description">运行时调优选项</string>
     <string name="settings_limit_context_rounds">精简上下文</string>
     <string name="settings_limit_context_rounds_desc">开启后，每轮仅保留最近 3 轮对话历史，可显著降低 Token 消耗。适合任务步骤清晰、不依赖早期轮次的场景。</string>
+    <string name="settings_screenshot_review">Phone-agent 回检</string>
+    <string name="settings_screenshot_review_desc">子任务结束后将最后一张截图发给 LLMAgent 核对完成情况。需要 LLMAgent 模型支持视觉输入，每轮回检会显著增加 Token 消耗。</string>
+    <string name="settings_screenshot_review_none">不回检</string>
+    <string name="settings_screenshot_review_on_failure">失败回检</string>
+    <string name="settings_screenshot_review_every_round">每轮回检</string>
     <string name="settings_system_prompt">系统提示词</string>
     <string name="settings_system_prompt_warning">这是高级功能，修改系统提示词可能会影响 Agent 的行为。如果不确定，请保持默认设置。\n\n提示：使用 {date} 作为日期占位符，运行时会自动替换为当前日期。</string>
     <string name="settings_system_prompt_cn">中文提示词</string>

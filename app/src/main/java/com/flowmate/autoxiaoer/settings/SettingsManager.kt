@@ -5,7 +5,9 @@ import android.content.SharedPreferences
 import android.os.Build
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.flowmate.autoxiaoer.agent.LLMAgentConfig
 import com.flowmate.autoxiaoer.agent.PhoneAgentConfig
+import com.flowmate.autoxiaoer.agent.ScreenshotReviewLevel
 import com.flowmate.autoxiaoer.model.ModelConfig
 import com.flowmate.autoxiaoer.util.Logger
 import org.json.JSONArray
@@ -167,6 +169,7 @@ class SettingsManager private constructor(private val context: Context) {
         private const val KEY_LLM_AGENT_CUSTOM_PROMPT_CN = "llm_agent_custom_prompt_cn"
         private const val KEY_LLM_AGENT_CUSTOM_PROMPT_EN = "llm_agent_custom_prompt_en"
         private const val KEY_LLM_AGENT_LIMIT_CONTEXT_ROUNDS = "llm_agent_limit_context_rounds"
+        private const val KEY_LLM_AGENT_SCREENSHOT_REVIEW_LEVEL = "llm_agent_screenshot_review_level"
 
         // BrainLLMConfig keys
         private const val KEY_BRAIN_LLM_BASE_URL = "brain_llm_base_url"
@@ -184,7 +187,7 @@ class SettingsManager private constructor(private val context: Context) {
         // Default values
         private val DEFAULT_MODEL_CONFIG = ModelConfig()
         private val DEFAULT_PHONE_AGENT_CONFIG = PhoneAgentConfig()
-        private val DEFAULT_LLM_AGENT_CONFIG = com.flowmate.autoxiaoer.agent.LLMAgentConfig()
+        private val DEFAULT_LLM_AGENT_CONFIG = LLMAgentConfig()
     }
 
     // Cache for detecting config changes
@@ -948,9 +951,9 @@ class SettingsManager private constructor(private val context: Context) {
      *
      * Returns default values if not previously saved.
      */
-    fun getLLMAgentConfig(): com.flowmate.autoxiaoer.agent.LLMAgentConfig {
+    fun getLLMAgentConfig(): LLMAgentConfig {
         Logger.d(TAG, "Loading LLM agent configuration")
-        return com.flowmate.autoxiaoer.agent.LLMAgentConfig(
+        return LLMAgentConfig(
             baseUrl = prefs.getString(KEY_LLM_AGENT_BASE_URL, DEFAULT_LLM_AGENT_CONFIG.baseUrl)
                 ?: DEFAULT_LLM_AGENT_CONFIG.baseUrl,
             apiKey = securePrefs.getString(KEY_LLM_AGENT_API_KEY, DEFAULT_LLM_AGENT_CONFIG.apiKey)
@@ -973,6 +976,12 @@ class SettingsManager private constructor(private val context: Context) {
                 KEY_LLM_AGENT_LIMIT_CONTEXT_ROUNDS,
                 DEFAULT_LLM_AGENT_CONFIG.limitContextRounds,
             ),
+            screenshotReviewLevel = prefs.getString(
+                KEY_LLM_AGENT_SCREENSHOT_REVIEW_LEVEL,
+                DEFAULT_LLM_AGENT_CONFIG.screenshotReviewLevel.name,
+            )?.let { name ->
+                runCatching { ScreenshotReviewLevel.valueOf(name) }.getOrNull()
+            } ?: DEFAULT_LLM_AGENT_CONFIG.screenshotReviewLevel,
         )
     }
 
@@ -981,7 +990,7 @@ class SettingsManager private constructor(private val context: Context) {
      *
      * API Key is stored in encrypted preferences for security.
      */
-    fun saveLLMAgentConfig(config: com.flowmate.autoxiaoer.agent.LLMAgentConfig) {
+    fun saveLLMAgentConfig(config: LLMAgentConfig) {
         Logger.d(TAG, "Saving LLM agent configuration: modelName=${config.modelName}")
         prefs.edit().apply {
             putString(KEY_LLM_AGENT_BASE_URL, config.baseUrl)
@@ -991,6 +1000,7 @@ class SettingsManager private constructor(private val context: Context) {
             putInt(KEY_LLM_AGENT_MAX_PLANNING_STEPS, config.maxPlanningSteps)
             putString(KEY_LLM_AGENT_LANGUAGE, config.language)
             putBoolean(KEY_LLM_AGENT_LIMIT_CONTEXT_ROUNDS, config.limitContextRounds)
+            putString(KEY_LLM_AGENT_SCREENSHOT_REVIEW_LEVEL, config.screenshotReviewLevel.name)
             apply()
         }
         securePrefs.edit().apply {
