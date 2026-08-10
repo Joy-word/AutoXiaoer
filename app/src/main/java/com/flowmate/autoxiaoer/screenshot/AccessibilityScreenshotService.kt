@@ -41,6 +41,13 @@ class AccessibilityScreenshotService(
         private const val ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT = 3
         private const val RETRY_DELAY_MS = 600L
         private const val MAX_RETRIES = 3
+
+        // Some devices/emulators (e.g. MuMu) fail to populate the HardwareBuffer content,
+        // yielding a technically "successful" but blank/black bitmap. Detect and retry those.
+        private const val BLANK_RETRY_DELAY_MS = 400L
+        private const val MAX_BLANK_RETRIES = 3
+        private const val BLANK_SAMPLE_STEP = 17
+        private const val BLANK_VARIANCE_THRESHOLD = 4
     }
 
     // Tracks the last takeScreenshot() call so we can pre-emptively wait out the
@@ -69,6 +76,8 @@ class AccessibilityScreenshotService(
             }
             lastCaptureAtMs = System.currentTimeMillis()
 
+            screenshot = screenshot?.let { retryIfBlank(service, it) }
+
             screenshot ?: run {
                 Logger.e(TAG, "Accessibility screenshot failed after $MAX_RETRIES retries")
                 createFallback()
@@ -81,6 +90,55 @@ class AccessibilityScreenshotService(
                 delay(SHOW_DELAY_MS)
                 withContext(Dispatchers.Main) { controller.showAndBringToFront() }
             }
+        }
+    }
+
+    /**
+     * Re-captures if the bitmap looks blank (HardwareBuffer content not populated),
+     * which the model would otherwise misread as a "sensitive/black screen".
+     */
+    private suspend fun retryIfBlank(
+        service: com.flowmate.autoxiaoer.device.AutoXiaoerAccessibilityService,
+        initial: Screenshot,
+    ): Screenshot? {
+        var current = initial
+        var attempt = 0
+        while (isLikelyBlank(current) && attempt < MAX_BLANK_RETRIES) {
+            Logger.w(TAG, "Screenshot looks blank, retrying (attempt ${attempt + 1}/$MAX_BLANK_RETRIES)")
+            delay(BLANK_RETRY_DELAY_MS)
+            current = suspendTakeScreenshot(service) ?: return current
+            attempt++
+        }
+        return current
+    }
+
+    private fun isLikelyBlank(screenshot: Screenshot): Boolean {
+        if (screenshot.base64Data.isEmpty()) return false
+        val bytes = Base64.decode(screenshot.base64Data, Base64.NO_WRAP)
+        val bitmap = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return false
+        return try {
+            var sum = 0L
+            var sumSq = 0L
+            var count = 0
+            var y = 0
+            while (y < bitmap.height) {
+                var x = 0
+                while (x < bitmap.width) {
+                    val pixel = bitmap.getPixel(x, y)
+                    val luma = (android.graphics.Color.red(pixel) + android.graphics.Color.green(pixel) + android.graphics.Color.blue(pixel)) / 3
+                    sum += luma
+                    sumSq += luma.toLong() * luma
+                    count++
+                    x += BLANK_SAMPLE_STEP
+                }
+                y += BLANK_SAMPLE_STEP
+            }
+            if (count == 0) return false
+            val mean = sum.toDouble() / count
+            val variance = (sumSq.toDouble() / count) - (mean * mean)
+            variance < BLANK_VARIANCE_THRESHOLD * BLANK_VARIANCE_THRESHOLD
+        } finally {
+            bitmap.recycle()
         }
     }
 
