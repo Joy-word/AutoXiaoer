@@ -194,7 +194,7 @@
     <string name="settings_screenshot_review_on_failure">失败回检</string>
     <string name="settings_screenshot_review_every_round">每轮回检</string>
     <string name="settings_system_prompt">系统提示词</string>
-    <string name="settings_system_prompt_warning">这是高级功能，修改系统提示词可能会影响 Agent 的行为。如果不确定，请保持默认设置。\n\n提示：使用 {date} 作为日期占位符，运行时会自动替换为当前日期。</string>
+    <string name="settings_system_prompt_warning">这是高级功能，修改系统提示词可能会影响 Agent 的行为。如果不确定，请保持默认设置。\n提示： {} 为占位符，建议保留。</string>
     <string name="settings_system_prompt_cn">中文提示词</string>
     <string name="settings_system_prompt_en">英文提示词</string>
     <string name="settings_system_prompt_edit">编辑提示词</string>
