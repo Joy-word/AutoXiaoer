@@ -111,7 +111,7 @@
     <string name="settings_brain_llm_prompt_reset_done">已恢复默认表达者 System Prompt</string>
     <string name="settings_persona_agent_name_helper">控制者和表达者在 prompt 中引用的名字</string>
     <string name="settings_persona_enable_expressor">启用表达者 (BrainLLM)</string>
-    <string name="settings_persona_enable_expressor_desc">启用后，回复朋友的文字会先经过表达者生成，更具人格感。</string>
+    <string name="settings_persona_enable_expressor_desc">启用后，回复朋友的文字会先经过表达者生成，更具人格感。若关闭，人设和人际关系的内容将不被使用。</string>
     <string name="history_action_request_brain">请求表达者</string>
     <string name="history_planning_round_label">控制者</string>
     <string name="settings_model_section">模型配置</string>
@@ -183,6 +183,16 @@
     <!-- Advanced Settings -->
     <string name="settings_advanced">高级设置</string>
     <string name="settings_advanced_description">自定义系统提示词</string>
+    <!-- Advanced Settings Card -->
+    <string name="settings_advanced_card_title">高级设置</string>
+    <string name="settings_advanced_card_description">运行时调优选项</string>
+    <string name="settings_limit_context_rounds">精简上下文</string>
+    <string name="settings_limit_context_rounds_desc">开启后，每轮仅保留最近 3 轮对话历史，可显著降低 Token 消耗。适合任务步骤清晰、不依赖早期轮次的场景。</string>
+    <string name="settings_screenshot_review">Phone-agent 回检</string>
+    <string name="settings_screenshot_review_desc">子任务结束后将最后一张截图发给 LLMAgent 核对完成情况。需要 LLMAgent 模型支持视觉输入，每轮回检会显著增加 Token 消耗。</string>
+    <string name="settings_screenshot_review_none">不回检</string>
+    <string name="settings_screenshot_review_on_failure">失败回检</string>
+    <string name="settings_screenshot_review_every_round">每轮回检</string>
     <string name="settings_system_prompt">系统提示词</string>
     <string name="settings_system_prompt_warning">这是高级功能，修改系统提示词可能会影响 Agent 的行为。如果不确定，请保持默认设置。\n\n提示：使用 {date} 作为日期占位符，运行时会自动替换为当前日期。</string>
     <string name="settings_system_prompt_cn">中文提示词</string>
@@ -249,6 +259,7 @@
     <string name="history_failed">失败</string>
     <string name="history_thinking_label">思考过程</string>
     <string name="history_action_label">操作指令</string>
+    <string name="history_plan_label">计划</string>
     <string name="history_original">原图</string>
     <string name="history_annotated">标注</string>
     <string name="history_clear_all">清空历史</string>
@@ -281,6 +292,7 @@
     <string name="settings_logs_cleared">日志已清空</string>
     <string name="settings_logs_export_failed">导出失败</string>
     <string name="settings_logs_empty">暂无日志</string>
+    <string name="settings_logs_exporting">导出中...</string>
     <string name="settings_clear_logs_confirm">确定要清空所有日志吗？</string>
     
     <!-- AutoGLM Keyboard -->
@@ -434,6 +446,7 @@
     <string name="settings_export_section_task_history">历史任务</string>
     <string name="settings_export_section_scheduled_tasks">定时任务</string>
     <string name="settings_export_section_task_templates">任务模板</string>
+    <string name="settings_export_section_memory">经验记忆</string>
     <string name="settings_export_nothing_selected">请至少选择一项导出内容</string>
     <string name="settings_export_success">数据已导出，请选择保存位置</string>
     <string name="settings_export_failed">导出失败</string>

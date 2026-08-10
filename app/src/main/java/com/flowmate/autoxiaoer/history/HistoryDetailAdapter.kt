@@ -166,6 +166,10 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
         private val thinkingToggle: LinearLayout = itemView.findViewById(R.id.thinkingToggle)
         private val thinkingToggleIcon: ImageView = itemView.findViewById(R.id.thinkingToggleIcon)
         private val thinkingText: TextView = itemView.findViewById(R.id.thinkingText)
+        private val planSection: LinearLayout = itemView.findViewById(R.id.planSection)
+        private val planToggle: LinearLayout = itemView.findViewById(R.id.planToggle)
+        private val planToggleIcon: ImageView = itemView.findViewById(R.id.planToggleIcon)
+        private val planText: TextView = itemView.findViewById(R.id.planText)
         private val actionSection: LinearLayout = itemView.findViewById(R.id.actionSection)
         private val actionDescriptionText: TextView = itemView.findViewById(R.id.actionDescriptionText)
         private val subTaskSection: LinearLayout = itemView.findViewById(R.id.subTaskSection)
@@ -201,6 +205,26 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
                 }
             } else {
                 thinkingSection.visibility = View.GONE
+            }
+
+            // Plan (collapsible) — only present on rounds where the model re-emitted <plan>
+            if (!round.plan.isNullOrBlank()) {
+                planSection.visibility = View.VISIBLE
+                planText.text = round.plan
+
+                var planExpanded = false
+                planToggleIcon.setImageResource(R.drawable.ic_expand_more)
+                planText.visibility = View.GONE
+
+                planToggle.setOnClickListener {
+                    planExpanded = !planExpanded
+                    planText.visibility = if (planExpanded) View.VISIBLE else View.GONE
+                    planToggleIcon.setImageResource(
+                        if (planExpanded) R.drawable.ic_expand_less else R.drawable.ic_expand_more
+                    )
+                }
+            } else {
+                planSection.visibility = View.GONE
             }
 
             if (round.actionDescription.isNotBlank()) {

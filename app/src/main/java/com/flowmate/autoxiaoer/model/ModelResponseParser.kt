@@ -87,6 +87,11 @@ object ModelResponseParser {
         for (tag in TAGGED_THINKING_NAMES) {
             stripped = stripped.replace(Regex("""<$tag>[\s\S]*?</$tag>"""), "")
         }
+        // Strip the LLMAgent <plan> block as well: the plan is surfaced separately via
+        // parseLlmAgentPlan(), so it must not leak into `thinking`. Without this, a tool-call
+        // round (no <action>/do()/finish()) whose only text is a <plan> block would make the
+        // fallback treat the whole plan as thinking, hiding the model's real reasoning_content.
+        stripped = stripped.replace(Regex("""<plan>[\s\S]*?</plan>"""), "")
         return stripped
             .replace(Regex("""<answer>\s*"""), "")
             .replace(Regex("""\s*</answer>"""), "")
@@ -220,7 +225,14 @@ object ModelResponseParser {
         if (tagged.isNotBlank()) return tagged
 
         val actionStart = content.indexOf("<action>")
-        val beforeAction = if (actionStart > 0) content.substring(0, actionStart).trim() else ""
+        // Drop the <plan> block from the fallback text: the plan is surfaced separately, so a
+        // tool-call round whose only text is a <plan> block should fall through to reasoning.
+        val beforeAction =
+            if (actionStart > 0) {
+                content.substring(0, actionStart)
+            } else {
+                content.replace(Regex("""<plan>[\s\S]*?</plan>"""), "")
+            }.trim()
         return beforeAction.ifBlank { reasoningSideChannel.trim() }
     }
 
@@ -228,6 +240,19 @@ object ModelResponseParser {
      * Returns the inner text of the first `<action>...</action>` block for LLMAgent, or null if absent.
      */
     fun parseLlmAgentActionBlock(content: String): String? = extractTaggedBlock(content, "action")?.trim()
+
+    /**
+     * Returns the inner text of the first `<plan>...</plan>` block for LLMAgent, or null if absent
+     * or blank.
+     *
+     * Unlike `<think>`, the model is expected to emit a `<plan>` block **every round**, even when
+     * the task overview / done / remaining items haven't changed from the previous round. This
+     * redundancy is intentional: it lets [LLMAgent] safely truncate the conversation context (e.g.
+     * keep only the most recent N rounds) for token-cost optimization while still guaranteeing the
+     * model always has its own up-to-date plan in the trimmed window, without depending on
+     * [LLMAgentContext.addRoundContext] to backfill it from an older turn that may have been dropped.
+     */
+    fun parseLlmAgentPlan(content: String): String? = extractTaggedBlock(content, "plan")?.trim()?.ifBlank { null }
 
     /**
      * Returns the inner text of the first `<tag>...</tag>` block, or null if absent.

@@ -1,5 +1,6 @@
 package com.flowmate.autoxiaoer.agent.tools
 
+import com.flowmate.autoxiaoer.agent.ScreenshotReviewLevel
 import com.flowmate.autoxiaoer.agent.SubTask
 import com.flowmate.autoxiaoer.util.Logger
 import kotlinx.coroutines.isActive
@@ -19,43 +20,32 @@ class ExecuteSubtaskTool : AgentTool {
     override val description: String =
         "Dispatch one concrete operation to phone-agent (the executor that drives the screen). " +
             "Issue ONE sub-task at a time and wait for the observation before the next step. " +
-            "preGeneratedTexts must contain any text that needs to be typed verbatim during the sub-task."
+            "preGeneratedTexts must contain any text that needs to be typed verbatim during the sub-task; " +
+            "pass an empty object {} when no text input is needed."
     override val parametersSchema =
-        objectSchema(required = listOf("subtask")) {
-            objectField(
-                name = "subtask",
-                description = "The sub-task payload.",
-                required = listOf("description"),
-            ) {
-                stringField(
-                    "description",
-                    "Specific, actionable instruction including target app, screen, and action.",
-                )
-                stringMapField(
-                    "preGeneratedTexts",
-                    "Map of purpose label → exact text to type. " +
-                        "Human-facing wording must come from request_brain first. " +
-                        "Pass an empty object when no text input is needed.",
-                )
-            }
+        objectSchema(required = listOf("description")) {
+            stringField(
+                "description",
+                "Specific, actionable instruction including target app, screen, and action.",
+            )
+            stringMapField(
+                "preGeneratedTexts",
+                "Map of purpose label → exact text to type. " +
+                    "Human-facing wording must come from request_brain first. " +
+                    "Pass an empty object when no text input is needed.",
+            )
         }
 
     override suspend fun execute(args: JSONObject, ctx: ToolContext): ToolResult = coroutineScope {
-        val subtaskJson = args.optJSONObject("subtask")
-            ?: return@coroutineScope ToolResult.Continue(
-                if (ctx.isEnglish) "execute_subtask is missing the `subtask` field. Please retry."
-                else "你输出的 execute_subtask 缺少 subtask 字段，请重新输出。",
-            )
-
-        val description = subtaskJson.optString("description").ifBlank {
+        val description = args.optString("description").ifBlank {
             return@coroutineScope ToolResult.Continue(
-                if (ctx.isEnglish) "execute_subtask.subtask.description must not be blank."
-                else "execute_subtask.subtask.description 不能为空。",
+                if (ctx.isEnglish) "execute_subtask.description must not be blank."
+                else "execute_subtask.description 不能为空。",
             )
         }
 
         val preGeneratedTexts = mutableMapOf<String, String>()
-        subtaskJson.optJSONObject("preGeneratedTexts")?.let { textsJson ->
+        args.optJSONObject("preGeneratedTexts")?.let { textsJson ->
             textsJson.keys().forEach { key ->
                 preGeneratedTexts[key] = textsJson.optString(key)
             }
@@ -106,8 +96,24 @@ class ExecuteSubtaskTool : AgentTool {
         val observation = buildObservation(resolved, subTaskResult, ctx)
         ctx.listener?.onObservationReceived(resolved, subTaskResult, observation)
 
+        val reviewScreenshot = when (ctx.config.screenshotReviewLevel) {
+            ScreenshotReviewLevel.NONE -> null
+            ScreenshotReviewLevel.ON_FAILURE -> subTaskResult.lastScreenshotBase64.takeIf { !subTaskResult.success }
+            ScreenshotReviewLevel.EVERY_ROUND -> subTaskResult.lastScreenshotBase64
+        }
+
+        val finalObservation = if (reviewScreenshot != null) {
+            observation + "\n\n" + if (ctx.isEnglish) {
+                "[Screenshot Review] The last step's screenshot is attached. Please verify the screen state matches the expected outcome."
+            } else {
+                "【截图回检】已附带最后一步截图，请结合截图核对任务完成情况。"
+            }
+        } else {
+            observation
+        }
+
         ToolResult.Continue(
-            observation = observation,
+            observation = finalObservation,
             subTaskMeta = SubTaskMeta(
                 subTaskDescription = resolved.description,
                 subTaskId = resolved.id,
@@ -115,6 +121,7 @@ class ExecuteSubtaskTool : AgentTool {
                 subTaskStepCount = subTaskResult.stepCount,
                 planningRoundTimestamp = planningRoundTimestamp,
             ),
+            reviewScreenshotBase64 = reviewScreenshot,
         )
     }
 

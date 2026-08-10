@@ -58,7 +58,8 @@ Auto Xiao'er is a native Android application deeply modified from [AutoGLM For A
 - ✅ **Screen Understanding**: Screenshot → Vision model analysis → Output action commands
 - ✅ **Multiple Actions**: Click, swipe, long press, double tap, text input, launch apps, etc.
 - ✅ **Task Control**: Pause, resume, cancel task execution
-- ✅ **History**: Save task execution history, view details and screenshots
+- ✅ **History**: Save task execution history, view details and screenshots; the model can also actively call tools to look back at history records during task execution
+- ✅ **Experience Memory**: The Agent reads accumulated operation experience at the start of a task and writes new experience to the memory store upon completion; supports categorized storage by app, contact, and custom notes to continuously improve efficiency on repeated tasks
 - ✅ **Scheduled Tasks**: Preset tasks to execute automatically at designated times, supporting one-time and repetitive tasks
 - ✅ **Notification Triggers**: Monitor specific app notifications to automatically trigger corresponding tasks
 - ✅ **WeChat Remote Control (ClawBot)**: Connect via WeChat QR code scan, send commands remotely and receive task execution results

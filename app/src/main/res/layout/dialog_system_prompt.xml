@@ -17,23 +17,23 @@
         android:textColor="@color/text_secondary"
         android:textSize="12sp" />
 
-    <!-- Prompt Input -->
+    <!-- Prompt Input: fixed height so the reset button below stays visible; edit text scrolls internally -->
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/promptInputLayout"
         style="@style/Widget.App.TextInputLayout"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="240dp"
         android:hint="@string/settings_system_prompt"
         app:boxBackgroundColor="@color/surface_variant">
 
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/promptInput"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:gravity="top|start"
             android:inputType="textMultiLine"
-            android:maxLines="15"
-            android:minLines="8"
+            android:overScrollMode="always"
+            android:scrollbars="vertical"
             android:textColor="@color/text_primary"
             android:textSize="13sp"
             android:fontFamily="monospace" />

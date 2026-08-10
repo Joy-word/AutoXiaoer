@@ -16,6 +16,7 @@ import com.flowmate.autoxiaoer.config.LLMAgentPrompts
 import com.flowmate.autoxiaoer.history.HistoryManager
 import com.flowmate.autoxiaoer.history.LLMPlanningRound
 import com.flowmate.autoxiaoer.history.TaskHistory
+import com.flowmate.autoxiaoer.model.ChatMessage
 import com.flowmate.autoxiaoer.model.ModelClient
 import com.flowmate.autoxiaoer.model.ModelResponse
 import com.flowmate.autoxiaoer.model.ModelResponseParser
@@ -200,6 +201,15 @@ class LLMAgent(
 
         val advertisedTools = toolRegistry.openAIToolDtos()
 
+        // Framework-managed plan state: retains the last <plan> block emitted by the model
+        // so it is echoed back each round instead of relying on the model to retype it.
+        var currentPlan = ""
+        // One-off reminder for the next round when the previous response was malformed;
+        // the malformed response itself is discarded rather than persisted to context.
+        var pendingNudge: String? = null
+        // Screenshot to attach to the next round's model request for visual review.
+        var pendingReviewScreenshot: String? = null
+
         var round = 0
         try {
             while (round < config.maxPlanningSteps) {
@@ -218,7 +228,10 @@ class LLMAgent(
                 listener?.onPlanningRoundStarted(round)
                 toolContext.currentPlanningRound = round
 
-                val response = requestModel(ctx, advertisedTools)
+                ctx.addRoundContext(round, config.maxPlanningSteps, toolContext.isEnglish, currentPlan, pendingNudge)
+                pendingNudge = null
+
+                val response = requestModel(ctx, advertisedTools, pendingReviewScreenshot)
                     ?: return@coroutineScope finishOnNetworkError(round)
 
                 val thinking = response.thinking.ifBlank {
@@ -227,21 +240,33 @@ class LLMAgent(
                 Logger.d(TAG, "LLM thinking: ${thinking.take(200)}")
                 listener?.onThinkingUpdate(thinking)
 
+                val newPlan = ModelResponseParser.parseLlmAgentPlan(response.rawContent)
+                if (newPlan == null) {
+                    Logger.w(TAG, "LLM produced no <plan> block on round $round; discarding and nudging it")
+                    pendingNudge = if (toolContext.isEnglish) {
+                        "Your previous response was discarded because it did not include a <plan> block. " +
+                            "You must output a <plan> block every round before your tool call, covering Full picture, Key Notes, Memory Decision, Completed, and Remaining."
+                    } else {
+                        "你上一轮的回复因缺少 <plan> 块已被丢弃。每轮都必须先输出 <plan> 块，至少包含【任务全貌】，再进行工具调用。"
+                    }
+                    continue
+                }
+                currentPlan = newPlan
+
                 val toolCall = response.toolCalls.firstOrNull()
                 if (toolCall == null || toolCall.name.isBlank()) {
-                    Logger.w(TAG, "LLM produced no tool_call; nudging it")
-                    ctx.addAssistantMessage(response.rawContent.ifBlank { "" })
-                    ctx.addUserMessage(
-                        if (toolContext.isEnglish) {
+                    Logger.w(TAG, "LLM produced no tool_call; discarding and nudging it")
+                    pendingNudge = if (toolContext.isEnglish) {
+                        "Your previous response was discarded because it did not include a tool call. " +
                             "You must respond with a tool call. Pick the appropriate tool from the catalogue and call it now."
-                        } else {
-                            "请使用工具调用（tool_call）来回应。请从工具列表中选择合适的工具并发起调用，不要只回复纯文本。"
-                        },
-                    )
+                    } else {
+                        "你上一轮的回复因缺少工具调用已被丢弃。请使用工具调用（tool_call）来回应，从工具列表中选择合适的工具并发起调用，不要只回复纯文本。"
+                    }
                     continue
                 }
 
                 ctx.addAssistantWithToolCalls(content = response.rawContent, toolCalls = listOf(toolCall))
+                pendingReviewScreenshot = null
 
                 val tool = toolRegistry.find(toolCall.name)
                 if (tool == null) {
@@ -259,6 +284,7 @@ class LLMAgent(
                             actionType = toolCall.name,
                             message = err,
                             tokenUsage = response.tokenUsage,
+                            plan = newPlan,
                         ),
                     )
                     continue
@@ -280,6 +306,7 @@ class LLMAgent(
                             actionType = toolCall.name,
                             message = err,
                             tokenUsage = response.tokenUsage,
+                            plan = newPlan,
                         ),
                     )
                     continue
@@ -289,6 +316,7 @@ class LLMAgent(
                 when (result) {
                     is ToolResult.Continue -> {
                         ctx.addToolMessage(toolCall.id, toolCall.name, result.observation)
+                        pendingReviewScreenshot = result.reviewScreenshotBase64
                         historyManager?.recordPlanningRound(
                             buildPlanningRound(
                                 round = round,
@@ -298,6 +326,7 @@ class LLMAgent(
                                 roundTokenUsage = response.tokenUsage,
                                 brainTokenUsage = result.brainTokenUsage,
                                 subTaskMeta = result.subTaskMeta,
+                                plan = newPlan,
                             ),
                         )
                         if (cancelRequested.get() || !isActive) {
@@ -316,6 +345,7 @@ class LLMAgent(
                                 roundTokenUsage = response.tokenUsage,
                                 brainTokenUsage = null,
                                 subTaskMeta = null,
+                                plan = newPlan,
                             ),
                         )
                         val taskResult = LLMTaskResult(result.success, result.message, round)
@@ -360,9 +390,19 @@ class LLMAgent(
     private suspend fun requestModel(
         ctx: LLMAgentContext,
         tools: List<ToolDto>,
+        screenshotBase64: String? = null,
     ): ModelResponse? {
-        val first = modelClient.request(ctx.getMessages(), currentScreenshot = null, tools = tools)
-        if (first is ModelResult.Success) return first.response
+        logModelInput(ctx)
+        val messages = if (config.limitContextRounds) {
+            ctx.getTrimmedMessages(maxRounds = 3)
+        } else {
+            ctx.getMessages()
+        }
+        val first = modelClient.request(messages, currentScreenshot = screenshotBase64, tools = tools)
+        if (first is ModelResult.Success) {
+            logModelResponse(first.response)
+            return first.response
+        }
 
         val firstError = (first as ModelResult.Error).error.message
         Logger.e(TAG, "LLM request failed: $firstError")
@@ -370,13 +410,45 @@ class LLMAgent(
         delay(NETWORK_RETRY_DELAY_MS)
         if (cancelRequested.get()) return null
 
-        val retry = modelClient.request(ctx.getMessages(), currentScreenshot = null, tools = tools)
+        val retry = modelClient.request(messages, currentScreenshot = screenshotBase64, tools = tools)
         if (retry is ModelResult.Success) {
             Logger.i(TAG, "LLM network retry succeeded")
+            logModelResponse(retry.response)
             return retry.response
         }
         Logger.e(TAG, "LLM network retry also failed: ${(retry as ModelResult.Error).error.message}")
         return null
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Debug logging helpers for prompt optimisation
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /**
+     * Logs the last user message (current round input) and total message count
+     * before each model request, so the prompt engineer can see what the LLM
+     * is being asked each round without the noise of full conversation history.
+     */
+    private fun logModelInput(ctx: LLMAgentContext) {
+        val messages = ctx.getMessages()
+        val lastUser = messages.lastOrNull { it is ChatMessage.User } as? ChatMessage.User
+        val inputPreview = lastUser?.text ?: "(no user message)"
+        Logger.d(
+            TAG,
+            "📤 [LLM Input] totalMessages=${messages.size} | lastUserMessage:\n$inputPreview",
+        )
+    }
+
+    /**
+     * Logs the full model response (raw content, thinking, tool calls) after
+     * each successful request, so the prompt engineer can correlate input→output.
+     */
+    private fun logModelResponse(response: ModelResponse) {
+        val tcSummary = response.toolCalls.joinToString(", ") { "${it.name}(${it.arguments})" }
+        Logger.d(
+            TAG,
+            "📥 [LLM Output] rawLen=${response.rawContent.length} | thinking=${response.thinking} | toolCalls=[$tcSummary] | rawContent:\n${response.rawContent}",
+        )
     }
 
     private suspend fun finishCancelled(round: Int): LLMTaskResult {
@@ -422,6 +494,7 @@ class LLMAgent(
         roundTokenUsage: TokenUsage?,
         brainTokenUsage: TokenUsage?,
         subTaskMeta: SubTaskMeta?,
+        plan: String? = null,
     ): LLMPlanningRound {
         val timestamp = subTaskMeta?.planningRoundTimestamp ?: System.currentTimeMillis()
         return LLMPlanningRound(
@@ -437,6 +510,7 @@ class LLMAgent(
             message = observation,
             tokenUsage = roundTokenUsage,
             brainTokenUsage = brainTokenUsage,
+            plan = plan,
         )
     }
 

@@ -1,5 +1,8 @@
 ﻿package com.flowmate.autoxiaoer.agent
 
+/** Controls when a screenshot is attached to the LLMAgent for post-subtask visual review. */
+enum class ScreenshotReviewLevel { NONE, ON_FAILURE, EVERY_ROUND }
+
 /**
  * Configuration for [LLMAgent].
  *
@@ -16,6 +19,11 @@
  *   Cancellation is never retried.
  * @property language Response language: "cn" for Chinese, "en" for English
  * @property customSystemPrompt If non-empty, overrides the built-in system prompt
+ * @property limitContextRounds When true, only the most recent 3 rounds (6 messages) are sent
+ *   to the model each turn, keeping the system prompt intact. Reduces token usage when the
+ *   model emits a plan every round and early history is not needed.
+ * @property screenshotReviewLevel Controls when the last phone-agent screenshot is forwarded
+ *   to LLMAgent for visual verification after execute_subtask completes.
  */
 data class LLMAgentConfig(
     val baseUrl: String = "https://open.bigmodel.cn/api/paas/v4",
@@ -27,4 +35,6 @@ data class LLMAgentConfig(
     val maxTaskRetries: Int = 1,
     val language: String = "cn",
     val customSystemPrompt: String = "",
+    val limitContextRounds: Boolean = false,
+    val screenshotReviewLevel: ScreenshotReviewLevel = ScreenshotReviewLevel.NONE,
 )

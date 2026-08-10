@@ -115,6 +115,56 @@
 
         </LinearLayout>
 
+        <!-- Plan section (collapsible, only shown when the model re-emitted a <plan> this round) -->
+        <LinearLayout
+            android:id="@+id/planSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <!-- Plan toggle button -->
+            <LinearLayout
+                android:id="@+id/planToggle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:background="?attr/selectableItemBackground"
+                android:paddingBottom="4dp">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/history_plan_label"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
+
+                <ImageView
+                    android:id="@+id/planToggleIcon"
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:src="@drawable/ic_expand_more"
+                    app:tint="@color/text_secondary" />
+
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/planText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/thinking_background"
+                android:padding="10dp"
+                android:textColor="@color/step_llm_agent_plan"
+                android:textSize="13sp"
+                android:lineSpacingMultiplier="1.2"
+                android:visibility="gone" />
+
+        </LinearLayout>
+
         <!-- Action block (<action> tag content) -->
         <LinearLayout
             android:id="@+id/actionSection"

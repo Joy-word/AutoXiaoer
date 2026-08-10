@@ -36,8 +36,9 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.flowmate.autoxiaoer.R
-import com.flowmate.autoxiaoer.agent.PhoneAgentConfig
 import com.flowmate.autoxiaoer.agent.LLMAgentConfig
+import com.flowmate.autoxiaoer.agent.PhoneAgentConfig
+import com.flowmate.autoxiaoer.agent.ScreenshotReviewLevel
 import com.flowmate.autoxiaoer.config.BehaviorContext
 import com.flowmate.autoxiaoer.config.MemoryContext
 import com.flowmate.autoxiaoer.config.BrainLLMPrompts
@@ -107,6 +108,15 @@ class SettingsFragment : Fragment() {
     private lateinit var clawBotStatusText: TextView
     private lateinit var btnClawBotAction: Button
 
+    // Advanced settings views
+    private lateinit var advancedSettingsCard: View
+    private lateinit var advancedSettingsHeader: View
+    private lateinit var advancedSettingsContent: View
+    private lateinit var btnAdvancedExpandCollapse: ImageButton
+    private lateinit var switchLimitContextRounds: android.widget.Switch
+    private lateinit var spinnerScreenshotReview: android.widget.Spinner
+    private var isAdvancedExpanded = false
+
     // ClawBot session-expired receiver
     private val clawBotSessionExpiredReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -120,6 +130,7 @@ class SettingsFragment : Fragment() {
     private lateinit var logSizeText: TextView
     private lateinit var btnExportLogs: Button
     private lateinit var btnClearLogs: Button
+    private var isExportingLogs = false
 
     // Data migration views
     private lateinit var btnExportData: Button
@@ -220,6 +231,24 @@ class SettingsFragment : Fragment() {
         btnExportData = view.findViewById(R.id.btnExportData)
         btnImportData = view.findViewById(R.id.btnImportData)
 
+        // Advanced settings
+        advancedSettingsCard = view.findViewById(R.id.advancedSettingsCard)
+        advancedSettingsHeader = view.findViewById(R.id.advancedSettingsHeader)
+        advancedSettingsContent = view.findViewById(R.id.advancedSettingsContent)
+        btnAdvancedExpandCollapse = view.findViewById(R.id.btnAdvancedExpandCollapse)
+        switchLimitContextRounds = view.findViewById(R.id.switchLimitContextRounds)
+        spinnerScreenshotReview = view.findViewById(R.id.spinnerScreenshotReview)
+        val reviewAdapter = android.widget.ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_item,
+            listOf(
+                getString(R.string.settings_screenshot_review_none),
+                getString(R.string.settings_screenshot_review_on_failure),
+                getString(R.string.settings_screenshot_review_every_round),
+            ),
+        ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        spinnerScreenshotReview.adapter = reviewAdapter
+
         // BrainLLM settings entry button
         view.findViewById<Button>(R.id.btnBrainLLMSettings)
             .setOnClickListener { showBrainLLMSettingsDialog() }
@@ -274,6 +303,15 @@ class SettingsFragment : Fragment() {
     private fun loadCurrentSettings() {
         Logger.d(TAG, "Loading current settings")
         updateLogSizeDisplay()
+        val llmConfig = settingsManager.getLLMAgentConfig()
+        switchLimitContextRounds.isChecked = llmConfig.limitContextRounds
+        spinnerScreenshotReview.setSelection(
+            when (llmConfig.screenshotReviewLevel) {
+                ScreenshotReviewLevel.ON_FAILURE -> 1
+                ScreenshotReviewLevel.EVERY_ROUND -> 2
+                else -> 0
+            }
+        )
     }
 
     /**
@@ -305,6 +343,35 @@ class SettingsFragment : Fragment() {
                 updateBackendUI(newBackend)
                 refreshPermissionStates()
             }
+        }
+
+        // Advanced settings expand/collapse
+        advancedSettingsHeader.setOnClickListener { toggleAdvancedExpanded() }
+        btnAdvancedExpandCollapse.setOnClickListener { toggleAdvancedExpanded() }
+
+        // Limit context rounds switch
+        switchLimitContextRounds.setOnCheckedChangeListener { _, isChecked ->
+            val current = settingsManager.getLLMAgentConfig()
+            if (current.limitContextRounds != isChecked) {
+                settingsManager.saveLLMAgentConfig(current.copy(limitContextRounds = isChecked))
+                com.flowmate.autoxiaoer.ComponentManager.getInstance(requireContext()).reinitializeAgents()
+            }
+        }
+
+        spinnerScreenshotReview.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>, view: View?, pos: Int, id: Long) {
+                val level = when (pos) {
+                    1 -> ScreenshotReviewLevel.ON_FAILURE
+                    2 -> ScreenshotReviewLevel.EVERY_ROUND
+                    else -> ScreenshotReviewLevel.NONE
+                }
+                val current = settingsManager.getLLMAgentConfig()
+                if (current.screenshotReviewLevel != level) {
+                    settingsManager.saveLLMAgentConfig(current.copy(screenshotReviewLevel = level))
+                    com.flowmate.autoxiaoer.ComponentManager.getInstance(requireContext()).reinitializeAgents()
+                }
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>) = Unit
         }
 
         // Permission action buttons
@@ -363,6 +430,17 @@ class SettingsFragment : Fragment() {
         permissionsContent.visibility = if (isPermissionsExpanded) View.VISIBLE else View.GONE
         btnExpandCollapse.setImageResource(
             if (isPermissionsExpanded) R.drawable.ic_expand_less else R.drawable.ic_expand_more,
+        )
+    }
+
+    /**
+     * Toggles the advanced settings card expanded/collapsed state.
+     */
+    private fun toggleAdvancedExpanded() {
+        isAdvancedExpanded = !isAdvancedExpanded
+        advancedSettingsContent.visibility = if (isAdvancedExpanded) View.VISIBLE else View.GONE
+        btnAdvancedExpandCollapse.setImageResource(
+            if (isAdvancedExpanded) R.drawable.ic_expand_less else R.drawable.ic_expand_more,
         )
     }
 
@@ -727,6 +805,8 @@ class SettingsFragment : Fragment() {
     }
 
     private fun exportDebugLogs() {
+        if (isExportingLogs) return
+
         Logger.i(TAG, "Exporting debug logs")
 
         val logFiles = LogFileManager.getLogFiles()
@@ -735,11 +815,46 @@ class SettingsFragment : Fragment() {
             return
         }
 
-        val shareIntent = LogFileManager.exportLogs(requireContext())
-        if (shareIntent != null) {
-            startActivity(Intent.createChooser(shareIntent, getString(R.string.settings_export_logs)))
-        } else {
-            Toast.makeText(requireContext(), R.string.settings_logs_export_failed, Toast.LENGTH_SHORT).show()
+        val ctx = requireContext()
+        val originalText = btnExportLogs.text
+        isExportingLogs = true
+        btnExportLogs.isEnabled = false
+        btnExportLogs.text = getString(R.string.settings_logs_exporting)
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                // Build the zip and save a copy to Downloads first, mirroring performExport().
+                val zipFile = withContext(Dispatchers.IO) {
+                    LogFileManager.createLogsZipFile(ctx)
+                }
+                if (zipFile == null) {
+                    Toast.makeText(ctx, R.string.settings_logs_export_failed, Toast.LENGTH_SHORT).show()
+                    return@launch
+                }
+
+                val savedPath = withContext(Dispatchers.IO) {
+                    DataMigrationManager.saveToDownloads(ctx, zipFile)
+                }
+                if (savedPath != null) {
+                    Toast.makeText(ctx, "已保存到: $savedPath", Toast.LENGTH_LONG).show()
+                }
+
+                // Also try to launch the share sheet (useful on real devices).
+                try {
+                    val shareIntent = LogFileManager.createShareIntent(ctx, zipFile)
+                    startActivity(Intent.createChooser(shareIntent, getString(R.string.settings_export_logs)))
+                } catch (e: Exception) {
+                    Logger.e(TAG, "Share intent failed (file already saved to Downloads)", e)
+                }
+
+                if (savedPath == null) {
+                    Toast.makeText(ctx, R.string.settings_logs_export_failed, Toast.LENGTH_SHORT).show()
+                }
+            } finally {
+                isExportingLogs = false
+                btnExportLogs.isEnabled = true
+                btnExportLogs.text = originalText
+            }
         }
     }
 
@@ -773,7 +888,7 @@ class SettingsFragment : Fragment() {
         val modelConfig = settingsManager.getModelConfig()
         val PhoneAgentConfig = settingsManager.getPhoneAgentConfig()
 
-        val scrollView = android.widget.ScrollView(ctx)
+        val scrollView = androidx.core.widget.NestedScrollView(ctx)
         val container = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             val paddingPx = (16 * resources.displayMetrics.density).toInt()
@@ -977,7 +1092,7 @@ class SettingsFragment : Fragment() {
         val ctx = requireContext()
         val config = settingsManager.getBrainLLMConfig()
 
-        val scrollView = android.widget.ScrollView(ctx)
+        val scrollView = androidx.core.widget.NestedScrollView(ctx)
         val container = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             val paddingPx = (16 * resources.displayMetrics.density).toInt()
@@ -1030,7 +1145,7 @@ class SettingsFragment : Fragment() {
         }
         container.addView(btnTestConn)
 
-        val (maxTokensLayout, maxTokensEdit) = makeInputLayout("最大 Token 数 (Max Tokens)")
+        val (maxTokensLayout, maxTokensEdit) = makeInputLayout("输出最大 Token 数 (Max Output Tokens)")
         maxTokensEdit.setText(config.maxTokens.toString())
         maxTokensEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
         container.addView(maxTokensLayout)
@@ -1183,7 +1298,7 @@ class SettingsFragment : Fragment() {
         val ctx = requireContext()
         val config = settingsManager.getLLMAgentConfig()
 
-        val scrollView = android.widget.ScrollView(ctx)
+        val scrollView = androidx.core.widget.NestedScrollView(ctx)
         val container = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             val paddingPx = (16 * resources.displayMetrics.density).toInt()
@@ -1235,7 +1350,7 @@ class SettingsFragment : Fragment() {
         }
         container.addView(btnTestConn)
 
-        val (maxTokensLayout2, maxTokensEdit) = makeInputLayout("最大 Token 数 (Max Tokens)")
+        val (maxTokensLayout2, maxTokensEdit) = makeInputLayout("输出最大 Token 数 (Max Output Tokens)")
         maxTokensEdit.setText(config.maxTokens.toString())
         maxTokensEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
         container.addView(maxTokensLayout2)
@@ -1312,7 +1427,7 @@ class SettingsFragment : Fragment() {
                     return@setPositiveButton
                 }
 
-                val newConfig = LLMAgentConfig(
+                val newConfig = config.copy(
                     baseUrl = baseUrl,
                     apiKey = apiKey,
                     modelName = modelName,
@@ -1436,7 +1551,7 @@ class SettingsFragment : Fragment() {
         val ctx = requireContext()
         val brainConfig = settingsManager.getBrainLLMConfig()
 
-        val scrollView = android.widget.ScrollView(ctx)
+        val scrollView = androidx.core.widget.NestedScrollView(ctx)
         val container = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             val paddingPx = (16 * resources.displayMetrics.density).toInt()
@@ -1853,6 +1968,7 @@ class SettingsFragment : Fragment() {
             dialogView.findViewById<CheckBox>(R.id.checkExportTaskHistory),
             dialogView.findViewById<CheckBox>(R.id.checkExportScheduledTasks),
             dialogView.findViewById<CheckBox>(R.id.checkExportTaskTemplates),
+            dialogView.findViewById<CheckBox>(R.id.checkExportMemory),
         )
 
         lateinit var sectionListener: CompoundButton.OnCheckedChangeListener
@@ -1908,6 +2024,7 @@ class SettingsFragment : Fragment() {
             taskHistory = checkboxes[4].isChecked,
             scheduledTasks = checkboxes[5].isChecked,
             taskTemplates = checkboxes[6].isChecked,
+            memory = checkboxes[7].isChecked,
         )
     }
 
@@ -2127,6 +2244,7 @@ class SettingsFragment : Fragment() {
         DataMigrationManager.SECTION_TASK_HISTORY -> getString(R.string.settings_export_section_task_history)
         DataMigrationManager.SECTION_SCHEDULED_TASKS -> getString(R.string.settings_export_section_scheduled_tasks)
         DataMigrationManager.SECTION_TASK_TEMPLATES -> getString(R.string.settings_export_section_task_templates)
+        DataMigrationManager.SECTION_MEMORY -> getString(R.string.settings_export_section_memory)
         else -> section
     }
 
@@ -2142,6 +2260,7 @@ class SettingsFragment : Fragment() {
             taskHistory = isChecked(DataMigrationManager.SECTION_TASK_HISTORY),
             scheduledTasks = isChecked(DataMigrationManager.SECTION_SCHEDULED_TASKS),
             taskTemplates = isChecked(DataMigrationManager.SECTION_TASK_TEMPLATES),
+            memory = isChecked(DataMigrationManager.SECTION_MEMORY),
         )
     }
 

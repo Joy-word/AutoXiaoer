@@ -119,6 +119,10 @@ class PhoneAgent(
             false,
         ) // Track if action has been executed in current step
     private var listener: PhoneAgentListener? = null
+
+    /** Base64 WebP of the screenshot taken in the most recent executeStep call. */
+    @Volatile
+    private var lastCapturedScreenshotBase64: String? = null
     private var currentStepNumber: Int = 0
 
     /**
@@ -273,6 +277,7 @@ class PhoneAgent(
         }
 
         currentStepNumber = 0
+        lastCapturedScreenshotBase64 = null
 
         // Initialize context with system prompt based on language setting
         val systemPrompt = SystemPrompts.getPrompt(config.language)
@@ -532,6 +537,7 @@ class PhoneAgent(
             val screenshot = screenshotService.capture()
             listener?.onScreenshotCompleted()
             Logger.logScreenshot(screenshot.width, screenshot.height, screenshot.isSensitive)
+            lastCapturedScreenshotBase64 = screenshot.base64Data
 
             // Check cancellation after screenshot
             if (_state.value == PhoneAgentState.CANCELLED) {
@@ -1325,6 +1331,7 @@ Please re-analyze the current screenshot and output correct coordinates (within 
             lastStepThinking = last?.thinking?.ifBlank { null },
             lastStepAction = last?.action?.formatForDisplay(),
             lastStepMessage = last?.message,
+            lastScreenshotBase64 = lastCapturedScreenshotBase64,
         )
     }
 

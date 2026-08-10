@@ -5,6 +5,7 @@ import com.flowmate.autoxiaoer.action.ActionHandler
 import com.flowmate.autoxiaoer.agent.BrainLLM
 import com.flowmate.autoxiaoer.agent.LLMAgent
 import com.flowmate.autoxiaoer.agent.PhoneAgent
+import com.flowmate.autoxiaoer.agent.tools.ToolRegistry
 import com.flowmate.autoxiaoer.agent.PhoneAgentListener
 import com.flowmate.autoxiaoer.app.AppResolver
 import com.flowmate.autoxiaoer.device.AccessibilityDeviceExecutor
@@ -354,6 +355,7 @@ class ComponentManager private constructor(private val context: Context) {
             historyManager = historyManager,
             context = context,
             brainLLM = brainLLMInternal,
+            toolRegistry = ToolRegistry.forBrainState(brainLLMInternal?.isEnabled == true),
         )
     }
 
@@ -412,7 +414,28 @@ class ComponentManager private constructor(private val context: Context) {
         // Rebuild the entire agent stack (ActionHandler + PhoneAgent + LLMAgent + BrainLLM)
         buildActionHandlerAndAgents()
 
-        Logger.i(TAG, "Agents reinitialized with new configuration")
+        // Recreate LLMAgent with potentially updated config
+        val llmAgentConfig = settingsManager.getLLMAgentConfig()
+        llmModelClientInternal = buildLLMModelClient(llmAgentConfig)
+        currentLLMAgentConfig = llmAgentConfig
+
+        // Recreate BrainLLM with potentially updated config
+        val brainLLMConfig = settingsManager.getBrainLLMConfig()
+        brainModelClientInternal = buildBrainModelClient(brainLLMConfig)
+        brainLLMInternal = BrainLLM(config = brainLLMConfig, modelClient = brainModelClientInternal!!)
+        currentBrainLLMConfig = brainLLMConfig
+
+        llmAgentInternal = LLMAgent(
+            config = llmAgentConfig,
+            modelClient = llmModelClientInternal!!,
+            phoneAgent = phoneAgentInternal!!,
+            historyManager = historyManager,
+            context = context,
+            brainLLM = brainLLMInternal,
+            toolRegistry = ToolRegistry.forBrainState(brainLLMInternal?.isEnabled == true),
+        )
+
+        Logger.i(TAG, "PhoneAgent, LLMAgent and BrainLLM reinitialized with new configuration")
     }
 
     /**
