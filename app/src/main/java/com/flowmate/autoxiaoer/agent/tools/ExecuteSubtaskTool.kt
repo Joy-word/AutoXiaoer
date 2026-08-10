@@ -1,5 +1,6 @@
 package com.flowmate.autoxiaoer.agent.tools
 
+import com.flowmate.autoxiaoer.agent.ScreenshotReviewLevel
 import com.flowmate.autoxiaoer.agent.SubTask
 import com.flowmate.autoxiaoer.util.Logger
 import kotlinx.coroutines.isActive
@@ -95,8 +96,24 @@ class ExecuteSubtaskTool : AgentTool {
         val observation = buildObservation(resolved, subTaskResult, ctx)
         ctx.listener?.onObservationReceived(resolved, subTaskResult, observation)
 
+        val reviewScreenshot = when (ctx.config.screenshotReviewLevel) {
+            ScreenshotReviewLevel.NONE -> null
+            ScreenshotReviewLevel.ON_FAILURE -> subTaskResult.lastScreenshotBase64.takeIf { !subTaskResult.success }
+            ScreenshotReviewLevel.EVERY_ROUND -> subTaskResult.lastScreenshotBase64
+        }
+
+        val finalObservation = if (reviewScreenshot != null) {
+            observation + "\n\n" + if (ctx.isEnglish) {
+                "[Screenshot Review] The last step's screenshot is attached. Please verify the screen state matches the expected outcome."
+            } else {
+                "【截图回检】已附带最后一步截图，请结合截图核对任务完成情况。"
+            }
+        } else {
+            observation
+        }
+
         ToolResult.Continue(
-            observation = observation,
+            observation = finalObservation,
             subTaskMeta = SubTaskMeta(
                 subTaskDescription = resolved.description,
                 subTaskId = resolved.id,
@@ -104,6 +121,7 @@ class ExecuteSubtaskTool : AgentTool {
                 subTaskStepCount = subTaskResult.stepCount,
                 planningRoundTimestamp = planningRoundTimestamp,
             ),
+            reviewScreenshotBase64 = reviewScreenshot,
         )
     }
 

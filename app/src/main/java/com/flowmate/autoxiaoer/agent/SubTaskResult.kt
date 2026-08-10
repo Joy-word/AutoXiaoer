@@ -19,6 +19,8 @@
  *   (e.g. "点击 (230, 450)"), null if no action was executed
  * @property lastStepMessage The message returned by the final step (Finish message,
  *   error description, or hint text)
+ * @property lastScreenshotBase64 Base64-encoded WebP screenshot captured during the final step,
+ *   already scaled to ≤720p. Forwarded to LLMAgent for visual review when enabled.
  */
 data class SubTaskResult(
     val subTaskId: Int,
@@ -30,4 +32,5 @@ data class SubTaskResult(
     val lastStepThinking: String? = null,
     val lastStepAction: String? = null,
     val lastStepMessage: String? = null,
+    val lastScreenshotBase64: String? = null,
 )

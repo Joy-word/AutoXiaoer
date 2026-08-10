@@ -36,8 +36,9 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.flowmate.autoxiaoer.R
-import com.flowmate.autoxiaoer.agent.PhoneAgentConfig
 import com.flowmate.autoxiaoer.agent.LLMAgentConfig
+import com.flowmate.autoxiaoer.agent.PhoneAgentConfig
+import com.flowmate.autoxiaoer.agent.ScreenshotReviewLevel
 import com.flowmate.autoxiaoer.config.BehaviorContext
 import com.flowmate.autoxiaoer.config.MemoryContext
 import com.flowmate.autoxiaoer.config.BrainLLMPrompts
@@ -105,6 +106,7 @@ class SettingsFragment : Fragment() {
     private lateinit var advancedSettingsContent: View
     private lateinit var btnAdvancedExpandCollapse: ImageButton
     private lateinit var switchLimitContextRounds: android.widget.Switch
+    private lateinit var spinnerScreenshotReview: android.widget.Spinner
     private var isAdvancedExpanded = false
 
     // ClawBot session-expired receiver
@@ -214,6 +216,17 @@ class SettingsFragment : Fragment() {
         advancedSettingsContent = view.findViewById(R.id.advancedSettingsContent)
         btnAdvancedExpandCollapse = view.findViewById(R.id.btnAdvancedExpandCollapse)
         switchLimitContextRounds = view.findViewById(R.id.switchLimitContextRounds)
+        spinnerScreenshotReview = view.findViewById(R.id.spinnerScreenshotReview)
+        val reviewAdapter = android.widget.ArrayAdapter(
+            requireContext(),
+            android.R.layout.simple_spinner_item,
+            listOf(
+                getString(R.string.settings_screenshot_review_none),
+                getString(R.string.settings_screenshot_review_on_failure),
+                getString(R.string.settings_screenshot_review_every_round),
+            ),
+        ).also { it.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item) }
+        spinnerScreenshotReview.adapter = reviewAdapter
 
         // BrainLLM settings entry button
         view.findViewById<Button>(R.id.btnBrainLLMSettings)
@@ -266,6 +279,13 @@ class SettingsFragment : Fragment() {
         updateLogSizeDisplay()
         val llmConfig = settingsManager.getLLMAgentConfig()
         switchLimitContextRounds.isChecked = llmConfig.limitContextRounds
+        spinnerScreenshotReview.setSelection(
+            when (llmConfig.screenshotReviewLevel) {
+                ScreenshotReviewLevel.ON_FAILURE -> 1
+                ScreenshotReviewLevel.EVERY_ROUND -> 2
+                else -> 0
+            }
+        )
     }
 
     /**
@@ -287,6 +307,22 @@ class SettingsFragment : Fragment() {
                 settingsManager.saveLLMAgentConfig(current.copy(limitContextRounds = isChecked))
                 com.flowmate.autoxiaoer.ComponentManager.getInstance(requireContext()).reinitializeAgents()
             }
+        }
+
+        spinnerScreenshotReview.onItemSelectedListener = object : android.widget.AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: android.widget.AdapterView<*>, view: View?, pos: Int, id: Long) {
+                val level = when (pos) {
+                    1 -> ScreenshotReviewLevel.ON_FAILURE
+                    2 -> ScreenshotReviewLevel.EVERY_ROUND
+                    else -> ScreenshotReviewLevel.NONE
+                }
+                val current = settingsManager.getLLMAgentConfig()
+                if (current.screenshotReviewLevel != level) {
+                    settingsManager.saveLLMAgentConfig(current.copy(screenshotReviewLevel = level))
+                    com.flowmate.autoxiaoer.ComponentManager.getInstance(requireContext()).reinitializeAgents()
+                }
+            }
+            override fun onNothingSelected(parent: android.widget.AdapterView<*>) = Unit
         }
 
         // Permission action buttons
@@ -760,7 +796,7 @@ class SettingsFragment : Fragment() {
         val modelConfig = settingsManager.getModelConfig()
         val PhoneAgentConfig = settingsManager.getPhoneAgentConfig()
 
-        val scrollView = android.widget.ScrollView(ctx)
+        val scrollView = androidx.core.widget.NestedScrollView(ctx)
         val container = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             val paddingPx = (16 * resources.displayMetrics.density).toInt()
@@ -964,7 +1000,7 @@ class SettingsFragment : Fragment() {
         val ctx = requireContext()
         val config = settingsManager.getBrainLLMConfig()
 
-        val scrollView = android.widget.ScrollView(ctx)
+        val scrollView = androidx.core.widget.NestedScrollView(ctx)
         val container = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             val paddingPx = (16 * resources.displayMetrics.density).toInt()
@@ -1170,7 +1206,7 @@ class SettingsFragment : Fragment() {
         val ctx = requireContext()
         val config = settingsManager.getLLMAgentConfig()
 
-        val scrollView = android.widget.ScrollView(ctx)
+        val scrollView = androidx.core.widget.NestedScrollView(ctx)
         val container = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             val paddingPx = (16 * resources.displayMetrics.density).toInt()
@@ -1356,9 +1392,9 @@ class SettingsFragment : Fragment() {
         promptInput.setText(currentPrompt)
 
         val title = if (language == "en") {
-            "LLM-agent System Prompt (EN)"
+            "LLM-agent System Prompt"
         } else {
-            "LLM-agent System Prompt（中文）"
+            "控制者 System Prompt"
         }
 
         val dialog = MaterialAlertDialogBuilder(ctx)
@@ -1423,7 +1459,7 @@ class SettingsFragment : Fragment() {
         val ctx = requireContext()
         val brainConfig = settingsManager.getBrainLLMConfig()
 
-        val scrollView = android.widget.ScrollView(ctx)
+        val scrollView = androidx.core.widget.NestedScrollView(ctx)
         val container = android.widget.LinearLayout(ctx).apply {
             orientation = android.widget.LinearLayout.VERTICAL
             val paddingPx = (16 * resources.displayMetrics.density).toInt()

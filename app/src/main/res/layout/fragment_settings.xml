@@ -421,6 +421,37 @@
                                 android:textColor="@color/text_secondary"
                                 android:textSize="13sp" />
 
+                            <!-- Screenshot Review Level -->
+                            <LinearLayout
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="16dp"
+                                android:gravity="center_vertical"
+                                android:orientation="horizontal">
+
+                                <TextView
+                                    android:layout_width="0dp"
+                                    android:layout_height="wrap_content"
+                                    android:layout_weight="1"
+                                    android:text="@string/settings_screenshot_review"
+                                    android:textColor="@color/text_primary"
+                                    android:textSize="15sp" />
+
+                                <Spinner
+                                    android:id="@+id/spinnerScreenshotReview"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="wrap_content" />
+
+                            </LinearLayout>
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="4dp"
+                                android:text="@string/settings_screenshot_review_desc"
+                                android:textColor="@color/text_secondary"
+                                android:textSize="13sp" />
+
                         </LinearLayout>
 
                     </LinearLayout>
