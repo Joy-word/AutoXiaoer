@@ -286,6 +286,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 PermissionType.BATTERY -> _permissionStates.value.copy(battery = granted)
                 PermissionType.ACCESSIBILITY -> _permissionStates.value.copy(accessibility = granted)
             }
+        // Accessibility (and any other backend-affecting) permission changes must
+        // refresh canStartTask, since calculateCanStartTask() reads _permissionStates directly.
+        _uiState.value = _uiState.value.copy(canStartTask = calculateCanStartTask())
     }
 
     /**
@@ -298,6 +301,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun updateAllPermissionStates(states: PermissionStates) {
         Logger.d(TAG, "updateAllPermissionStates: $states")
         _permissionStates.value = states
+        _uiState.value = _uiState.value.copy(canStartTask = calculateCanStartTask())
     }
 
     /**

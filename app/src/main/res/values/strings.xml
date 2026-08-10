@@ -72,6 +72,7 @@
     
     <!-- Toast Messages -->
     <string name="toast_shizuku_not_running">请先启动 Shizuku</string>
+    <string name="toast_backend_not_connected">请先启动 Shizuku 或开启无障碍服务</string>
     <string name="toast_shizuku_version_low">Shizuku 版本过低</string>
     <string name="toast_shizuku_permission_granted">权限已授予</string>
     <string name="toast_shizuku_permission_denied">权限被拒绝</string>

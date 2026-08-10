@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
 /**
@@ -29,6 +30,7 @@ class AccessibilityDeviceExecutor : IDeviceExecutor {
     companion object {
         private const val TAG = "A11yDeviceExecutor"
         private const val DOUBLE_TAP_INTERVAL_MS = 100L
+        private const val GESTURE_TIMEOUT_MS = 5000L
     }
 
     private val service: AutoXiaoerAccessibilityService
@@ -38,20 +40,22 @@ class AccessibilityDeviceExecutor : IDeviceExecutor {
     // region Gesture helpers
 
     private suspend fun dispatchGesture(description: GestureDescription): Boolean =
-        suspendCancellableCoroutine { cont ->
-            val svc = service
-            val callback = object : android.accessibilityservice.AccessibilityService.GestureResultCallback() {
-                override fun onCompleted(gestureDescription: GestureDescription) {
-                    if (cont.isActive) cont.resume(true)
+        withTimeoutOrNull(GESTURE_TIMEOUT_MS) {
+            suspendCancellableCoroutine { cont ->
+                val svc = service
+                val callback = object : android.accessibilityservice.AccessibilityService.GestureResultCallback() {
+                    override fun onCompleted(gestureDescription: GestureDescription) {
+                        if (cont.isActive) cont.resume(true)
+                    }
+                    override fun onCancelled(gestureDescription: GestureDescription) {
+                        if (cont.isActive) cont.resume(false)
+                    }
                 }
-                override fun onCancelled(gestureDescription: GestureDescription) {
+                if (!svc.dispatchGesture(description, callback, null)) {
                     if (cont.isActive) cont.resume(false)
                 }
             }
-            if (!svc.dispatchGesture(description, callback, null)) {
-                if (cont.isActive) cont.resume(false)
-            }
-        }
+        } ?: false
 
     private fun buildTapGesture(x: Int, y: Int, duration: Long = 50L): GestureDescription {
         val path = Path().apply { moveTo(x.toFloat(), y.toFloat()) }
@@ -145,8 +149,13 @@ class AccessibilityDeviceExecutor : IDeviceExecutor {
     }
 
     override suspend fun getCurrentApp(): String {
-        return service.foregroundPackage
-            ?: service.rootInActiveWindow?.packageName?.toString()
-            ?: ""
+        val svc = AutoXiaoerAccessibilityService.instance ?: return ""
+        svc.foregroundPackage?.let { return it }
+        val root = svc.rootInActiveWindow ?: return ""
+        return try {
+            root.packageName?.toString() ?: ""
+        } finally {
+            root.recycle()
+        }
     }
 }

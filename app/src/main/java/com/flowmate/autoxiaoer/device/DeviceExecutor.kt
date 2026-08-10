@@ -72,7 +72,7 @@ class DeviceExecutor(private val userService: IUserService) : IDeviceExecutor {
      * @return Result of the command execution
      *
      */
-    override suspend fun longPress(x: Int, y: Int, durationMs: Int = DEFAULT_LONG_PRESS_DURATION_MS): String =
+    override suspend fun longPress(x: Int, y: Int, durationMs: Int): String =
         withContext(Dispatchers.IO) {
             executeCommand("input swipe $x $y $x $y $durationMs")
         }

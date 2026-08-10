@@ -375,11 +375,13 @@ class TaskFragment : Fragment() {
 
         val state = viewModel.uiState.value
 
-        // Check Shizuku connection
-        if (state.shizukuStatus != ShizukuStatus.CONNECTED) {
+        // Check backend connection (Shizuku OR Accessibility, whichever is active)
+        val backendReady = state.shizukuStatus == ShizukuStatus.CONNECTED ||
+            viewModel.permissionStates.value.accessibility
+        if (!backendReady) {
             Toast.makeText(
                 requireContext(),
-                R.string.toast_shizuku_not_running,
+                R.string.toast_backend_not_connected,
                 Toast.LENGTH_SHORT,
             ).show()
             return

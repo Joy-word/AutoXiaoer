@@ -99,10 +99,15 @@ class ComponentManager private constructor(private val context: Context) {
     private var brainLLMInternal: BrainLLM? = null
 
     /**
-     * Checks if the UserService is connected.
+     * Checks if the active backend's underlying service is connected.
+     * Shizuku backend checks the UserService; Accessibility backend checks
+     * [AutoXiaoerAccessibilityService.isConnected].
      */
     val isServiceConnected: Boolean
-        get() = userService != null
+        get() = when (settingsManager.getInputBackend()) {
+            InputBackend.SHIZUKU -> userService != null
+            InputBackend.ACCESSIBILITY -> com.flowmate.autoxiaoer.device.AutoXiaoerAccessibilityService.isConnected()
+        }
 
     /**
      * Gets the DeviceExecutor instance.

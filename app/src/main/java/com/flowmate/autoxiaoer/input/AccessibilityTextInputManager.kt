@@ -26,26 +26,35 @@ class AccessibilityTextInputManager : ITextInputManager {
 
         // Find the focused editable node
         val root = service.rootInActiveWindow
-        val focusedNode = root?.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+            ?: return@withContext InputResult.failure("无法获取窗口内容")
 
-        if (focusedNode == null) {
-            Logger.w(TAG, "No focused input node found")
-            return@withContext InputResult.failure("未找到输入焦点")
-        }
+        try {
+            val focusedNode = root.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
+                ?: run {
+                    Logger.w(TAG, "No focused input node found")
+                    return@withContext InputResult.failure("未找到输入焦点")
+                }
 
-        val args = Bundle().apply {
-            putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
-        }
-
-        val ok = focusedNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-        focusedNode.recycle()
-
-        return@withContext if (ok) {
-            Logger.d(TAG, "ACTION_SET_TEXT succeeded for text length ${text.length}")
-            InputResult.success("文本已输入")
-        } else {
-            Logger.w(TAG, "ACTION_SET_TEXT failed, node may not support it")
-            InputResult.failure("输入失败：目标控件不支持 ACTION_SET_TEXT")
+            try {
+                val args = Bundle().apply {
+                    putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text)
+                }
+                val ok = focusedNode.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+                return@withContext if (ok) {
+                    Logger.d(TAG, "ACTION_SET_TEXT succeeded for text length ${text.length}")
+                    InputResult.success("文本已输入")
+                } else {
+                    Logger.w(TAG, "ACTION_SET_TEXT failed, node may not support it")
+                    InputResult.failure("输入失败：目标控件不支持 ACTION_SET_TEXT")
+                }
+            } finally {
+                focusedNode.recycle()
+            }
+        } catch (e: Exception) {
+            Logger.e(TAG, "typeText failed", e)
+            return@withContext InputResult.failure("输入出错：${e.message}")
+        } finally {
+            root.recycle()
         }
     }
 }

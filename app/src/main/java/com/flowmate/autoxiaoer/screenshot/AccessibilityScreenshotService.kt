@@ -35,7 +35,18 @@ class AccessibilityScreenshotService(
         private const val WEBP_QUALITY = 65
         private const val MAX_WIDTH = 720
         private const val MAX_HEIGHT = 1280
+
+        // System enforces a minimum interval between takeScreenshot() calls; calling it
+        // sooner fails with ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT. Retry after backing off.
+        private const val ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT = 3
+        private const val RETRY_DELAY_MS = 600L
+        private const val MAX_RETRIES = 3
     }
+
+    // Tracks the last takeScreenshot() call so we can pre-emptively wait out the
+    // system's minimum interval instead of relying purely on reactive retries.
+    @Volatile
+    private var lastCaptureAtMs: Long = 0L
 
     override suspend fun capture(): Screenshot = withContext(Dispatchers.Main) {
         val controller = floatingWindowControllerProvider()
@@ -46,10 +57,22 @@ class AccessibilityScreenshotService(
             val service = com.flowmate.autoxiaoer.device.AutoXiaoerAccessibilityService.instance
                 ?: return@withContext createFallback()
 
-            val screenshot = suspendTakeScreenshot(service)
-                ?: return@withContext createFallback()
+            val elapsed = System.currentTimeMillis() - lastCaptureAtMs
+            if (elapsed in 0 until RETRY_DELAY_MS) delay(RETRY_DELAY_MS - elapsed)
 
-            screenshot
+            var screenshot: Screenshot? = null
+            var attempt = 0
+            while (screenshot == null && attempt <= MAX_RETRIES) {
+                if (attempt > 0) delay(RETRY_DELAY_MS)
+                screenshot = suspendTakeScreenshot(service)
+                attempt++
+            }
+            lastCaptureAtMs = System.currentTimeMillis()
+
+            screenshot ?: run {
+                Logger.e(TAG, "Accessibility screenshot failed after $MAX_RETRIES retries")
+                createFallback()
+            }
         } catch (e: Exception) {
             Logger.e(TAG, "Accessibility screenshot failed", e)
             createFallback()
@@ -70,21 +93,34 @@ class AccessibilityScreenshotService(
             service.mainExecutor,
             object : android.accessibilityservice.AccessibilityService.TakeScreenshotCallback {
                 override fun onSuccess(result: android.accessibilityservice.AccessibilityService.ScreenshotResult) {
-                    val hardwareBitmap = result.hardwareBitmap
+                    val hardwareBuffer = result.hardwareBuffer
                     try {
-                        val softBitmap = hardwareBitmap.copy(Bitmap.Config.ARGB_8888, false)
-                        hardwareBitmap.recycle()
+                        val hardwareBitmap = Bitmap.wrapHardwareBuffer(hardwareBuffer, result.colorSpace)
+                        val softBitmap = hardwareBitmap?.copy(Bitmap.Config.ARGB_8888, false)
+                        hardwareBitmap?.recycle()
+                        if (softBitmap == null) {
+                            Logger.w(TAG, "Failed to wrap hardware buffer as bitmap")
+                            if (cont.isActive) cont.resume(null) {}
+                            return
+                        }
                         val screenshot = bitmapToScreenshot(softBitmap)
                         softBitmap.recycle()
                         if (cont.isActive) cont.resume(screenshot) {}
                     } catch (e: Exception) {
                         Logger.e(TAG, "Bitmap conversion failed", e)
                         if (cont.isActive) cont.resume(null) {}
+                    } finally {
+                        hardwareBuffer.close()
                     }
                 }
 
                 override fun onFailure(errorCode: Int) {
-                    Logger.w(TAG, "takeScreenshot failed: errorCode=$errorCode")
+                    val reason = if (errorCode == ERROR_TAKE_SCREENSHOT_INTERVAL_TIME_SHORT) {
+                        "called too soon after previous screenshot"
+                    } else {
+                        "errorCode=$errorCode"
+                    }
+                    Logger.w(TAG, "takeScreenshot failed: $reason")
                     if (cont.isActive) cont.resume(null) {}
                 }
             },
