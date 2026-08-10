@@ -2,7 +2,7 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
+    android:layout_height="match_parent"
     android:orientation="vertical"
     android:padding="16dp">
 
@@ -17,16 +17,17 @@
         android:textColor="@color/text_secondary"
         android:textSize="12sp" />
 
-    <!-- Prompt Input: fixed height so the reset button below stays visible; edit text scrolls internally -->
+    <!-- Prompt Input: fills whatever vertical room the dialog grants, instead of leaving blank space -->
     <com.google.android.material.textfield.TextInputLayout
         android:id="@+id/promptInputLayout"
         style="@style/Widget.App.TextInputLayout"
         android:layout_width="match_parent"
-        android:layout_height="180dp"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:hint="@string/settings_system_prompt"
         app:boxBackgroundColor="@color/surface_variant">
 
-        <com.google.android.material.textfield.TextInputEditText
+        <com.flowmate.autoxiaoer.ui.ScrollSafeEditText
             android:id="@+id/promptInput"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
@@ -46,7 +47,7 @@
         style="@style/Widget.App.Button.Text.Secondary"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="-8dp"
+        android:layout_marginTop="0dp"
         android:text="@string/settings_system_prompt_reset" />
 
 </LinearLayout>
