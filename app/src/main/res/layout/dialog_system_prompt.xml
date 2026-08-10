@@ -22,7 +22,7 @@
         android:id="@+id/promptInputLayout"
         style="@style/Widget.App.TextInputLayout"
         android:layout_width="match_parent"
-        android:layout_height="240dp"
+        android:layout_height="180dp"
         android:hint="@string/settings_system_prompt"
         app:boxBackgroundColor="@color/surface_variant">
 
@@ -46,7 +46,7 @@
         style="@style/Widget.App.Button.Text.Secondary"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="8dp"
+        android:layout_marginTop="-8dp"
         android:text="@string/settings_system_prompt_reset" />
 
 </LinearLayout>
