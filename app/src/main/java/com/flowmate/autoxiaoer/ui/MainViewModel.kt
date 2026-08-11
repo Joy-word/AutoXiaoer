@@ -301,7 +301,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun updateAllPermissionStates(states: PermissionStates) {
         Logger.d(TAG, "updateAllPermissionStates: $states")
         _permissionStates.value = states
-        _uiState.value = _uiState.value.copy(canStartTask = calculateCanStartTask())
+        // keep shizukuStatus in sync so calculateCanStartTask(status=...) stays consistent
+        val newShizukuStatus = if (states.shizuku) ShizukuStatus.CONNECTED else ShizukuStatus.NOT_RUNNING
+        _uiState.value = _uiState.value.copy(
+            shizukuStatus = newShizukuStatus,
+            canStartTask = calculateCanStartTask(status = newShizukuStatus),
+        )
     }
 
     /**
