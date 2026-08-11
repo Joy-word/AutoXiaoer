@@ -255,6 +255,15 @@ object ModelResponseParser {
     fun parseLlmAgentPlan(content: String): String? = extractTaggedBlock(content, "plan")?.trim()?.ifBlank { null }
 
     /**
+     * Strips the `<plan>` block from an LLMAgent response before it is persisted to
+     * [LLMAgentContext]. It is redundant in history: the plan is already re-injected fresh
+     * every round via `addRoundContext`, so the stale copy in the assistant turn only wastes
+     * tokens. Thinking tags are intentionally left intact — some providers require the
+     * thinking block to be echoed back unchanged in later requests.
+     */
+    fun stripPersistedTags(content: String): String = removeTaggedBlock(content, "plan").trim()
+
+    /**
      * Returns the inner text of the first `<tag>...</tag>` block, or null if absent.
      */
     internal fun extractTaggedBlock(text: String, tag: String): String? {
@@ -264,6 +273,16 @@ object ModelResponseParser {
         val end = text.indexOf(close)
         if (start == -1 || end == -1 || end <= start) return null
         return text.substring(start + open.length, end)
+    }
+
+    /** Removes the first `<tag>...</tag>` block (tags included), or returns [text] unchanged if absent. */
+    private fun removeTaggedBlock(text: String, tag: String): String {
+        val open = "<$tag>"
+        val close = "</$tag>"
+        val start = text.indexOf(open)
+        val end = text.indexOf(close)
+        if (start == -1 || end == -1 || end <= start) return text
+        return text.substring(0, start) + text.substring(end + close.length)
     }
 
     private val TAGGED_THINKING_NAMES = listOf("redacted_thinking", "thinking", "think")

@@ -1484,9 +1484,9 @@ class SettingsFragment : Fragment() {
         promptInput.setText(currentPrompt)
 
         val title = if (language == "en") {
-            "LLM-agent System Prompt (EN)"
+            "LLM-agent System Prompt"
         } else {
-            "LLM-agent System Prompt（中文）"
+            "控制者 System Prompt"
         }
 
         val dialog = MaterialAlertDialogBuilder(ctx)

@@ -265,7 +265,10 @@ class LLMAgent(
                     continue
                 }
 
-                ctx.addAssistantWithToolCalls(content = response.rawContent, toolCalls = listOf(toolCall))
+                ctx.addAssistantWithToolCalls(
+                    content = ModelResponseParser.stripPersistedTags(response.rawContent),
+                    toolCalls = listOf(toolCall),
+                )
                 pendingReviewScreenshot = null
 
                 val tool = toolRegistry.find(toolCall.name)
