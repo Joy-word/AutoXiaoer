@@ -64,6 +64,7 @@ import com.flowmate.autoxiaoer.clawbot.ClawBotPollingService
 import com.flowmate.autoxiaoer.clawbot.ClawBotQrLoginDialog
 import com.flowmate.autoxiaoer.ComponentManager
 import com.flowmate.autoxiaoer.device.InputBackend
+import com.flowmate.autoxiaoer.input.KeyboardHelper
 import com.flowmate.autoxiaoer.ui.PermissionType
 import com.flowmate.autoxiaoer.util.applyPrimaryButtonColors
 import com.flowmate.autoxiaoer.util.showWithPrimaryButtons
@@ -97,6 +98,7 @@ class SettingsFragment : Fragment() {
     private lateinit var permissionShizuku: View
     private lateinit var permissionOverlay: View
     private lateinit var permissionKeyboard: View
+    private lateinit var permissionKeyboardDefault: View
     private lateinit var permissionBattery: View
     private lateinit var permissionAccessibility: View
 
@@ -123,6 +125,13 @@ class SettingsFragment : Fragment() {
             if (intent?.action == ClawBotPollingService.ACTION_SESSION_EXPIRED) {
                 updateClawBotUI()
             }
+        }
+    }
+
+    // Refreshes keyboard permission state when the default IME changes (e.g. via the picker dialog)
+    private val defaultKeyboardObserver = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            if (isAdded) refreshPermissionStates()
         }
     }
 
@@ -177,11 +186,17 @@ class SettingsFragment : Fragment() {
             IntentFilter(ClawBotPollingService.ACTION_SESSION_EXPIRED),
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+        requireContext().contentResolver.registerContentObserver(
+            Settings.Secure.getUriFor(Settings.Secure.DEFAULT_INPUT_METHOD),
+            false,
+            defaultKeyboardObserver,
+        )
     }
 
     override fun onPause() {
         super.onPause()
         runCatching { requireContext().unregisterReceiver(clawBotSessionExpiredReceiver) }
+        requireContext().contentResolver.unregisterContentObserver(defaultKeyboardObserver)
     }
 
     /**
@@ -199,6 +214,7 @@ class SettingsFragment : Fragment() {
         permissionShizuku = view.findViewById(R.id.permissionShizuku)
         permissionOverlay = view.findViewById(R.id.permissionOverlay)
         permissionKeyboard = view.findViewById(R.id.permissionKeyboard)
+        permissionKeyboardDefault = view.findViewById(R.id.permissionKeyboardDefault)
         permissionBattery = view.findViewById(R.id.permissionBattery)
         permissionAccessibility = view.findViewById(R.id.permissionAccessibility)
 
@@ -275,6 +291,11 @@ class SettingsFragment : Fragment() {
         setupPermissionItem(
             permissionKeyboard,
             getString(R.string.keyboard_title),
+            R.drawable.ic_keyboard,
+        )
+        setupPermissionItem(
+            permissionKeyboardDefault,
+            getString(R.string.keyboard_default_title),
             R.drawable.ic_keyboard,
         )
         setupPermissionItem(
@@ -417,6 +438,9 @@ class SettingsFragment : Fragment() {
         permissionKeyboard.findViewById<Button>(R.id.btnPermissionAction).setOnClickListener {
             openKeyboardSettings()
         }
+        permissionKeyboardDefault.findViewById<Button>(R.id.btnPermissionAction).setOnClickListener {
+            showInputMethodPicker()
+        }
         permissionBattery.findViewById<Button>(R.id.btnPermissionAction).setOnClickListener {
             requestBatteryOptimization()
         }
@@ -467,6 +491,7 @@ class SettingsFragment : Fragment() {
                 shizuku = isShizukuConnected(),
                 overlay = Settings.canDrawOverlays(context),
                 keyboard = isKeyboardEnabled(),
+                keyboardDefault = KeyboardHelper.isDefaultKeyboard(context),
                 battery = isBatteryOptimizationIgnored(),
                 accessibility = isAccessibilityServiceEnabled(),
             )
@@ -501,19 +526,27 @@ class SettingsFragment : Fragment() {
             getString(R.string.enable_keyboard),
         )
         updatePermissionItemUI(
+            permissionKeyboardDefault,
+            states.keyboardDefault,
+            getString(R.string.set_default_keyboard),
+        )
+        updatePermissionItemUI(
             permissionBattery,
             states.battery,
             getString(R.string.battery_opt_request),
         )
 
-        // Show/hide backend-specific rows
+        // Show/hide backend-specific rows (keyboard is required by both backends: Shizuku
+        // types via IME broadcast directly, Accessibility falls back to it when
+        // ACTION_SET_TEXT is unsupported by the focused view)
         permissionShizuku.visibility = if (isAccessibilityBackend) View.GONE else View.VISIBLE
         permissionAccessibility.visibility = if (isAccessibilityBackend) View.VISIBLE else View.GONE
-        permissionKeyboard.visibility = if (isAccessibilityBackend) View.GONE else View.VISIBLE
+        // Default IME only matters for the Accessibility fallback switch; Shizuku doesn't need it
+        permissionKeyboardDefault.visibility = if (isAccessibilityBackend) View.VISIBLE else View.GONE
 
         // Update summary (count mandatory permissions for current backend)
         val required = if (isAccessibilityBackend) {
-            listOf(states.accessibility, states.overlay, states.battery)
+            listOf(states.accessibility, states.overlay, states.keyboard, states.keyboardDefault, states.battery)
         } else {
             listOf(states.shizuku, states.overlay, states.keyboard, states.battery)
         }
@@ -586,7 +619,7 @@ class SettingsFragment : Fragment() {
         )
         permissionShizuku.visibility = if (isA11y) View.GONE else View.VISIBLE
         permissionAccessibility.visibility = if (isA11y) View.VISIBLE else View.GONE
-        permissionKeyboard.visibility = if (isA11y) View.GONE else View.VISIBLE
+        permissionKeyboardDefault.visibility = if (isA11y) View.VISIBLE else View.GONE
     }
 
     private fun requestShizukuPermission() {
@@ -616,6 +649,11 @@ class SettingsFragment : Fragment() {
 
     private fun openKeyboardSettings() {
         startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+    }
+
+    private fun showInputMethodPicker() {
+        val imm = requireContext().getSystemService(InputMethodManager::class.java)
+        imm?.showInputMethodPicker()
     }
 
     private fun openAccessibilitySettings() {

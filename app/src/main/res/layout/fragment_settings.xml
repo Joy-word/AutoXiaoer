@@ -590,6 +590,11 @@
                                 android:id="@+id/permissionKeyboard"
                                 layout="@layout/item_permission_status" />
 
+                            <!-- Keyboard Default IME -->
+                            <include
+                                android:id="@+id/permissionKeyboardDefault"
+                                layout="@layout/item_permission_status" />
+
                             <!-- Battery Permission -->
                             <include
                                 android:id="@+id/permissionBattery"

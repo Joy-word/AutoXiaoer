@@ -45,6 +45,8 @@
     <string name="keyboard_not_enabled">未启用</string>
     <string name="enable_keyboard">去启用</string>
     <string name="toast_keyboard_required">需要启用 XiaoEr Keyboard 才能输入文字</string>
+    <string name="keyboard_default_title">默认输入法</string>
+    <string name="set_default_keyboard">去设置</string>
     
     <!-- Task Section -->
     <string name="task_section_label">任务输入</string>

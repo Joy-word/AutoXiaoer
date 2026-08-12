@@ -20,12 +20,14 @@ import kotlinx.coroutines.launch
  * @property shizuku Whether Shizuku permission is granted and connected
  * @property overlay Whether overlay (draw over other apps) permission is granted
  * @property keyboard Whether the custom keyboard is enabled
+ * @property keyboardDefault Whether the custom keyboard is set as the system default IME
  * @property battery Whether battery optimization is disabled for the app
  */
 data class PermissionStates(
     val shizuku: Boolean = false,
     val overlay: Boolean = false,
     val keyboard: Boolean = false,
+    val keyboardDefault: Boolean = false,
     val battery: Boolean = false,
     val accessibility: Boolean = false,
 )
@@ -42,6 +44,9 @@ enum class PermissionType {
 
     /** Keyboard permission for custom input method. */
     KEYBOARD,
+
+    /** Whether the custom keyboard is set as the system default IME. */
+    KEYBOARD_DEFAULT,
 
     /** Battery optimization exemption. */
     BATTERY,
@@ -283,6 +288,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 PermissionType.SHIZUKU -> _permissionStates.value.copy(shizuku = granted)
                 PermissionType.OVERLAY -> _permissionStates.value.copy(overlay = granted)
                 PermissionType.KEYBOARD -> _permissionStates.value.copy(keyboard = granted)
+                PermissionType.KEYBOARD_DEFAULT -> _permissionStates.value.copy(keyboardDefault = granted)
                 PermissionType.BATTERY -> _permissionStates.value.copy(battery = granted)
                 PermissionType.ACCESSIBILITY -> _permissionStates.value.copy(accessibility = granted)
             }
