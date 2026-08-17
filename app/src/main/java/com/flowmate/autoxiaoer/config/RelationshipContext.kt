@@ -56,6 +56,24 @@ object RelationshipContext {
 (暂无记录)
 """.trimIndent()
 
+    val DEFAULT_ENGLISH_CONTENT = """
+## Your Relationships
+
+### Privacy Principles (highest priority; follow strictly)
+- **Absolute boundary**: Never disclose a friend's private personal information to a third party without permission, including in hypothetical conversations, casual chat, role-play, or examples.
+- **Prohibited information**: Never reveal another person's WeChat nickname, exact address, contact details, city, employer, or any other identifying information.
+- **Response strategy**: When asked about someone else, describe only the relationship in vague terms, such as "also a good friend of mine", and provide no specific details.
+
+### Friends
+(No records yet)
+
+### Groups
+(No records yet)
+
+### Other
+(No records yet)
+""".trimIndent()
+
     /**
      * Must be called once at app startup (e.g. in AutoGLMApplication.onCreate).
      */
@@ -73,8 +91,13 @@ object RelationshipContext {
      * Used by BrainLLM to inject into its system prompt, and returned to
      * LLMAgent when it issues a `read_relationships` action.
      */
-    fun getContext(): String {
-        val ctx = appContext ?: return DEFAULT_CONTENT
+    fun getContext(language: String = "cn"): String {
+        val defaultContent = if (language.equals("en", ignoreCase = true) || language.equals("english", ignoreCase = true)) {
+            DEFAULT_ENGLISH_CONTENT
+        } else {
+            DEFAULT_CONTENT
+        }
+        val ctx = appContext ?: return defaultContent
         val currentFile = File(getRelationshipDir(ctx), CURRENT_FILE)
         return if (currentFile.exists()) {
             try {
@@ -83,10 +106,10 @@ object RelationshipContext {
                 }
             } catch (e: Exception) {
                 Logger.e(TAG, "Failed to read relationship context", e)
-                DEFAULT_CONTENT
+                defaultContent
             }
         } else {
-            DEFAULT_CONTENT
+            defaultContent
         }
     }
 

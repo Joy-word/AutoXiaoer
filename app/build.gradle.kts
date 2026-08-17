@@ -33,7 +33,7 @@ android {
     buildTypes {
         debug {
             // 不再使用 applicationIdSuffix，与发行版使用相同包名
-            resValue("string", "app_name", "小二 Dev")
+            resValue("string", "app_name", "XiaoEr Dev")
         }
         release {
             isMinifyEnabled = false

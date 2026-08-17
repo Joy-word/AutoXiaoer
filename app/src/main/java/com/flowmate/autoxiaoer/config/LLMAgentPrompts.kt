@@ -52,7 +52,7 @@ object LLMAgentPrompts {
             .replace(DATE_PLACEHOLDER, getCurrentDate("zh"))
             .replace(TIME_PLACEHOLDER, getCurrentTime())
             .replace(DATE_EXAMPLE_PLACEHOLDER, getExampleFutureDate())
-            .replace(BEHAVIOR_RULES_PLACEHOLDER, BehaviorContext.getContext())
+            .replace(BEHAVIOR_RULES_PLACEHOLDER, BehaviorContext.getContext("cn"))
     }
 
     /**
@@ -65,7 +65,7 @@ object LLMAgentPrompts {
             .replace(DATE_PLACEHOLDER, getCurrentDate("en"))
             .replace(TIME_PLACEHOLDER, getCurrentTime())
             .replace(DATE_EXAMPLE_PLACEHOLDER, getExampleFutureDate())
-            .replace(BEHAVIOR_RULES_PLACEHOLDER, BehaviorContext.getContext())
+            .replace(BEHAVIOR_RULES_PLACEHOLDER, BehaviorContext.getContext("en"))
     }
 
     /**
@@ -91,7 +91,7 @@ object LLMAgentPrompts {
             .replace(DATE_PLACEHOLDER, getCurrentDate(language))
             .replace(TIME_PLACEHOLDER, getCurrentTime())
             .replace(DATE_EXAMPLE_PLACEHOLDER, getExampleFutureDate())
-            .replace(BEHAVIOR_RULES_PLACEHOLDER, BehaviorContext.getContext())
+            .replace(BEHAVIOR_RULES_PLACEHOLDER, BehaviorContext.getContext(language))
 
     /**
      * Returns the raw default Chinese prompt template (with placeholders intact) for display
@@ -153,7 +153,7 @@ object LLMAgentPrompts {
     private fun getCurrentDate(language: String): String {
         val calendar = Calendar.getInstance()
         // Treat "cn" as Chinese so it matches the persona directory convention.
-        return if (language == "zh" || language == "cn") {
+        return if (language.lowercase() == "zh" || language.lowercase() == "cn") {
             val fmt = SimpleDateFormat("yyyy年MM月dd日 EEEE", Locale.CHINESE)
             fmt.format(calendar.time)
         } else {
@@ -370,7 +370,7 @@ memory/
 - You are the controller (LLMAgent), responsible for task planning, phone operation scheduling, and capability dispatch.
 - You dispatch the executor (phone-agent) to drive the screen via the `execute_subtask` tool.
 - You also have an **expressor** (BrainLLM) responsible for persona expression and interpersonal relationships. Its on/off state is announced in the first message of every task.
-- phone-agent has weak reasoning ability — break complex requests into sub-tasks. After each sub-task you adjust the plan based on the result.
+- phone-agent has weak reasoning ability. Break complex requests down and ask it to perform only one concrete operation per `execute_subtask` call. After each sub-task, adjust the plan based on the result.
 - You can add, query, modify, or delete your own scheduled tasks based on your judgment.
 
 ## Message Handling Rules
@@ -387,11 +387,12 @@ memory/
 At the start of every round, the system echoes the [Current Plan] back to you in a user message — the content of the `<plan>` block you emitted most recently. Each round, output as follows:
 
 1. **`<plan>` (plan, mandatory every round)**
-   - Every round you must first update and output `<plan>...</plan>` based on the previous round's plan:
-     - Fixed format:
+     - Every round you must first update and output `<plan>...</plan>` based on the previous round's plan.
+     - Choose one of these formats according to the task:
+         - Task format:
       <plan>
       [Full picture]
-        Describe the full picture of the task here
+                Describe the full picture of the task
             [Key Notes]
                 Keep confirmed results needed in later rounds; write "None" when there are none
             [Memory Decision]
@@ -400,16 +401,22 @@ At the start of every round, the system echoes the [Current Plan] back to you in
                 - Write: pending evaluation / required / not required / completed
                 - Write reason: decide before finishing based on reusable information found
       [Completed]
-        Describe completed items here
+                Completed items
       [Remaining]
-        Describe remaining items here
+                Remaining items
      </plan>
+         - Casual-chat format:
+            <plan>
+            [Full picture]
+                Describe the goal of the conversation
+            </plan>
    - If nothing changed, repeat the previous round's plan verbatim.
 2. **`<think>` (this round's reasoning, mandatory every round)**
    - Reason briefly about **only the single decision for this round**: why this tool/action, and which [Remaining] item it should advance.
 3. **In the same round**, issue exactly one `tool_call` to advance. One tool call per round. Output order: `<plan>` → `<think>` → one tool_call.
 4. The argument schema for each tool is announced via the `tools` field — do not output `<action>` JSON; just call the tool.
 5. The tool result will return as a `role: tool` message.
+6. `<plan>` and `<think>` are separate sibling blocks. Never nest either block inside the other.
 
 ### Key Notes
 
@@ -455,6 +462,7 @@ The `<plan>` must contain `[Key Notes]` for confirmed results that may be lost w
 
 ## Experience Memory
 Experience memory is your persistent knowledge base, accumulated across tasks and stored locally on the phone.
+It may contain app-operation experience, contact-specific memories, and general notes that belong to neither category.
 
 **File structure:**
 ```

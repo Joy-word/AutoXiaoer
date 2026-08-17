@@ -40,6 +40,7 @@ import com.flowmate.autoxiaoer.agent.LLMAgentConfig
 import com.flowmate.autoxiaoer.agent.PhoneAgentConfig
 import com.flowmate.autoxiaoer.agent.ScreenshotReviewLevel
 import com.flowmate.autoxiaoer.config.BehaviorContext
+import com.flowmate.autoxiaoer.config.AppLanguage
 import com.flowmate.autoxiaoer.config.MemoryContext
 import com.flowmate.autoxiaoer.config.BrainLLMPrompts
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
@@ -85,6 +86,7 @@ import rikka.shizuku.Shizuku
 class SettingsFragment : Fragment() {
     private val viewModel: MainViewModel by activityViewModels()
     private lateinit var settingsManager: SettingsManager
+    private lateinit var promptLanguageGroup: RadioGroup
 
     // Permissions center views
     private lateinit var permissionsCenterCard: View
@@ -221,6 +223,14 @@ class SettingsFragment : Fragment() {
         // Backend selection
         rgInputBackend = view.findViewById(R.id.rgInputBackend)
         tvBackendHelper = view.findViewById(R.id.tvBackendHelper)
+        promptLanguageGroup = view.findViewById(R.id.promptLanguageGroup)
+        promptLanguageGroup.check(
+            if (settingsManager.getPromptLanguage() == AppLanguage.SIMPLIFIED_CHINESE) {
+                R.id.promptLanguageChinese
+            } else {
+                R.id.promptLanguageEnglish
+            },
+        )
 
         // Set initial backend selection from saved setting
         val savedBackend = settingsManager.getInputBackend()
@@ -339,6 +349,19 @@ class SettingsFragment : Fragment() {
      * Sets up click listeners for all interactive views.
      */
     private fun setupListeners() {
+        promptLanguageGroup.setOnCheckedChangeListener { _, checkedId ->
+            val language = if (checkedId == R.id.promptLanguageChinese) {
+                AppLanguage.SIMPLIFIED_CHINESE
+            } else {
+                AppLanguage.ENGLISH
+            }
+            if (settingsManager.getPromptLanguage() != language) {
+                settingsManager.savePromptLanguage(language)
+                ComponentManager.getInstance(requireContext()).reinitializeAgents()
+                Toast.makeText(requireContext(), R.string.settings_prompt_language_saved, Toast.LENGTH_SHORT).show()
+            }
+        }
+
         // Permissions center expand/collapse
         permissionsHeader.setOnClickListener { togglePermissionsExpanded() }
         btnExpandCollapse.setOnClickListener { togglePermissionsExpanded() }
@@ -984,29 +1007,8 @@ class SettingsFragment : Fragment() {
         screenshotDelayEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
         container.addView(screenshotDelayLayout)
 
-        // Language selection
         val dp4 = (4 * resources.displayMetrics.density).toInt()
         val dp8 = (8 * resources.displayMetrics.density).toInt()
-        val langLabel = TextView(ctx).apply {
-            text = getString(R.string.settings_language)
-            setTextColor(android.graphics.Color.parseColor("#888888"))
-            textSize = 14f
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(langLabel)
-
-        val langGroup = RadioGroup(ctx).apply { orientation = RadioGroup.HORIZONTAL }
-        val langCn = RadioButton(ctx).apply { text = getString(R.string.settings_language_chinese) }
-        val langEn = RadioButton(ctx).apply { text = getString(R.string.settings_language_english) }
-        langGroup.addView(langCn)
-        langGroup.addView(langEn)
-        if (PhoneAgentConfig.language == "en") langEn.isChecked = true else langCn.isChecked = true
-        container.addView(langGroup)
 
         // Test connection button
         val btnTestConn = Button(ctx).apply {
@@ -1068,7 +1070,7 @@ class SettingsFragment : Fragment() {
                 val maxSteps = maxStepsEdit.text?.toString()?.trim()?.toIntOrNull() ?: PhoneAgentConfig.maxSteps
                 val screenshotDelaySeconds = screenshotDelayEdit.text?.toString()?.trim()?.toDoubleOrNull()
                     ?: (PhoneAgentConfig.screenshotDelayMs / 1000.0)
-                val language = if (langEn.isChecked) "en" else "cn"
+                val language = settingsManager.getPromptLanguage().code
 
                 if (baseUrl.isEmpty() || !isValidUrl(baseUrl)) {
                     Toast.makeText(ctx, getString(R.string.settings_validation_error_url), Toast.LENGTH_SHORT).show()
@@ -1230,7 +1232,7 @@ class SettingsFragment : Fragment() {
                     return@setPositiveButton
                 }
 
-                val language = settingsManager.getLLMAgentConfig().language
+                val language = settingsManager.getPromptLanguage().code
                 val newConfig = com.flowmate.autoxiaoer.agent.BrainLLMConfig(
                     baseUrl = baseUrl,
                     apiKey = apiKey,
@@ -1257,7 +1259,7 @@ class SettingsFragment : Fragment() {
         }
 
         btnCustomPrompt.setOnClickListener {
-            val language = settingsManager.getLLMAgentConfig().language
+            val language = settingsManager.getPromptLanguage().code
             showBrainLLMPromptDialog(language)
         }
 
@@ -1404,29 +1406,6 @@ class SettingsFragment : Fragment() {
         planningStepsEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
         container.addView(planningStepsLayout2)
 
-        // Language radio group
-        val dp4 = (4 * resources.displayMetrics.density).toInt()
-        val langLabel = TextView(ctx).apply {
-            text = "语言 / Language"
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(langLabel)
-
-        val langGroup = RadioGroup(ctx).apply {
-            orientation = RadioGroup.HORIZONTAL
-        }
-        val langCn = RadioButton(ctx).apply { text = "中文" }
-        val langEn = RadioButton(ctx).apply { text = "English" }
-        langGroup.addView(langCn)
-        langGroup.addView(langEn)
-        if (config.language.lowercase() == "en") langEn.isChecked = true else langCn.isChecked = true
-        container.addView(langGroup)
-
         // Custom system prompt button
         val btnCustomPrompt = Button(ctx).apply {
             text = getString(R.string.settings_llm_agent_prompt_edit)
@@ -1454,7 +1433,7 @@ class SettingsFragment : Fragment() {
                     ?: config.temperature
                 val maxPlanningSteps = planningStepsEdit.text?.toString()?.trim()?.toIntOrNull()
                     ?: config.maxPlanningSteps
-                val language = if (langEn.isChecked) "en" else "cn"
+                val language = settingsManager.getPromptLanguage().code
 
                 if (baseUrl.isEmpty() || !isValidUrl(baseUrl)) {
                     Toast.makeText(ctx, "Base URL 格式不正确", Toast.LENGTH_SHORT).show()
@@ -1493,7 +1472,7 @@ class SettingsFragment : Fragment() {
         }
 
         btnCustomPrompt.setOnClickListener {
-            val language = if (langEn.isChecked) "en" else "cn"
+            val language = settingsManager.getPromptLanguage().code
             showLLMAgentPromptDialog(language)
         }
 
@@ -1874,9 +1853,7 @@ class SettingsFragment : Fragment() {
      */
     private fun showPersonaDialog() {
         val ctx = requireContext()
-        val language = settingsManager.getPhoneAgentConfig().language.let {
-            if (it == "en") "en" else "zh"
-        }
+        val language = if (settingsManager.getPromptLanguage() == AppLanguage.ENGLISH) "en" else "zh"
         val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_system_prompt, null)
         val promptInput = dialogView.findViewById<TextInputEditText>(R.id.promptInput)
         val btnHistory = dialogView.findViewById<Button>(R.id.btnResetPrompt)

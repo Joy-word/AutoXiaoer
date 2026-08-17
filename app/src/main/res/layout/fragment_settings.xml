@@ -45,6 +45,57 @@
                 android:paddingHorizontal="16dp"
                 android:paddingBottom="32dp">
 
+                <com.google.android.material.card.MaterialCardView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="12dp"
+                    app:cardBackgroundColor="@color/card_background"
+                    app:cardCornerRadius="16dp"
+                    app:cardElevation="0dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:padding="16dp">
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="4dp"
+                            android:text="@string/settings_prompt_language"
+                            android:textAppearance="?attr/textAppearanceTitleMedium"
+                            android:textColor="@color/text_primary" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="8dp"
+                            android:text="@string/settings_prompt_language_description"
+                            android:textAppearance="?attr/textAppearanceBodySmall"
+                            android:textColor="@color/text_secondary" />
+
+                        <RadioGroup
+                            android:id="@+id/promptLanguageGroup"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal">
+
+                            <RadioButton
+                                android:id="@+id/promptLanguageChinese"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/settings_language_chinese" />
+
+                            <RadioButton
+                                android:id="@+id/promptLanguageEnglish"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/settings_language_english" />
+                        </RadioGroup>
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
                 <!-- Persona Settings Card -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/personaSettingsCard"
@@ -65,7 +116,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginBottom="4dp"
-                            android:text="小二人设"
+                            android:text="@string/settings_persona_title"
                             android:textAppearance="?attr/textAppearanceTitleMedium"
                             android:textColor="@color/text_primary" />
 
@@ -73,7 +124,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginBottom="12dp"
-                            android:text="设置智能体名称、人设、人际关系和行为准则。"
+                            android:text="@string/settings_persona_description"
                             android:textAppearance="?attr/textAppearanceBodySmall"
                             android:textColor="@color/text_secondary" />
 
@@ -82,7 +133,7 @@
                             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                             android:layout_width="wrap_content"
                             android:layout_height="48dp"
-                            android:text="管理人设" />
+                            android:text="@string/settings_persona_manage" />
 
                     </LinearLayout>
 
@@ -237,7 +288,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginBottom="4dp"
-                            android:text="ClawBot 连接"
+                            android:text="@string/settings_clawbot_title"
                             android:textAppearance="?attr/textAppearanceTitleMedium"
                             android:textColor="@color/text_primary" />
 
@@ -245,7 +296,7 @@
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginBottom="12dp"
-                            android:text="连接 ClawBot 后，可通过微信接收指令并回复消息。"
+                            android:text="@string/settings_clawbot_description"
                             android:textAppearance="?attr/textAppearanceBodySmall"
                             android:textColor="@color/text_secondary" />
 
@@ -260,7 +311,7 @@
                                 android:layout_width="0dp"
                                 android:layout_height="wrap_content"
                                 android:layout_weight="1"
-                                android:text="未连接"
+                                android:text="@string/settings_clawbot_disconnected"
                                 android:textAppearance="?attr/textAppearanceBodySmall"
                                 android:textColor="@color/text_secondary" />
 
@@ -269,7 +320,7 @@
                                 style="@style/Widget.MaterialComponents.Button.OutlinedButton"
                                 android:layout_width="wrap_content"
                                 android:layout_height="48dp"
-                                android:text="连接" />
+                                android:text="@string/settings_clawbot_connect" />
 
                         </LinearLayout>
 

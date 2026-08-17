@@ -8,6 +8,7 @@ import androidx.security.crypto.MasterKey
 import com.flowmate.autoxiaoer.agent.LLMAgentConfig
 import com.flowmate.autoxiaoer.agent.PhoneAgentConfig
 import com.flowmate.autoxiaoer.agent.ScreenshotReviewLevel
+import com.flowmate.autoxiaoer.config.AppLanguage
 import com.flowmate.autoxiaoer.model.ModelConfig
 import com.flowmate.autoxiaoer.util.Logger
 import org.json.JSONArray
@@ -116,6 +117,7 @@ class SettingsManager private constructor(private val context: Context) {
         // PhoneAgentConfig keys
         private const val KEY_MAX_STEPS = "agent_max_steps"
         private const val KEY_LANGUAGE = "agent_language"
+        private const val KEY_PROMPT_LANGUAGE = "prompt_language"
         private const val KEY_VERBOSE = "agent_verbose"
         private const val KEY_SCREENSHOT_DELAY_MS = "agent_screenshot_delay_ms"
 
@@ -311,9 +313,7 @@ class SettingsManager private constructor(private val context: Context) {
         Logger.d(TAG, "Loading agent configuration")
         return PhoneAgentConfig(
             maxSteps = prefs.getInt(KEY_MAX_STEPS, DEFAULT_PHONE_AGENT_CONFIG.maxSteps),
-            language =
-            prefs.getString(KEY_LANGUAGE, DEFAULT_PHONE_AGENT_CONFIG.language)
-                ?: DEFAULT_PHONE_AGENT_CONFIG.language,
+            language = getPromptLanguage().code,
             verbose = prefs.getBoolean(KEY_VERBOSE, DEFAULT_PHONE_AGENT_CONFIG.verbose),
             screenshotDelayMs = prefs.getLong(KEY_SCREENSHOT_DELAY_MS, DEFAULT_PHONE_AGENT_CONFIG.screenshotDelayMs),
         )
@@ -329,7 +329,6 @@ class SettingsManager private constructor(private val context: Context) {
         Logger.d(TAG, "Saving agent configuration: maxSteps=${config.maxSteps}, language=${config.language}")
         prefs.edit().apply {
             putInt(KEY_MAX_STEPS, config.maxSteps)
-            putString(KEY_LANGUAGE, config.language)
             putBoolean(KEY_VERBOSE, config.verbose)
             putLong(KEY_SCREENSHOT_DELAY_MS, config.screenshotDelayMs)
             apply()
@@ -949,6 +948,26 @@ class SettingsManager private constructor(private val context: Context) {
 
     // ==================== LLM Agent Config ====================
 
+    fun initializePromptLanguage(defaultLanguage: AppLanguage) {
+        if (prefs.contains(KEY_PROMPT_LANGUAGE)) return
+
+        val legacyLanguage = when {
+            prefs.contains(KEY_LLM_AGENT_LANGUAGE) -> prefs.getString(KEY_LLM_AGENT_LANGUAGE, null)
+            prefs.contains(KEY_LANGUAGE) -> prefs.getString(KEY_LANGUAGE, null)
+            else -> defaultLanguage.code
+        }
+        prefs.edit()
+            .putString(KEY_PROMPT_LANGUAGE, AppLanguage.fromPromptCode(legacyLanguage).code)
+            .apply()
+    }
+
+    fun getPromptLanguage(): AppLanguage =
+        AppLanguage.fromPromptCode(prefs.getString(KEY_PROMPT_LANGUAGE, null))
+
+    fun savePromptLanguage(language: AppLanguage) {
+        prefs.edit().putString(KEY_PROMPT_LANGUAGE, language.code).apply()
+    }
+
     /**
      * Gets the current LLMAgentConfig from storage.
      *
@@ -969,8 +988,7 @@ class SettingsManager private constructor(private val context: Context) {
                 KEY_LLM_AGENT_MAX_PLANNING_STEPS,
                 DEFAULT_LLM_AGENT_CONFIG.maxPlanningSteps,
             ),
-            language = prefs.getString(KEY_LLM_AGENT_LANGUAGE, DEFAULT_LLM_AGENT_CONFIG.language)
-                ?: DEFAULT_LLM_AGENT_CONFIG.language,
+            language = getPromptLanguage().code,
             customSystemPrompt = prefs.getString(
                 if (isChineseLanguage()) KEY_LLM_AGENT_CUSTOM_PROMPT_CN else KEY_LLM_AGENT_CUSTOM_PROMPT_EN,
                 "",
@@ -1001,7 +1019,6 @@ class SettingsManager private constructor(private val context: Context) {
             putInt(KEY_LLM_AGENT_MAX_TOKENS, config.maxTokens)
             putFloat(KEY_LLM_AGENT_TEMPERATURE, config.temperature)
             putInt(KEY_LLM_AGENT_MAX_PLANNING_STEPS, config.maxPlanningSteps)
-            putString(KEY_LLM_AGENT_LANGUAGE, config.language)
             putBoolean(KEY_LLM_AGENT_LIMIT_CONTEXT_ROUNDS, config.limitContextRounds)
             putString(KEY_LLM_AGENT_SCREENSHOT_REVIEW_LEVEL, config.screenshotReviewLevel.name)
             apply()
@@ -1055,8 +1072,7 @@ class SettingsManager private constructor(private val context: Context) {
     }
 
     private fun isChineseLanguage(): Boolean {
-        val lang = prefs.getString(KEY_LLM_AGENT_LANGUAGE, DEFAULT_LLM_AGENT_CONFIG.language) ?: "cn"
-        return lang.lowercase() != "en" && lang.lowercase() != "english"
+        return getPromptLanguage() == AppLanguage.SIMPLIFIED_CHINESE
     }
 
     // ==================== BrainLLM Config ====================
@@ -1069,7 +1085,7 @@ class SettingsManager private constructor(private val context: Context) {
     fun getBrainLLMConfig(): com.flowmate.autoxiaoer.agent.BrainLLMConfig {
         Logger.d(TAG, "Loading BrainLLM configuration")
         val default = com.flowmate.autoxiaoer.agent.BrainLLMConfig()
-        val language = prefs.getString(KEY_LLM_AGENT_LANGUAGE, "cn") ?: "cn"
+        val language = getPromptLanguage().code
         val customPromptKey = if (language.lowercase() == "en" || language.lowercase() == "english") KEY_BRAIN_LLM_CUSTOM_PROMPT_EN else KEY_BRAIN_LLM_CUSTOM_PROMPT_CN
         return com.flowmate.autoxiaoer.agent.BrainLLMConfig(
             baseUrl = prefs.getString(KEY_BRAIN_LLM_BASE_URL, default.baseUrl) ?: default.baseUrl,

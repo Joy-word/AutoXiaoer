@@ -14,8 +14,6 @@ import android.widget.AutoCompleteTextView
 import android.widget.Button
 import android.widget.ImageButton
 import android.widget.PopupMenu
-import android.widget.RadioButton
-import android.widget.RadioGroup
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -82,9 +80,6 @@ class SettingsActivity : BaseActivity() {
     private lateinit var maxStepsInput: TextInputEditText
     private lateinit var screenshotDelayLayout: TextInputLayout
     private lateinit var screenshotDelayInput: TextInputEditText
-    private lateinit var languageRadioGroup: RadioGroup
-    private lateinit var languageChinese: RadioButton
-    private lateinit var languageEnglish: RadioButton
 
     // Buttons
     private lateinit var saveButton: ImageButton
@@ -244,9 +239,6 @@ class SettingsActivity : BaseActivity() {
         maxStepsInput = findViewById(R.id.maxStepsInput)
         screenshotDelayLayout = findViewById(R.id.screenshotDelayLayout)
         screenshotDelayInput = findViewById(R.id.screenshotDelayInput)
-        languageRadioGroup = findViewById(R.id.languageRadioGroup)
-        languageChinese = findViewById(R.id.languageChinese)
-        languageEnglish = findViewById(R.id.languageEnglish)
 
         // Buttons
         saveButton = findViewById(R.id.saveButton)
@@ -320,12 +312,6 @@ class SettingsActivity : BaseActivity() {
         // Populate agent settings
         maxStepsInput.setText(PhoneAgentConfig.maxSteps.toString())
         screenshotDelayInput.setText((PhoneAgentConfig.screenshotDelayMs / 1000.0).toString())
-
-        // Set language selection
-        when (PhoneAgentConfig.language) {
-            "en" -> languageEnglish.isChecked = true
-            else -> languageChinese.isChecked = true
-        }
 
         // Clear any previous errors
         clearErrors()
@@ -783,7 +769,6 @@ class SettingsActivity : BaseActivity() {
                 ?.trim()
                 ?.toDoubleOrNull() ?: 2.0
         val screenshotDelayMs = (screenshotDelaySeconds * 1000).toLong()
-        val language = if (languageEnglish.isChecked) "en" else "cn"
 
         // Create and save model config
         val modelConfig =
@@ -798,7 +783,7 @@ class SettingsActivity : BaseActivity() {
         val PhoneAgentConfig =
             PhoneAgentConfig(
                 maxSteps = maxSteps,
-                language = language,
+                language = settingsManager.getPromptLanguage().code,
                 screenshotDelayMs = screenshotDelayMs,
             )
         settingsManager.savePhoneAgentConfig(PhoneAgentConfig)

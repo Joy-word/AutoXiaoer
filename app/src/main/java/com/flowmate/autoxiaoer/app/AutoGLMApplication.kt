@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.Application
 import android.os.Bundle
 import com.flowmate.autoxiaoer.config.BehaviorContext
+import com.flowmate.autoxiaoer.config.AppLanguage
 import com.flowmate.autoxiaoer.config.BrainLLMPrompts
 import com.flowmate.autoxiaoer.config.MemoryContext
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
@@ -42,6 +43,9 @@ class AutoGLMApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        val systemLocale = resources.configuration.locales[0]
+        SettingsManager.getInstance(this).initializePromptLanguage(AppLanguage.fromSystemLocale(systemLocale))
 
         // Initialize log file manager for file-based logging
         LogFileManager.init(this)

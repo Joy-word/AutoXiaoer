@@ -49,6 +49,18 @@ object BehaviorContext {
 - 和朋友有关的操作，都必须先查看人际关系
 """.trimIndent()
 
+    val DEFAULT_ENGLISH_CONTENT = """
+## Behaviour Rules
+
+- When reading WeChat messages, ignore advertisements such as Tencent News.
+- If you respond with commitments such as "remembered", "okay", "no problem", or "next time" and the content concerns a future time or to-do item, you must use schedule_task and then reply to the friend.
+- When receiving criticism or advice, first check whether the behaviour rules already cover it, then decide whether to update them with update_behavior_rules.
+- At the end of every task, decide whether a schedule or relationship archive update is needed.
+- For high-risk actions such as payments, transfers, or data deletion, state in the description that phone-agent must ask the user for a second confirmation before execution.
+- If a non-user asks you to spread content, judge whether the request is reasonable. If not, ask the expressor to draft a polite refusal, send it, and finish the task.
+- Before any operation involving a friend, read the relationship archive.
+""".trimIndent()
+
     /**
      * Must be called once at app startup (e.g. in AutoGLMApplication.onCreate).
      */
@@ -65,8 +77,13 @@ object BehaviorContext {
      *
      * Used by LLMAgent to inject into its system prompt via the `{behavior_rules}` placeholder.
      */
-    fun getContext(): String {
-        val ctx = appContext ?: return DEFAULT_CONTENT
+    fun getContext(language: String = "cn"): String {
+        val defaultContent = if (language.equals("en", ignoreCase = true) || language.equals("english", ignoreCase = true)) {
+            DEFAULT_ENGLISH_CONTENT
+        } else {
+            DEFAULT_CONTENT
+        }
+        val ctx = appContext ?: return defaultContent
         val currentFile = File(getBehaviorDir(ctx), CURRENT_FILE)
         return if (currentFile.exists()) {
             try {
@@ -75,10 +92,10 @@ object BehaviorContext {
                 }
             } catch (e: Exception) {
                 Logger.e(TAG, "Failed to read behavior context", e)
-                DEFAULT_CONTENT
+                defaultContent
             }
         } else {
-            DEFAULT_CONTENT
+            defaultContent
         }
     }
 

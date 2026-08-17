@@ -570,10 +570,18 @@ class PhoneAgent(
 
             // Build user message
             val userText =
-                when {
-                    task != null -> "任务: $task\n当前屏幕截图如下:"
-                    hint != null -> "上一步执行结果: $hint\n继续执行任务，当前屏幕截图如下:"
-                    else -> "继续执行任务，当前屏幕截图如下:"
+                if (config.language.equals("en", ignoreCase = true) || config.language.equals("english", ignoreCase = true)) {
+                    when {
+                        task != null -> "Task: $task\nThe current screen is shown below:"
+                        hint != null -> "Previous action result: $hint\nContinue the task. The current screen is shown below:"
+                        else -> "Continue the task. The current screen is shown below:"
+                    }
+                } else {
+                    when {
+                        task != null -> "任务: $task\n当前屏幕截图如下:"
+                        hint != null -> "上一步执行结果: $hint\n继续执行任务，当前屏幕截图如下:"
+                        else -> "继续执行任务，当前屏幕截图如下:"
+                    }
                 }
 
             // Add user message to context (screenshot is passed separately to model)

@@ -44,7 +44,7 @@ Auto Xiao'er is a native Android application deeply modified from [AutoGLM For A
 - ⏰ **Scheduled Tasks**: Supports timed task execution with repeat modes, auto wake screen
 - 🔔 **Notification Triggers**: Monitors specified app notifications and auto-triggers preset tasks
 - 📶 **WeChat Remote Control**: Connect via WeChat QR code scan to control Xiao'er remotely
-- 🔒 **Shizuku Permissions**: Obtains necessary system permissions through Shizuku
+- 🔒 **Dual Control Backends**: Supports Shizuku and Android Accessibility Service, with flexible switching in Settings
 - 🪟 **Floating Window Interaction**: Floating window displays task execution progress in real-time
 - 📱 **Native Experience**: Material Design, smooth native Android experience
 - 🔌 **Multi-Model Support**: Compatible with any model API supporting OpenAI format and image understanding
@@ -83,20 +83,27 @@ Auto Xiao'er is a native Android application deeply modified from [AutoGLM For A
 ## 📱 Requirements
 
 - **Android Version**: Android 7.0 (API 24) or higher
-- **Required App**: [Shizuku](https://shizuku.rikka.app/) (for system permissions)
+- **Control Method (choose one)**:
+  - [Shizuku](https://shizuku.rikka.app/): Install and activate Shizuku for more complete system-level controls
+  - Accessibility Service: No additional app required; enable "Accessibility → Auto Xiao'er" in system Settings
 - **Network**: Connection to model API service (supports any OpenAI-compatible vision model)
 - **Permissions**:
   - Overlay permission (for floating window)
   - Network permission (for API communication)
   - Background running permission (for background task execution)
-  - Shizuku permission (for system operations)
+  - Shizuku permission (required when using the Shizuku backend, for system operations)
+  - Accessibility Service permission (required when using the Accessibility backend, for taps, swipes, text input, and other screen operations)
   - Notification listening permission (optional, for notification trigger feature)
 
 ## 🚀 Quick Start
 
-### Step 1: Install and Activate Shizuku
+### Step 1: Choose a Control Method
 
-Shizuku is the core dependency of this app, used to perform screen clicks, swipes, and other operations.
+Auto Xiao'er supports both Shizuku and Android Accessibility Service. Choose either method for setup, and switch between them any time in Settings.
+
+#### Option A: Shizuku Control (Optional)
+
+Shizuku provides more complete system-level controls, making it suitable for tasks that need key events such as volume or power buttons.
 
 **Download and Install**
 
@@ -136,6 +143,17 @@ Shizuku is the core dependency of this app, used to perform screen clicks, swipe
 
 > 💡 **Tip**: If you can't find Developer Options, go to "About Phone" and tap "Build Number" multiple times to enable it.
 
+#### Option B: Accessibility Control (Recommended for Quick Setup)
+
+No Shizuku installation is required. In your phone's "Settings" → "Accessibility", find "Auto Xiao'er" and enable its Accessibility Service.
+
+#### Control Method Comparison
+
+| Method | Advantages | Notes |
+| ------ | ---------- | ----- |
+| **Shizuku** | More complete system-level controls, including volume and power key events | Requires installing and activating Shizuku; wireless-debugging activation must be restarted or paired again after a reboot |
+| **Accessibility Service** | No additional app or ADB required; usable as soon as the service is enabled | Does not support volume-key injection; power operations lock the screen |
+
 ### Step 2: Install Auto Xiao'er
 
 1. Download the latest APK from [Releases Page](https://github.com/Joy-word/AutoXiaoer/releases)
@@ -147,7 +165,8 @@ After opening the app, grant the following permissions in order:
 
 | Permission          | Purpose                    | Action                                           |
 | ------------------- | -------------------------- | ------------------------------------------------ |
-| Shizuku Permission  | Execute screen operations  | Tap "Authorize" → Always Allow                   |
+| Shizuku Permission (when using Shizuku) | Execute system-level screen operations | Tap "Authorize" → Always Allow |
+| Accessibility Service permission (when using Accessibility) | Execute taps, swipes, text input, and other screen operations | Go to system "Accessibility" → Enable "Auto Xiao'er" |
 | Overlay Permission  | Display task execution window | Tap "Authorize" → Enable toggle               |
 | Keyboard Permission | Input text content         | Tap "Enable Keyboard" → Enable Xiao'er Keyboard  |
 
@@ -169,7 +188,7 @@ This app uses a **dual-model, dual-agent architecture**, with an optional standa
 
 | Role | Responsibility | Recommended Model |
 | ---- | -------------- | ----------------- |
-| **LLM Agent (Controller)** | Receives user tasks, performs high-level planning via ReAct loop, breaks complex tasks into sub-tasks | Pure text LLM (e.g. GLM-4.7, DeepSeek) |
+| **LLM Agent (Controller)** | Receives user tasks, performs high-level planning via ReAct loop, breaks complex tasks into sub-tasks, and can review sub-task results using screenshots | A multimodal LLM with image understanding is recommended |
 | **Phone Agent (Executor)** | Awaits sub-tasks, analyzes screenshots and executes actions | Vision model with image understanding (e.g. autoglm-phone) |
 | **BrainLLM (Expresser · optional)** | Persona expression, relationships, and human-facing wording; when enabled, outgoing messages can be generated solely by the expresser | Pure text LLM (same or different provider as the controller; models strong at role-play and dialogue, e.g. doubao-seed-2.0) |
 
@@ -197,17 +216,19 @@ After configuration, tap "Test Connection" to verify the settings.
 
 **LLM Agent Configuration (Controller · Planning LLM)**
 
-Go to Settings → LLM Agent Configuration to set up the pure-text large language model for the controller:
+Go to Settings → LLM Agent Configuration to set up the controller's large language model:
 
 | Setting             | Description                                                    |
 | ------------------- | -------------------------------------------------------------- |
 | Base URL            | OpenAI-compatible API endpoint                                 |
-| Model               | Pure text model, e.g. `glm-4-plus`, `deepseek-chat`           |
+| Model               | Any OpenAI-compatible LLM; a multimodal model with image understanding is recommended |
 | API Key             | API key for the corresponding service                          |
 | Max Planning Steps  | Maximum ReAct iterations for the LLM loop, default 20         |
 | Custom System Prompt| Overrides the built-in controller prompt to tune behaviour       |
 
-> 💡 LLM Agent config is strictly independent from Phone Agent config — any OpenAI-compatible text model can be used.
+> 💡 LLM Agent config is strictly independent from Phone Agent config — any OpenAI-compatible LLM can be used.
+
+Under **Advanced Settings**, enable **Phone-agent Screenshot Review** to have the LLM Agent check the final Phone Agent screenshot after each sub-task, improving task success rates. Choose either "Review on Failure" or "Review Every Round"; this feature requires visual input support and increases token usage.
 
 **BrainLLM Configuration (Expresser)**
 
@@ -238,7 +259,7 @@ Any model service can be used as long as it meets the following requirements:
 2. **Multi-modal Support**: Supports `image_url` format for image input
 3. **Image Understanding**: Can analyze screenshots and understand UI elements
 
-Requirements **2 and 3 apply only to Phone Agent (Executor · vision model)**. **LLM Agent (Controller)** and **BrainLLM (Expresser)** only need requirement 1 (standard text chat); multimodal is not required.
+**Phone Agent (Executor)** must meet all requirements above. **LLM Agent (Controller)** only needs requirement 1; it must also meet requirements 2 and 3 when Phone-agent Screenshot Review is enabled in Advanced Settings to receive and review screenshots. **BrainLLM (Expresser)** also only needs requirement 1 (standard text chat).
 
 > ⚠️ **Note**: Non-AutoGLM models may require custom system prompts to output the correct action command format. You can customize system prompts in Settings → Advanced Settings.
 
