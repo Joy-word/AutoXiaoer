@@ -17,6 +17,7 @@ import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.MultiFormatWriter
+import com.flowmate.autoxiaoer.config.AppLanguage
 import com.flowmate.autoxiaoer.settings.SettingsManager
 import com.flowmate.autoxiaoer.util.Logger
 import kotlinx.coroutines.Dispatchers
@@ -73,7 +74,7 @@ class ClawBotQrLoginDialog : DialogFragment() {
 
         // Title
         val title = TextView(ctx).apply {
-            text = "扫码连接 ClawBot"
+            text = getString(R.string.clawbot_qr_title)
             textSize = 18f
             setTextColor(Color.parseColor("#1C1B1F"))
             gravity = Gravity.CENTER
@@ -88,7 +89,7 @@ class ClawBotQrLoginDialog : DialogFragment() {
 
         // Hint
         val hint = TextView(ctx).apply {
-            text = "请使用微信扫描下方二维码完成授权"
+            text = getString(R.string.clawbot_qr_hint)
             textSize = 14f
             setTextColor(Color.parseColor("#49454F"))
             gravity = Gravity.CENTER
@@ -140,7 +141,7 @@ class ClawBotQrLoginDialog : DialogFragment() {
 
         // Refresh button (hidden until timeout)
         btnRefresh = Button(ctx).apply {
-            text = "刷新二维码"
+            text = getString(R.string.clawbot_qr_refresh)
             val lp = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -175,7 +176,7 @@ class ClawBotQrLoginDialog : DialogFragment() {
         btnRefresh.visibility = View.GONE
         qrImageView.visibility = View.GONE
         progressBar.visibility = View.VISIBLE
-        statusText.text = "正在获取二维码…"
+        statusText.text = getString(R.string.clawbot_qr_status_loading)
 
         loginJob = viewLifecycleOwner.lifecycleScope.launch {
             val qrResponse = withContext(Dispatchers.IO) {
@@ -190,7 +191,7 @@ class ClawBotQrLoginDialog : DialogFragment() {
 
             if (qrResponse == null) {
                 progressBar.visibility = View.GONE
-                statusText.text = "获取二维码失败，请检查网络后重试。\n${lastError ?: ""}"
+                statusText.text = getString(R.string.clawbot_qr_error, lastError ?: "")
                 btnRefresh.visibility = View.VISIBLE
                 return@launch
             }
@@ -202,7 +203,7 @@ class ClawBotQrLoginDialog : DialogFragment() {
 
             if (bitmap == null) {
                 progressBar.visibility = View.GONE
-                statusText.text = "生成二维码失败，请重试。"
+                statusText.text = getString(R.string.clawbot_qr_generate_failed)
                 btnRefresh.visibility = View.VISIBLE
                 return@launch
             }
@@ -210,7 +211,7 @@ class ClawBotQrLoginDialog : DialogFragment() {
             progressBar.visibility = View.GONE
             qrImageView.setImageBitmap(bitmap)
             qrImageView.visibility = View.VISIBLE
-            statusText.text = "等待扫码…"
+            statusText.text = getString(R.string.clawbot_qr_wait_scan)
 
             // Poll loop (max 60 s)
             val startMs = System.currentTimeMillis()
@@ -223,7 +224,7 @@ class ClawBotQrLoginDialog : DialogFragment() {
                 } ?: continue
 
                 when (statusResp.status) {
-                    "scaned" -> statusText.text = "已扫码，请在手机上确认…"
+                    "scaned" -> statusText.text = getString(R.string.clawbot_qr_scanned)
                     "confirmed" -> {
                         val ctx = requireContext()
                         val creds = ClawBotCredentials(
@@ -243,7 +244,7 @@ class ClawBotQrLoginDialog : DialogFragment() {
                     }
                     "expired" -> {
                         // Server says QR expired; refresh automatically
-                        statusText.text = "二维码已失效，正在刷新…"
+                        statusText.text = getString(R.string.clawbot_qr_expired_refreshing)
                         startLogin()
                         return@launch
                     }
@@ -254,7 +255,7 @@ class ClawBotQrLoginDialog : DialogFragment() {
             // Timed out
             if (isActive) {
                 qrImageView.visibility = View.GONE
-                statusText.text = "二维码已过期，请点击刷新。"
+                statusText.text = getString(R.string.clawbot_qr_expired)
                 btnRefresh.visibility = View.VISIBLE
             }
         }

@@ -431,8 +431,8 @@ class SettingsFragment : Fragment() {
         btnClawBotAction.setOnClickListener {
             if (ClawBotManager.isConnected(requireContext())) {
                 MaterialAlertDialogBuilder(requireContext())
-                    .setTitle("解绑 ClawBot")
-                    .setMessage("确定要断开 ClawBot 连接吗？断开后将停止接收微信消息。")
+                    .setTitle(R.string.settings_clawbot_disconnect_confirm_title)
+                    .setMessage(R.string.settings_clawbot_disconnect_confirm_message)
                     .setPositiveButton(R.string.dialog_confirm) { _, _ ->
                         ClawBotManager.disconnect(requireContext())
                         updateClawBotUI()
@@ -698,11 +698,11 @@ class SettingsFragment : Fragment() {
     private fun updateClawBotUI() {
         val connected = ClawBotManager.isConnected(requireContext())
         if (connected) {
-            clawBotStatusText.text = "已连接"
-            btnClawBotAction.text = "解绑"
+            clawBotStatusText.text = getString(R.string.settings_clawbot_connected)
+            btnClawBotAction.text = getString(R.string.settings_clawbot_disconnect)
         } else {
-            clawBotStatusText.text = "未连接"
-            btnClawBotAction.text = "连接"
+            clawBotStatusText.text = getString(R.string.settings_clawbot_disconnected)
+            btnClawBotAction.text = getString(R.string.settings_clawbot_connect)
         }
     }
 
@@ -1709,27 +1709,29 @@ class SettingsFragment : Fragment() {
         val btnHistory = dialogView.findViewById<Button>(R.id.btnResetPrompt)
         btnHistory.text = getString(R.string.settings_dialog_history)
 
-        promptInput.setText(BehaviorContext.getContext())
+        promptInput.setText(BehaviorContext.getContext(settingsManager.getPromptLanguage().code))
 
+        val language = settingsManager.getPromptLanguage().code
+        val defaultContent = if (language == "en") BehaviorContext.DEFAULT_ENGLISH_CONTENT else BehaviorContext.DEFAULT_CONTENT
         MaterialAlertDialogBuilder(ctx)
             .setTitle(R.string.settings_behavior_rules_title)
             .setView(dialogView)
             .setPositiveButton(R.string.settings_save) { _, _ ->
                 val newContent = promptInput.text?.toString() ?: ""
                 if (newContent.isNotBlank()) {
-                    BehaviorContext.saveNewVersion(newContent)
+                    BehaviorContext.saveNewVersion(newContent, language)
                     Toast.makeText(ctx, R.string.settings_behavior_rules_saved, Toast.LENGTH_SHORT).show()
                 }
             }
             .setNeutralButton(R.string.settings_dialog_reset_default) { _, _ ->
-                promptInput.setText(BehaviorContext.DEFAULT_CONTENT)
-                Toast.makeText(ctx, "Default restored, click Save to apply", Toast.LENGTH_SHORT).show()
+                promptInput.setText(defaultContent)
+                Toast.makeText(ctx, R.string.settings_behavior_rules_default_restored_toast, Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.dialog_cancel, null)
             .create()
             .also { dialog ->
                 btnHistory.setOnClickListener {
-                    val history = BehaviorContext.getHistory()
+                    val history = BehaviorContext.getHistory(language)
                     if (history.isEmpty()) {
                         Toast.makeText(ctx, R.string.settings_dialog_no_history, Toast.LENGTH_SHORT).show()
                         return@setOnClickListener
@@ -1742,7 +1744,7 @@ class SettingsFragment : Fragment() {
                         .setTitle(getString(R.string.settings_behavior_rules_history))
                         .setItems(labels) { _, idx ->
                             val selected = history[idx]
-                            val content = BehaviorContext.readHistoryVersion(selected)
+                            val content = BehaviorContext.readHistoryVersion(selected, language)
                             if (content == null) {
                                 Toast.makeText(ctx, getString(R.string.settings_dialog_unable_to_read), Toast.LENGTH_SHORT).show()
                                 return@setItems
@@ -1755,7 +1757,7 @@ class SettingsFragment : Fragment() {
                                 )
                                 .setPositiveButton(getString(R.string.settings_dialog_restore_to_editor)) { _, _ ->
                                     promptInput.setText(content)
-                                    Toast.makeText(ctx, "Restored to editor, click Save to apply", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(ctx, R.string.settings_behavior_rules_restored_to_editor, Toast.LENGTH_SHORT).show()
                                 }
                                 .setNegativeButton(R.string.dialog_cancel, null)
                                 .show()

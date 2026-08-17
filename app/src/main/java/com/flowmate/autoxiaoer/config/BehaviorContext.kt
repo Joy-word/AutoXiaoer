@@ -1,6 +1,7 @@
 package com.flowmate.autoxiaoer.config
 
 import android.content.Context
+import com.flowmate.autoxiaoer.settings.SettingsManager
 import com.flowmate.autoxiaoer.util.Logger
 import java.io.File
 import java.text.SimpleDateFormat
@@ -30,6 +31,8 @@ object BehaviorContext {
     private const val DIR_NAME = "behavior_rules"
     private const val HISTORY_DIR = "history"
     private const val CURRENT_FILE = "current.md"
+    private const val CURRENT_FILE_CN = "current_cn.md"
+    private const val CURRENT_FILE_EN = "current_en.md"
     private const val VERSION_PREFIX = "v"
     private const val VERSION_DATE_FORMAT = "yyyyMMdd_HHmmss"
 
@@ -77,21 +80,25 @@ object BehaviorContext {
      *
      * Used by LLMAgent to inject into its system prompt via the `{behavior_rules}` placeholder.
      */
-    fun getContext(language: String = "cn"): String {
-        val defaultContent = if (language.equals("en", ignoreCase = true) || language.equals("english", ignoreCase = true)) {
-            DEFAULT_ENGLISH_CONTENT
-        } else {
-            DEFAULT_CONTENT
-        }
+    fun getContext(language: String? = null): String {
+        val resolvedLanguage = resolveLanguage(language)
+        val defaultContent = if (resolvedLanguage == "en") DEFAULT_ENGLISH_CONTENT else DEFAULT_CONTENT
         val ctx = appContext ?: return defaultContent
-        val currentFile = File(getBehaviorDir(ctx), CURRENT_FILE)
-        return if (currentFile.exists()) {
+        val currentFile = getCurrentFile(ctx, resolvedLanguage)
+        val fallbackFile = File(getBehaviorDir(ctx), CURRENT_FILE)
+        val targetFile = when {
+            currentFile.exists() -> currentFile
+            fallbackFile.exists() -> fallbackFile
+            else -> currentFile
+        }
+
+        return if (targetFile.exists()) {
             try {
-                currentFile.readText().also {
-                    Logger.d(TAG, "Loaded behavior context (${it.length} chars)")
+                targetFile.readText().also {
+                    Logger.d(TAG, "Loaded behavior context [$resolvedLanguage] (${it.length} chars)")
                 }
             } catch (e: Exception) {
-                Logger.e(TAG, "Failed to read behavior context", e)
+                Logger.e(TAG, "Failed to read behavior context [$resolvedLanguage]", e)
                 defaultContent
             }
         } else {
@@ -112,14 +119,15 @@ object BehaviorContext {
      * @return The [BehaviorVersion] that was just archived from the old current,
      *         or null if there was no previous version to archive.
      */
-    fun saveNewVersion(content: String): BehaviorVersion? {
+    fun saveNewVersion(content: String, language: String? = null): BehaviorVersion? {
         val ctx = appContext ?: run {
             Logger.e(TAG, "BehaviorContext not initialized — call init() first")
             return null
         }
+        val resolvedLanguage = resolveLanguage(language)
         val behaviorDir = getBehaviorDir(ctx)
-        val historyDir = File(behaviorDir, HISTORY_DIR).also { it.mkdirs() }
-        val currentFile = File(behaviorDir, CURRENT_FILE)
+        val historyDir = File(behaviorDir, getHistoryDirName(resolvedLanguage)).also { it.mkdirs() }
+        val currentFile = getCurrentFile(ctx, resolvedLanguage)
 
         var archivedVersion: BehaviorVersion? = null
 
@@ -136,17 +144,17 @@ object BehaviorContext {
                     savedAt = System.currentTimeMillis(),
                     sizeBytes = archiveFile.length().toInt(),
                 )
-                Logger.i(TAG, "Archived behavior context to $archiveName")
+                Logger.i(TAG, "Archived behavior context [$resolvedLanguage] to $archiveName")
             } catch (e: Exception) {
-                Logger.e(TAG, "Failed to archive behavior context", e)
+                Logger.e(TAG, "Failed to archive behavior context [$resolvedLanguage]", e)
             }
         }
 
         try {
             currentFile.writeText(content)
-            Logger.i(TAG, "Saved new behavior context (${content.length} chars)")
+            Logger.i(TAG, "Saved new behavior context [$resolvedLanguage] (${content.length} chars)")
         } catch (e: Exception) {
-            Logger.e(TAG, "Failed to write behavior context", e)
+            Logger.e(TAG, "Failed to write behavior context [$resolvedLanguage]", e)
         }
 
         return archivedVersion
@@ -159,9 +167,9 @@ object BehaviorContext {
     /**
      * Returns a list of archived versions, most recent first.
      */
-    fun getHistory(): List<BehaviorVersion> {
+    fun getHistory(language: String? = null): List<BehaviorVersion> {
         val ctx = appContext ?: return emptyList()
-        val historyDir = File(getBehaviorDir(ctx), HISTORY_DIR)
+        val historyDir = File(getBehaviorDir(ctx), getHistoryDirName(resolveLanguage(language)))
         if (!historyDir.exists()) return emptyList()
 
         return historyDir.listFiles()
@@ -175,9 +183,9 @@ object BehaviorContext {
      * Rolls back to the given [version]: copies that file's content into `current.md`
      * (archiving the current content first).
      */
-    fun rollback(version: BehaviorVersion) {
+    fun rollback(version: BehaviorVersion, language: String? = null) {
         val ctx = appContext ?: return
-        val historyDir = File(getBehaviorDir(ctx), HISTORY_DIR)
+        val historyDir = File(getBehaviorDir(ctx), getHistoryDirName(resolveLanguage(language)))
         val archiveFile = File(historyDir, version.filename)
         if (!archiveFile.exists()) {
             Logger.e(TAG, "Rollback target not found: ${version.filename}")
@@ -189,16 +197,16 @@ object BehaviorContext {
             Logger.e(TAG, "Failed to read rollback target", e)
             return
         }
-        saveNewVersion(content)
+        saveNewVersion(content, resolveLanguage(language))
         Logger.i(TAG, "Rolled back to ${version.filename}")
     }
 
     /**
      * Reads the content of a historical version without applying it.
      */
-    fun readHistoryVersion(version: BehaviorVersion): String? {
+    fun readHistoryVersion(version: BehaviorVersion, language: String? = null): String? {
         val ctx = appContext ?: return null
-        val file = File(File(getBehaviorDir(ctx), HISTORY_DIR), version.filename)
+        val file = File(File(getBehaviorDir(ctx), getHistoryDirName(resolveLanguage(language))), version.filename)
         return try {
             file.readText()
         } catch (e: Exception) {
@@ -213,6 +221,17 @@ object BehaviorContext {
 
     private fun getBehaviorDir(ctx: Context): File =
         File(ctx.filesDir, DIR_NAME).also { it.mkdirs() }
+
+    private fun resolveLanguage(language: String?): String {
+        val raw = language ?: appContext?.let { SettingsManager.getInstance(it).getPromptLanguage().code } ?: "cn"
+        return if (raw.equals("en", ignoreCase = true) || raw.equals("english", ignoreCase = true)) "en" else "cn"
+    }
+
+    private fun getCurrentFile(ctx: Context, language: String): File =
+        File(getBehaviorDir(ctx), if (language == "en") CURRENT_FILE_EN else CURRENT_FILE_CN)
+
+    private fun getHistoryDirName(language: String): String =
+        if (language == "en") "${HISTORY_DIR}_en" else "${HISTORY_DIR}_cn"
 
     private fun nextVersionNumber(historyDir: File): Int {
         val existing = historyDir.listFiles()
