@@ -17,6 +17,7 @@ import androidx.fragment.app.DialogFragment
 import androidx.lifecycle.lifecycleScope
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.MultiFormatWriter
+import com.flowmate.autoxiaoer.R
 import com.flowmate.autoxiaoer.config.AppLanguage
 import com.flowmate.autoxiaoer.settings.SettingsManager
 import com.flowmate.autoxiaoer.util.Logger
