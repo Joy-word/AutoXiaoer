@@ -1036,8 +1036,9 @@ class SettingsFragment : Fragment() {
         }
         container.addView(promptSectionLabel)
 
-        val btnEditPromptCnDialog = Button(ctx).apply {
-            text = getString(R.string.settings_system_prompt_cn)
+        val activePromptLanguage = settingsManager.getPromptLanguage().code
+        val btnEditPromptDialog = Button(ctx).apply {
+            text = getString(R.string.settings_system_prompt_edit)
             val lp = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -1045,18 +1046,7 @@ class SettingsFragment : Fragment() {
             lp.topMargin = dp4
             layoutParams = lp
         }
-        container.addView(btnEditPromptCnDialog)
-
-        val btnEditPromptEnDialog = Button(ctx).apply {
-            text = getString(R.string.settings_system_prompt_en)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(btnEditPromptEnDialog)
+        container.addView(btnEditPromptDialog)
 
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(getString(R.string.settings_phone_agent_title))
@@ -1113,8 +1103,7 @@ class SettingsFragment : Fragment() {
             )
         }
 
-        btnEditPromptCnDialog.setOnClickListener { showPhoneAgentPromptDialog("cn") }
-        btnEditPromptEnDialog.setOnClickListener { showPhoneAgentPromptDialog("en") }
+        btnEditPromptDialog.setOnClickListener { showPhoneAgentPromptDialog(activePromptLanguage) }
 
         dialog.show()
         dialog.applyPrimaryButtonColors()
@@ -1581,7 +1570,7 @@ class SettingsFragment : Fragment() {
 
         // ── Agent name ───────────────────────────────────────────────
         val nameLabel = TextView(ctx).apply {
-            text = "智能体名称"
+            text = getString(R.string.settings_persona_agent_name_title)
             setTextColor(android.graphics.Color.parseColor("#888888"))
             textSize = 14f
         }
@@ -1632,7 +1621,7 @@ class SettingsFragment : Fragment() {
 
         // ── Persona editor ───────────────────────────────────────────
         val personaLabel = TextView(ctx).apply {
-            text = "人设"
+            text = getString(R.string.settings_persona_title)
             setTextColor(android.graphics.Color.parseColor("#888888"))
             textSize = 14f
             val lp = android.widget.LinearLayout.LayoutParams(
@@ -1645,7 +1634,7 @@ class SettingsFragment : Fragment() {
         container.addView(personaLabel)
 
         val btnPersona = Button(ctx).apply {
-            text = "编辑人设（你是谁 + 你的个性）"
+            text = getString(R.string.settings_persona_editor)
             val lp = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -1657,7 +1646,7 @@ class SettingsFragment : Fragment() {
 
         // ── Relationships editor ─────────────────────────────────────
         val btnRelationships = Button(ctx).apply {
-            text = "人际关系档案"
+            text = getString(R.string.settings_persona_relationships)
             val lp = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -1669,7 +1658,7 @@ class SettingsFragment : Fragment() {
 
         // ── Behavior rules editor ────────────────────────────────────
         val btnBehavior = Button(ctx).apply {
-            text = "行为准则"
+            text = getString(R.string.settings_persona_behavior)
             val lp = android.widget.LinearLayout.LayoutParams(
                 android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
                 android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -1681,9 +1670,9 @@ class SettingsFragment : Fragment() {
 
         // ── Dialog ───────────────────────────────────────────────────
         val dialog = MaterialAlertDialogBuilder(ctx)
-            .setTitle("小二人设")
+            .setTitle(getString(R.string.settings_persona_title_dialog))
             .setView(scrollView)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val newName = nameEdit.text?.toString()?.trim() ?: ""
                 if (newName.isNotBlank()) {
                     settingsManager.setAgentName(newName)
@@ -1696,9 +1685,9 @@ class SettingsFragment : Fragment() {
                     com.flowmate.autoxiaoer.ComponentManager.getInstance(ctx).reinitializeAgents()
                 }
 
-                Toast.makeText(ctx, "小二人设已保存", Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, R.string.settings_persona_title, Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
 
         btnPersona.setOnClickListener { showPersonaDialog() }
@@ -1718,31 +1707,31 @@ class SettingsFragment : Fragment() {
         val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_system_prompt, null)
         val promptInput = dialogView.findViewById<TextInputEditText>(R.id.promptInput)
         val btnHistory = dialogView.findViewById<Button>(R.id.btnResetPrompt)
-        btnHistory.text = "历史版本"
+        btnHistory.text = getString(R.string.settings_dialog_history)
 
         promptInput.setText(BehaviorContext.getContext())
 
         MaterialAlertDialogBuilder(ctx)
-            .setTitle("行为准则")
+            .setTitle(R.string.settings_behavior_rules_title)
             .setView(dialogView)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val newContent = promptInput.text?.toString() ?: ""
                 if (newContent.isNotBlank()) {
                     BehaviorContext.saveNewVersion(newContent)
-                    Toast.makeText(ctx, "行为准则已保存", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, R.string.settings_behavior_rules_saved, Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNeutralButton("重置默认") { _, _ ->
+            .setNeutralButton(R.string.settings_dialog_reset_default) { _, _ ->
                 promptInput.setText(BehaviorContext.DEFAULT_CONTENT)
-                Toast.makeText(ctx, "已恢复默认，点保存生效", Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, "Default restored, click Save to apply", Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
             .also { dialog ->
                 btnHistory.setOnClickListener {
                     val history = BehaviorContext.getHistory()
                     if (history.isEmpty()) {
-                        Toast.makeText(ctx, "暂无历史版本", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(ctx, R.string.settings_dialog_no_history, Toast.LENGTH_SHORT).show()
                         return@setOnClickListener
                     }
                     val dateFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
@@ -1750,28 +1739,28 @@ class SettingsFragment : Fragment() {
                         "v${v.versionNumber}  ${dateFmt.format(Date(v.savedAt))}  (${v.sizeBytes} B)"
                     }.toTypedArray()
                     MaterialAlertDialogBuilder(ctx)
-                        .setTitle("行为准则历史版本")
+                        .setTitle(getString(R.string.settings_behavior_rules_history))
                         .setItems(labels) { _, idx ->
                             val selected = history[idx]
                             val content = BehaviorContext.readHistoryVersion(selected)
                             if (content == null) {
-                                Toast.makeText(ctx, "无法读取该版本", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(ctx, getString(R.string.settings_dialog_unable_to_read), Toast.LENGTH_SHORT).show()
                                 return@setItems
                             }
                             MaterialAlertDialogBuilder(ctx)
-                                .setTitle("v${selected.versionNumber} — 预览")
+                                .setTitle("v${selected.versionNumber} — ${getString(R.string.settings_dialog_preview)}")
                                 .setMessage(
                                     content.take(800) +
-                                        if (content.length > 800) "\n…（已截断）" else ""
+                                        if (content.length > 800) "\n…(truncated)" else ""
                                 )
-                                .setPositiveButton("恢复到编辑器") { _, _ ->
+                                .setPositiveButton(getString(R.string.settings_dialog_restore_to_editor)) { _, _ ->
                                     promptInput.setText(content)
-                                    Toast.makeText(ctx, "已恢复到编辑器，点保存生效", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(ctx, "Restored to editor, click Save to apply", Toast.LENGTH_SHORT).show()
                                 }
-                                .setNegativeButton("取消", null)
+                                .setNegativeButton(R.string.dialog_cancel, null)
                                 .show()
                         }
-                        .setNegativeButton("取消", null)
+                        .setNegativeButton(R.string.dialog_cancel, null)
                         .show()
                 }
                 dialog.show()
@@ -1789,27 +1778,27 @@ class SettingsFragment : Fragment() {
         val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_system_prompt, null)
         val promptInput = dialogView.findViewById<TextInputEditText>(R.id.promptInput)
         val btnHistory = dialogView.findViewById<Button>(R.id.btnResetPrompt)
-        btnHistory.text = "历史版本"
+        btnHistory.text = getString(R.string.settings_dialog_history)
 
         promptInput.setText(com.flowmate.autoxiaoer.config.RelationshipContext.getContext())
 
         MaterialAlertDialogBuilder(ctx)
-            .setTitle("人际关系档案")
+            .setTitle(R.string.settings_relationships_title)
             .setView(dialogView)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val newContent = promptInput.text?.toString() ?: ""
                 if (newContent.isNotBlank()) {
                     com.flowmate.autoxiaoer.config.RelationshipContext.saveNewVersion(newContent)
-                    Toast.makeText(ctx, "人际关系档案已保存", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, R.string.settings_relationships_saved, Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
             .also { dialog ->
                 btnHistory.setOnClickListener {
                     val history = com.flowmate.autoxiaoer.config.RelationshipContext.getHistory()
                     if (history.isEmpty()) {
-                        Toast.makeText(ctx, "暂无历史版本", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(ctx, R.string.settings_dialog_no_history, Toast.LENGTH_SHORT).show()
                         return@setOnClickListener
                     }
                     val dateFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
@@ -1817,29 +1806,29 @@ class SettingsFragment : Fragment() {
                         "v${v.versionNumber}  ${dateFmt.format(Date(v.savedAt))}  (${v.sizeBytes} B)"
                     }.toTypedArray()
                     MaterialAlertDialogBuilder(ctx)
-                        .setTitle("关系档案历史版本")
+                        .setTitle(getString(R.string.settings_relationships_history))
                         .setItems(labels) { _, idx ->
                             val selected = history[idx]
                             val content = com.flowmate.autoxiaoer.config.RelationshipContext
                                 .readHistoryVersion(selected)
                             if (content == null) {
-                                Toast.makeText(ctx, "无法读取该版本", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(ctx, getString(R.string.settings_dialog_unable_to_read), Toast.LENGTH_SHORT).show()
                                 return@setItems
                             }
                             MaterialAlertDialogBuilder(ctx)
-                                .setTitle("v${selected.versionNumber} — 预览")
+                                .setTitle("v${selected.versionNumber} — ${getString(R.string.settings_dialog_preview)}")
                                 .setMessage(
                                     content.take(800) +
-                                        if (content.length > 800) "\n…（已截断）" else ""
+                                        if (content.length > 800) "\n…(truncated)" else ""
                                 )
-                                .setPositiveButton("恢复到编辑器") { _, _ ->
+                                .setPositiveButton(getString(R.string.settings_dialog_restore_to_editor)) { _, _ ->
                                     promptInput.setText(content)
-                                    Toast.makeText(ctx, "已恢复到编辑器，点保存生效", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(ctx, "Restored to editor, click Save to apply", Toast.LENGTH_SHORT).show()
                                 }
-                                .setNegativeButton("取消", null)
+                                .setNegativeButton(R.string.dialog_cancel, null)
                                 .show()
                         }
-                        .setNegativeButton("取消", null)
+                        .setNegativeButton(R.string.dialog_cancel, null)
                         .show()
                 }
                 dialog.show()
@@ -1857,27 +1846,27 @@ class SettingsFragment : Fragment() {
         val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_system_prompt, null)
         val promptInput = dialogView.findViewById<TextInputEditText>(R.id.promptInput)
         val btnHistory = dialogView.findViewById<Button>(R.id.btnResetPrompt)
-        btnHistory.text = "历史版本"
+        btnHistory.text = getString(R.string.settings_dialog_history)
 
         promptInput.setText(com.flowmate.autoxiaoer.config.PersonaContext.getRawContent(language))
 
         MaterialAlertDialogBuilder(ctx)
-            .setTitle("人设")
+            .setTitle(R.string.settings_persona_title)
             .setView(dialogView)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val newContent = promptInput.text?.toString() ?: ""
                 if (newContent.isNotBlank()) {
                     com.flowmate.autoxiaoer.config.PersonaContext.saveNewVersion(newContent, language)
-                    Toast.makeText(ctx, "人设已保存", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, R.string.settings_persona_saved, Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
             .also { dialog ->
                 btnHistory.setOnClickListener {
                     val history = com.flowmate.autoxiaoer.config.PersonaContext.getHistory(language)
                     if (history.isEmpty()) {
-                        Toast.makeText(ctx, "暂无历史版本", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(ctx, R.string.settings_dialog_no_history, Toast.LENGTH_SHORT).show()
                         return@setOnClickListener
                     }
                     val dateFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
@@ -1885,29 +1874,29 @@ class SettingsFragment : Fragment() {
                         "v${v.versionNumber}  ${dateFmt.format(Date(v.savedAt))}  (${v.sizeBytes} B)"
                     }.toTypedArray()
                     MaterialAlertDialogBuilder(ctx)
-                        .setTitle("人设历史版本")
+                        .setTitle(getString(R.string.settings_persona_title))
                         .setItems(labels) { _, idx ->
                             val selected = history[idx]
                             val content = com.flowmate.autoxiaoer.config.PersonaContext
                                 .readHistoryVersion(selected)
                             if (content == null) {
-                                Toast.makeText(ctx, "无法读取该版本", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(ctx, getString(R.string.settings_dialog_unable_to_read), Toast.LENGTH_SHORT).show()
                                 return@setItems
                             }
                             MaterialAlertDialogBuilder(ctx)
-                                .setTitle("v${selected.versionNumber} — 预览")
+                                .setTitle("v${selected.versionNumber} — ${getString(R.string.settings_dialog_preview)}")
                                 .setMessage(
                                     content.take(800) +
-                                        if (content.length > 800) "\n…（已截断）" else ""
+                                        if (content.length > 800) "\n…(truncated)" else ""
                                 )
-                                .setPositiveButton("恢复到编辑器") { _, _ ->
+                                .setPositiveButton(getString(R.string.settings_dialog_restore_to_editor)) { _, _ ->
                                     promptInput.setText(content)
-                                    Toast.makeText(ctx, "已恢复到编辑器，点保存生效", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(ctx, "Restored to editor, click Save to apply", Toast.LENGTH_SHORT).show()
                                 }
-                                .setNegativeButton("取消", null)
+                                .setNegativeButton(R.string.dialog_cancel, null)
                                 .show()
                         }
-                        .setNegativeButton("取消", null)
+                        .setNegativeButton(R.string.dialog_cancel, null)
                         .show()
                 }
                 dialog.show()
@@ -1931,7 +1920,7 @@ class SettingsFragment : Fragment() {
         val history = promptManager.getHistory(type, language)
 
         if (history.isEmpty()) {
-            Toast.makeText(ctx, "暂无历史版本", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, R.string.settings_dialog_no_history, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -1941,25 +1930,25 @@ class SettingsFragment : Fragment() {
         }.toTypedArray()
 
         MaterialAlertDialogBuilder(ctx)
-            .setTitle("历史版本")
+            .setTitle(getString(R.string.settings_dialog_history))
             .setItems(labels) { _, idx ->
                 val selected = history[idx]
                 val content = promptManager.readHistoryVersion(selected)
                 if (content == null) {
-                    Toast.makeText(ctx, "无法读取该版本", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, getString(R.string.settings_dialog_unable_to_read), Toast.LENGTH_SHORT).show()
                     return@setItems
                 }
                 MaterialAlertDialogBuilder(ctx)
-                    .setTitle("v${selected.versionNumber} — 预览")
-                    .setMessage(content.take(800) + if (content.length > 800) "\n…（已截断）" else "")
-                    .setPositiveButton("恢复到编辑器") { _, _ ->
+                    .setTitle("v${selected.versionNumber} — ${getString(R.string.settings_dialog_preview)}")
+                    .setMessage(content.take(800) + if (content.length > 800) "\n…(truncated)" else "")
+                    .setPositiveButton(getString(R.string.settings_dialog_restore_to_editor)) { _, _ ->
                         onRestore(content)
-                        Toast.makeText(ctx, "已恢复到编辑器，点保存生效", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(ctx, "Restored to editor, click Save to apply", Toast.LENGTH_SHORT).show()
                     }
-                    .setNegativeButton("取消", null)
+                    .setNegativeButton(R.string.dialog_cancel, null)
                     .show()
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .show()
     }
 
