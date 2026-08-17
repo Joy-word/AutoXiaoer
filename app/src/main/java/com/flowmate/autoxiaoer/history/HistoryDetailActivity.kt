@@ -179,9 +179,9 @@ class HistoryDetailActivity : BaseActivity() {
     private fun formatDuration(ms: Long): String {
         val seconds = ms / 1000
         return when {
-            seconds < 60 -> "${seconds}秒"
-            seconds < 3600 -> "${seconds / 60}分${seconds % 60}秒"
-            else -> "${seconds / 3600}时${(seconds % 3600) / 60}分"
+            seconds < 60 -> getString(R.string.history_duration_seconds, seconds)
+            seconds < 3600 -> getString(R.string.history_duration_minutes, seconds / 60, seconds % 60)
+            else -> getString(R.string.history_duration_hours, seconds / 3600, (seconds % 3600) / 60)
         }
     }
 
@@ -356,7 +356,7 @@ class HistoryDetailActivity : BaseActivity() {
         var y = padding.toFloat()
 
         // Draw header
-        canvas.drawText("AutoGLM 任务记录", padding.toFloat(), y + 50, titlePaint)
+        canvas.drawText(getString(R.string.history_task_record_title), padding.toFloat(), y + 50, titlePaint)
         y += 70
 
         // Task description
@@ -370,11 +370,11 @@ class HistoryDetailActivity : BaseActivity() {
         // Status and info
         val statusColor = if (task.success) Color.parseColor("#4CAF50") else Color.parseColor("#F44336")
         val statusPaint = Paint(subtitlePaint).apply { color = statusColor }
-        val statusText = if (task.success) "✓ 成功" else "✗ 失败"
+        val statusText = if (task.success) "✓ ${getString(R.string.history_success)}" else "✗ ${getString(R.string.history_failed)}"
         canvas.drawText(statusText, padding.toFloat(), y + 35, statusPaint)
 
         val duration = formatDuration(task.duration)
-        val infoStr = "${dateFormat.format(Date(task.startTime))} · ${task.stepCount}步 · $duration"
+        val infoStr = "${dateFormat.format(Date(task.startTime))} · ${getString(R.string.history_steps_format, task.stepCount)} · $duration"
         canvas.drawText(infoStr, padding + 150f, y + 35, subtitlePaint)
         y += 60
 
@@ -411,7 +411,7 @@ class HistoryDetailActivity : BaseActivity() {
             y += 15
 
             // Step number
-            canvas.drawText("步骤 ${step.displayLabel()}", padding + 20f, y + 40, stepNumberPaint)
+            canvas.drawText(getString(R.string.history_step_label, step.displayLabel()), padding + 20f, y + 40, stepNumberPaint)
 
             // Status indicator
             val stepStatusPaint =
@@ -467,7 +467,7 @@ class HistoryDetailActivity : BaseActivity() {
         // Footer
         y += 30
         val footerPaint = Paint(subtitlePaint).apply { textSize = 24f }
-        canvas.drawText("由 AutoGLM For Android 生成", padding.toFloat(), y + 30, footerPaint)
+        canvas.drawText(getString(R.string.history_generated_by), padding.toFloat(), y + 30, footerPaint)
 
         return bitmap
     }
