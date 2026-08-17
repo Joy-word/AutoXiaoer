@@ -82,7 +82,7 @@ interface FloatingWindowController {
 class ScreenshotService(
     private val userService: IUserService,
     private val floatingWindowControllerProvider: () -> FloatingWindowController? = { null },
-) {
+) : IScreenshotService {
     companion object {
         private const val TAG = "ScreenshotService"
         private const val HIDE_DELAY_MS = 200L
@@ -134,7 +134,7 @@ class ScreenshotService(
      * @return Screenshot object containing the captured image data and metadata
      *
      */
-    suspend fun capture(): Screenshot = withContext(Dispatchers.IO) {
+    override suspend fun capture(): Screenshot = withContext(Dispatchers.IO) {
         val floatingWindowController = floatingWindowControllerProvider()
         val hasFloatingWindow = floatingWindowController != null
         Logger.d(TAG, "Starting screenshot capture, window visible: ${floatingWindowController?.isVisible()}")

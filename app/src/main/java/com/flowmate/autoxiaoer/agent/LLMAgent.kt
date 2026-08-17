@@ -265,7 +265,10 @@ class LLMAgent(
                     continue
                 }
 
-                ctx.addAssistantWithToolCalls(content = response.rawContent, toolCalls = listOf(toolCall))
+                ctx.addAssistantWithToolCalls(
+                    content = ModelResponseParser.stripPersistedTags(response.rawContent),
+                    toolCalls = listOf(toolCall),
+                )
                 pendingReviewScreenshot = null
 
                 val tool = toolRegistry.find(toolCall.name)
@@ -633,6 +636,10 @@ class LLMAgent(
             if (lastRound != null) {
                 sb.appendLine()
                 sb.appendLine("Last planning round before failure (round ${lastRound.round}):")
+                lastRound.plan?.takeIf { it.isNotBlank() }?.let { plan ->
+                    val brief = if (plan.length > 400) "${plan.take(400)}…" else plan
+                    sb.appendLine("  Plan: $brief")
+                }
                 if (lastRound.thinking.isNotBlank()) {
                     val brief = if (lastRound.thinking.length > 200) "${lastRound.thinking.take(200)}…" else lastRound.thinking
                     sb.appendLine("  Thinking: $brief")
@@ -654,6 +661,10 @@ class LLMAgent(
             if (lastRound != null) {
                 sb.appendLine()
                 sb.appendLine("失败前最后一轮（第 ${lastRound.round} 轮）：")
+                lastRound.plan?.takeIf { it.isNotBlank() }?.let { plan ->
+                    val brief = if (plan.length > 400) "${plan.take(400)}…" else plan
+                    sb.appendLine("  计划：$brief")
+                }
                 if (lastRound.thinking.isNotBlank()) {
                     val brief = if (lastRound.thinking.length > 200) "${lastRound.thinking.take(200)}…" else lastRound.thinking
                     sb.appendLine("  思考：$brief")

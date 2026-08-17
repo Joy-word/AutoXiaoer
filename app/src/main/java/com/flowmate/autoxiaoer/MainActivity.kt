@@ -7,6 +7,7 @@ import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.IBinder
 import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
 import android.widget.Toast
 import androidx.activity.viewModels
 import androidx.lifecycle.Lifecycle
@@ -16,8 +17,10 @@ import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
 import com.google.android.material.bottomnavigation.BottomNavigationView
+import com.flowmate.autoxiaoer.device.AutoXiaoerAccessibilityService
 import com.flowmate.autoxiaoer.ui.MainUiEvent
 import com.flowmate.autoxiaoer.ui.MainViewModel
+import com.flowmate.autoxiaoer.ui.PermissionType
 import com.flowmate.autoxiaoer.ui.ShizukuStatus
 import com.flowmate.autoxiaoer.util.Logger
 import kotlinx.coroutines.launch
@@ -173,6 +176,7 @@ class MainActivity : BaseActivity() {
     override fun onResume() {
         super.onResume()
         checkOverlayPermission()
+        checkAccessibilityServiceStatus()
     }
 
     override fun onDestroy() {
@@ -342,6 +346,20 @@ class MainActivity : BaseActivity() {
     private fun checkOverlayPermission() {
         val hasPermission = Settings.canDrawOverlays(this)
         viewModel.updateOverlayPermission(hasPermission)
+    }
+
+    /**
+     * Checks whether [AutoXiaoerAccessibilityService] is currently enabled by the user
+     * and notifies the ViewModel so the UI stays in sync.
+     */
+    private fun checkAccessibilityServiceStatus() {
+        val am = getSystemService(ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val serviceName = ComponentName(this, AutoXiaoerAccessibilityService::class.java).flattenToString()
+        val enabled = am.getEnabledAccessibilityServiceList(
+            android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK
+        ).any { it.resolveInfo.serviceInfo.let { si -> "${si.packageName}/${si.name}" } == serviceName }
+        viewModel.updatePermissionState(PermissionType.ACCESSIBILITY, enabled)
+        Logger.d(TAG, "Accessibility service enabled: $enabled")
     }
 
     /**

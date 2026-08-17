@@ -73,6 +73,18 @@ object KeyboardHelper {
     fun isKeyboardAvailable(context: Context): Boolean = getAutoGLMKeyboardStatus(context) == KeyboardStatus.ENABLED
 
     /**
+     * Checks if AutoGLM Keyboard is currently the system default input method.
+     *
+     * @param context Application context
+     * @return true if the default IME id belongs to AutoGLM Keyboard
+     */
+    fun isDefaultKeyboard(context: Context): Boolean {
+        val currentIme = Settings.Secure.getString(context.contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
+            ?: return false
+        return isAutoGLMKeyboard(currentIme)
+    }
+
+    /**
      * Gets a human-readable status message for keyboard availability.
      *
      * @param context Application context

@@ -45,6 +45,8 @@
     <string name="keyboard_not_enabled">未启用</string>
     <string name="enable_keyboard">去启用</string>
     <string name="toast_keyboard_required">需要启用 XiaoEr Keyboard 才能输入文字</string>
+    <string name="keyboard_default_title">默认输入法</string>
+    <string name="set_default_keyboard">去设置</string>
     
     <!-- Task Section -->
     <string name="task_section_label">任务输入</string>
@@ -72,6 +74,7 @@
     
     <!-- Toast Messages -->
     <string name="toast_shizuku_not_running">请先启动 Shizuku</string>
+    <string name="toast_backend_not_connected">请先启动 Shizuku 或开启无障碍服务</string>
     <string name="toast_shizuku_version_low">Shizuku 版本过低</string>
     <string name="toast_shizuku_permission_granted">权限已授予</string>
     <string name="toast_shizuku_permission_denied">权限被拒绝</string>
@@ -461,4 +464,20 @@
 
     <!-- Common Actions -->
     <string name="action_edit">编辑</string>
+
+    <!-- Input Backend -->
+    <string name="settings_input_backend_title">控制后端</string>
+    <string name="settings_input_backend_shizuku">Shizuku</string>
+    <string name="settings_input_backend_accessibility">无障碍服务</string>
+    <string name="settings_input_backend_helper_shizuku">Shizuku 模式：通过 Shell 命令控制设备，需要安装 Shizuku 应用并在每次重启后重新激活。支持全部按键（音量、电源等）。</string>
+    <string name="settings_input_backend_helper_accessibility">无障碍模式：通过系统无障碍服务注入手势，无需 Shizuku。在系统"无障碍"设置中启用"Auto小二"即可。注意：音量键不可用，电源键映射为锁屏（Android 9+）。</string>
+    <string name="backend_switch_blocked_running">当前有任务正在执行，无法切换控制后端</string>
+
+    <!-- Accessibility Service -->
+    <string name="accessibility_service_label">Auto小二 无障碍服务</string>
+    <string name="accessibility_service_description">允许 Auto小二 通过无障碍服务注入手势、读取屏幕内容和截图，以代替用户操作手机。</string>
+    <string name="accessibility_status_title">无障碍服务</string>
+    <string name="accessibility_status_enabled">已启用</string>
+    <string name="accessibility_status_not_enabled">未启用</string>
+    <string name="request_accessibility_permission">去启用</string>
 </resources>

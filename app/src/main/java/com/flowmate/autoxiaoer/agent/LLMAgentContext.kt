@@ -61,10 +61,9 @@ class LLMAgentContext(private val systemPrompt: String) {
 
     /**
      * Returns a trimmed snapshot that keeps the system prompt, the initial task message,
-     * an optional retry-context message, and the most recent [maxRounds] **complete**
-     * planning rounds. Used when [LLMAgentConfig.limitContextRounds] is enabled to reduce
-     * token consumption while preserving message-sequence integrity required by the
-     * OpenAI function-calling protocol.
+     * and the most recent [maxRounds] **complete** planning rounds. Used when
+     * [LLMAgentConfig.limitContextRounds] is enabled to reduce token consumption while
+     * preserving message-sequence integrity required by the OpenAI function-calling protocol.
      *
      * A "complete round" is defined as an unbroken block ending with a [ChatMessage.Tool]
      * message whose immediately-preceding assistant turn carries `tool_calls`. The scan
@@ -74,7 +73,11 @@ class LLMAgentContext(private val systemPrompt: String) {
      * Always preserves (never trimmed):
      *  - System prompt
      *  - First user message (original task description from `buildInitialMessage`)
-     *  - Second user message if it looks like a retry-context summary
+     *
+     * Note: the retry-context summary (2nd user message, present only on task retries) is
+     * intentionally not pinned. A retry starts with a fresh context, so the summary already
+     * sits at the front and stays within the window during the opening rounds where it matters;
+     * once the new attempt makes progress it can be trimmed like any other old message.
      *
      * @param maxRounds Number of complete assistant+tool round pairs to keep from the end.
      */
@@ -83,16 +86,9 @@ class LLMAgentContext(private val systemPrompt: String) {
             ?: return messages.toList()
         val nonSystem = messages.filter { it !is ChatMessage.System }
 
-        // Always keep the initial task message (1st user) and optional retry context (2nd user).
+        // Always keep the initial task message (1st user); everything else can be trimmed.
         val pinned = mutableListOf<ChatMessage>()
-        var pinCount = 0
-        for (msg in nonSystem) {
-            if (msg is ChatMessage.User && pinCount < 2) {
-                pinned.add(msg)
-                pinCount++
-                if (pinCount == 2) break
-            }
-        }
+        nonSystem.firstOrNull { it is ChatMessage.User }?.let { pinned.add(it) }
         val pinnedSet = pinned.toSet()
 
         // Walk backwards collecting complete assistant(tool_calls)+tool groups.
@@ -171,13 +167,15 @@ class LLMAgentContext(private val systemPrompt: String) {
     fun getPlanningRoundCount(): Int = messages.count { it is ChatMessage.Assistant }
 
     /**
-     * Injects the current planning round number, and the last known plan, into the
+     * Injects the current planning round number, and the latest known plan, into the
      * conversation context so the LLM is aware of its progress within the ReAct loop.
      *
-     * The plan text is framework-managed: [LLMAgent] retains whatever the model last put
-     * inside a `<plan>` block and echoes it back here every round. The model is not expected
-     * to recall or retype the plan from earlier turns — it only needs to emit a new `<plan>`
-     * block when the task overview / done / remaining items actually change.
+     * The plan text is framework-managed: [LLMAgent] retains only the single most recent
+     * `<plan>` block the model produced and echoes it back here every round — older plan
+     * versions are never kept once superseded, so there is no history to trim in the first
+     * place. The model is not expected to recall or retype the plan from earlier turns — it
+     * only needs to emit a new `<plan>` block when the task overview / done / remaining items
+     * actually change.
      *
      * Called by [LLMAgent] at the start of each planning round before the model request.
      *
@@ -187,7 +185,13 @@ class LLMAgentContext(private val systemPrompt: String) {
      *   malformed (e.g. missing `<plan>` or tool_call). The malformed response itself is never
      *   persisted to context; this is the only trace of that failed attempt.
      */
-    fun addRoundContext(round: Int, maxRounds: Int, isEnglish: Boolean, currentPlan: String, nudge: String? = null) {
+    fun addRoundContext(
+        round: Int,
+        maxRounds: Int,
+        isEnglish: Boolean,
+        currentPlan: String,
+        nudge: String? = null,
+    ) {
         val roundLine = if (isEnglish) {
             "[Current planning round: $round / $maxRounds]"
         } else {
@@ -207,10 +211,14 @@ class LLMAgentContext(private val systemPrompt: String) {
             }
             "$label\n$currentPlan"
         }
-        val text = if (nudge.isNullOrBlank()) {
-            "$roundLine\n\n$planLine"
-        } else {
-            "$roundLine\n\n$planLine\n\n$nudge"
+        val text = buildString {
+            append(roundLine)
+            append("\n\n")
+            append(planLine)
+            if (!nudge.isNullOrBlank()) {
+                append("\n\n")
+                append(nudge)
+            }
         }
         messages.add(ChatMessage.User(text))
     }

@@ -62,6 +62,10 @@ import com.flowmate.autoxiaoer.util.Logger
 import com.flowmate.autoxiaoer.clawbot.ClawBotManager
 import com.flowmate.autoxiaoer.clawbot.ClawBotPollingService
 import com.flowmate.autoxiaoer.clawbot.ClawBotQrLoginDialog
+import com.flowmate.autoxiaoer.ComponentManager
+import com.flowmate.autoxiaoer.device.InputBackend
+import com.flowmate.autoxiaoer.input.KeyboardHelper
+import com.flowmate.autoxiaoer.ui.PermissionType
 import com.flowmate.autoxiaoer.util.applyPrimaryButtonColors
 import com.flowmate.autoxiaoer.util.showWithPrimaryButtons
 import kotlinx.coroutines.Dispatchers
@@ -94,7 +98,13 @@ class SettingsFragment : Fragment() {
     private lateinit var permissionShizuku: View
     private lateinit var permissionOverlay: View
     private lateinit var permissionKeyboard: View
+    private lateinit var permissionKeyboardDefault: View
     private lateinit var permissionBattery: View
+    private lateinit var permissionAccessibility: View
+
+    // Backend selection
+    private lateinit var rgInputBackend: RadioGroup
+    private lateinit var tvBackendHelper: TextView
 
     // ClawBot views
     private lateinit var clawBotStatusText: TextView
@@ -115,6 +125,13 @@ class SettingsFragment : Fragment() {
             if (intent?.action == ClawBotPollingService.ACTION_SESSION_EXPIRED) {
                 updateClawBotUI()
             }
+        }
+    }
+
+    // Refreshes keyboard permission state when the default IME changes (e.g. via the picker dialog)
+    private val defaultKeyboardObserver = object : android.database.ContentObserver(android.os.Handler(android.os.Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            if (isAdded) refreshPermissionStates()
         }
     }
 
@@ -169,11 +186,17 @@ class SettingsFragment : Fragment() {
             IntentFilter(ClawBotPollingService.ACTION_SESSION_EXPIRED),
             ContextCompat.RECEIVER_NOT_EXPORTED,
         )
+        requireContext().contentResolver.registerContentObserver(
+            Settings.Secure.getUriFor(Settings.Secure.DEFAULT_INPUT_METHOD),
+            false,
+            defaultKeyboardObserver,
+        )
     }
 
     override fun onPause() {
         super.onPause()
         runCatching { requireContext().unregisterReceiver(clawBotSessionExpiredReceiver) }
+        requireContext().contentResolver.unregisterContentObserver(defaultKeyboardObserver)
     }
 
     /**
@@ -191,7 +214,21 @@ class SettingsFragment : Fragment() {
         permissionShizuku = view.findViewById(R.id.permissionShizuku)
         permissionOverlay = view.findViewById(R.id.permissionOverlay)
         permissionKeyboard = view.findViewById(R.id.permissionKeyboard)
+        permissionKeyboardDefault = view.findViewById(R.id.permissionKeyboardDefault)
         permissionBattery = view.findViewById(R.id.permissionBattery)
+        permissionAccessibility = view.findViewById(R.id.permissionAccessibility)
+
+        // Backend selection
+        rgInputBackend = view.findViewById(R.id.rgInputBackend)
+        tvBackendHelper = view.findViewById(R.id.tvBackendHelper)
+
+        // Set initial backend selection from saved setting
+        val savedBackend = settingsManager.getInputBackend()
+        rgInputBackend.check(
+            if (savedBackend == InputBackend.ACCESSIBILITY) R.id.rbBackendAccessibility
+            else R.id.rbBackendShizuku
+        )
+        updateBackendUI(savedBackend)
 
         // Phone-agent settings entry button
         view.findViewById<Button>(R.id.btnPhoneAgentSettings)
@@ -257,9 +294,19 @@ class SettingsFragment : Fragment() {
             R.drawable.ic_keyboard,
         )
         setupPermissionItem(
+            permissionKeyboardDefault,
+            getString(R.string.keyboard_default_title),
+            R.drawable.ic_keyboard,
+        )
+        setupPermissionItem(
             permissionBattery,
             getString(R.string.battery_opt_title),
             R.drawable.ic_battery,
+        )
+        setupPermissionItem(
+            permissionAccessibility,
+            getString(R.string.accessibility_status_title),
+            R.drawable.ic_layers,
         )
     }
 
@@ -295,6 +342,29 @@ class SettingsFragment : Fragment() {
         // Permissions center expand/collapse
         permissionsHeader.setOnClickListener { togglePermissionsExpanded() }
         btnExpandCollapse.setOnClickListener { togglePermissionsExpanded() }
+
+        // Backend selection
+        rgInputBackend.setOnCheckedChangeListener { _, checkedId ->
+            val newBackend = if (checkedId == R.id.rbBackendAccessibility) {
+                InputBackend.ACCESSIBILITY
+            } else {
+                InputBackend.SHIZUKU
+            }
+            val componentManager = ComponentManager.getInstance(requireContext())
+            val switched = componentManager.switchBackend(newBackend)
+            if (!switched) {
+                Toast.makeText(requireContext(), R.string.backend_switch_blocked_running, Toast.LENGTH_SHORT).show()
+                // Revert UI to saved setting
+                val saved = settingsManager.getInputBackend()
+                rgInputBackend.check(
+                    if (saved == InputBackend.ACCESSIBILITY) R.id.rbBackendAccessibility
+                    else R.id.rbBackendShizuku
+                )
+            } else {
+                updateBackendUI(newBackend)
+                refreshPermissionStates()
+            }
+        }
 
         // Advanced settings expand/collapse
         advancedSettingsHeader.setOnClickListener { toggleAdvancedExpanded() }
@@ -359,11 +429,17 @@ class SettingsFragment : Fragment() {
         permissionShizuku.findViewById<Button>(R.id.btnPermissionAction).setOnClickListener {
             requestShizukuPermission()
         }
+        permissionAccessibility.findViewById<Button>(R.id.btnPermissionAction).setOnClickListener {
+            openAccessibilitySettings()
+        }
         permissionOverlay.findViewById<Button>(R.id.btnPermissionAction).setOnClickListener {
             requestOverlayPermission()
         }
         permissionKeyboard.findViewById<Button>(R.id.btnPermissionAction).setOnClickListener {
             openKeyboardSettings()
+        }
+        permissionKeyboardDefault.findViewById<Button>(R.id.btnPermissionAction).setOnClickListener {
+            showInputMethodPicker()
         }
         permissionBattery.findViewById<Button>(R.id.btnPermissionAction).setOnClickListener {
             requestBatteryOptimization()
@@ -415,7 +491,9 @@ class SettingsFragment : Fragment() {
                 shizuku = isShizukuConnected(),
                 overlay = Settings.canDrawOverlays(context),
                 keyboard = isKeyboardEnabled(),
+                keyboardDefault = KeyboardHelper.isDefaultKeyboard(context),
                 battery = isBatteryOptimizationIgnored(),
+                accessibility = isAccessibilityServiceEnabled(),
             )
         viewModel.updateAllPermissionStates(states)
     }
@@ -424,10 +502,18 @@ class SettingsFragment : Fragment() {
      * Updates permission UI based on states.
      */
     private fun updatePermissionUI(states: PermissionStates) {
+        val backend = settingsManager.getInputBackend()
+        val isAccessibilityBackend = backend == InputBackend.ACCESSIBILITY
+
         updatePermissionItemUI(
             permissionShizuku,
             states.shizuku,
             getString(R.string.request_shizuku_permission),
+        )
+        updatePermissionItemUI(
+            permissionAccessibility,
+            states.accessibility,
+            getString(R.string.request_accessibility_permission),
         )
         updatePermissionItemUI(
             permissionOverlay,
@@ -440,24 +526,37 @@ class SettingsFragment : Fragment() {
             getString(R.string.enable_keyboard),
         )
         updatePermissionItemUI(
+            permissionKeyboardDefault,
+            states.keyboardDefault,
+            getString(R.string.set_default_keyboard),
+        )
+        updatePermissionItemUI(
             permissionBattery,
             states.battery,
             getString(R.string.battery_opt_request),
         )
 
-        // Update summary
-        val grantedCount =
-            listOf(
-                states.shizuku,
-                states.overlay,
-                states.keyboard,
-                states.battery,
-            ).count { it }
+        // Show/hide backend-specific rows (keyboard is required by both backends: Shizuku
+        // types via IME broadcast directly, Accessibility falls back to it when
+        // ACTION_SET_TEXT is unsupported by the focused view)
+        permissionShizuku.visibility = if (isAccessibilityBackend) View.GONE else View.VISIBLE
+        permissionAccessibility.visibility = if (isAccessibilityBackend) View.VISIBLE else View.GONE
+        // Default IME only matters for the Accessibility fallback switch; Shizuku doesn't need it
+        permissionKeyboardDefault.visibility = if (isAccessibilityBackend) View.VISIBLE else View.GONE
+
+        // Update summary (count mandatory permissions for current backend)
+        val required = if (isAccessibilityBackend) {
+            listOf(states.accessibility, states.overlay, states.keyboard, states.keyboardDefault, states.battery)
+        } else {
+            listOf(states.shizuku, states.overlay, states.keyboard, states.battery)
+        }
+        val grantedCount = required.count { it }
+        val totalCount = required.size
         permissionsSummary.text =
-            if (grantedCount == 4) {
+            if (grantedCount == totalCount) {
                 getString(R.string.permissions_summary_all_granted)
             } else {
-                getString(R.string.permissions_summary_partial, grantedCount, 4)
+                getString(R.string.permissions_summary_partial, grantedCount, totalCount)
             }
     }
 
@@ -501,6 +600,28 @@ class SettingsFragment : Fragment() {
         return pm?.isIgnoringBatteryOptimizations(requireContext().packageName) == true
     }
 
+    private fun isAccessibilityServiceEnabled(): Boolean {
+        val am = requireContext().getSystemService(android.view.accessibility.AccessibilityManager::class.java)
+        val name = "${requireContext().packageName}/${com.flowmate.autoxiaoer.device.AutoXiaoerAccessibilityService::class.java.name}"
+        return am?.getEnabledAccessibilityServiceList(
+            android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK
+        )?.any { it.resolveInfo.serviceInfo.let { si -> "${si.packageName}/${si.name}" } == name } == true
+    }
+
+    /**
+     * Updates helper text and backend-specific row visibility for [backend].
+     */
+    private fun updateBackendUI(backend: InputBackend) {
+        val isA11y = backend == InputBackend.ACCESSIBILITY
+        tvBackendHelper.text = getString(
+            if (isA11y) R.string.settings_input_backend_helper_accessibility
+            else R.string.settings_input_backend_helper_shizuku
+        )
+        permissionShizuku.visibility = if (isA11y) View.GONE else View.VISIBLE
+        permissionAccessibility.visibility = if (isA11y) View.VISIBLE else View.GONE
+        permissionKeyboardDefault.visibility = if (isA11y) View.VISIBLE else View.GONE
+    }
+
     private fun requestShizukuPermission() {
         try {
             if (!Shizuku.pingBinder()) {
@@ -528,6 +649,15 @@ class SettingsFragment : Fragment() {
 
     private fun openKeyboardSettings() {
         startActivity(Intent(Settings.ACTION_INPUT_METHOD_SETTINGS))
+    }
+
+    private fun showInputMethodPicker() {
+        val imm = requireContext().getSystemService(InputMethodManager::class.java)
+        imm?.showInputMethodPicker()
+    }
+
+    private fun openAccessibilitySettings() {
+        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
     }
 
     private fun requestBatteryOptimization() {

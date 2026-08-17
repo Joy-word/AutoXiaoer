@@ -32,7 +32,7 @@ import kotlinx.coroutines.withContext
  * @param userService The Shizuku UserService for executing shell commands
  *
  */
-class TextInputManager(private val userService: IUserService) {
+class TextInputManager(private val userService: IUserService) : ITextInputManager {
     /** Cached original IME for restoration after text input. */
     private var originalIme: String? = null
 
@@ -49,7 +49,7 @@ class TextInputManager(private val userService: IUserService) {
      * @return [InputResult] indicating success or failure with details
      *
      */
-    suspend fun typeText(text: String): InputResult = withContext(Dispatchers.IO) {
+    override suspend fun typeText(text: String): InputResult = withContext(Dispatchers.IO) {
         Logger.i(TAG, "typeText: '$text'")
 
         try {

@@ -2,6 +2,8 @@
 
 import com.flowmate.autoxiaoer.app.AppResolver
 import com.flowmate.autoxiaoer.device.DeviceExecutor
+import com.flowmate.autoxiaoer.device.IDeviceExecutor
+import com.flowmate.autoxiaoer.input.ITextInputManager
 import com.flowmate.autoxiaoer.input.TextInputManager
 import com.flowmate.autoxiaoer.screenshot.FloatingWindowController
 import com.flowmate.autoxiaoer.util.CoordinateConverter
@@ -26,10 +28,10 @@ import kotlinx.coroutines.delay
  *
  */
 class ActionHandler(
-    private val deviceExecutor: DeviceExecutor,
+    private val deviceExecutor: IDeviceExecutor,
     private val appResolver: AppResolver,
     private val swipeGenerator: HumanizedSwipeGenerator,
-    private val textInputManager: TextInputManager,
+    private val textInputManager: ITextInputManager,
     private val floatingWindowProvider: (() -> FloatingWindowController?)? = null,
 ) {
     /**

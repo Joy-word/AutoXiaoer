@@ -184,6 +184,9 @@ class SettingsManager private constructor(private val context: Context) {
         // Agent name key
         private const val KEY_AGENT_NAME = "agent_name"
 
+        // Input backend key
+        private const val KEY_INPUT_BACKEND = "input_backend"
+
         // Default values
         private val DEFAULT_MODEL_CONFIG = ModelConfig()
         private val DEFAULT_PHONE_AGENT_CONFIG = PhoneAgentConfig()
@@ -1245,6 +1248,31 @@ class SettingsManager private constructor(private val context: Context) {
      */
     fun setFloatingWindowMinimized(minimized: Boolean) {
         prefs.edit().putBoolean(KEY_FLOATING_WINDOW_MINIMIZED, minimized).apply()
+    }
+
+    // ==================== Input Backend ====================
+
+    /**
+     * Returns the currently selected device-control backend.
+     * Defaults to [com.flowmate.autoxiaoer.device.InputBackend.SHIZUKU].
+     */
+    fun getInputBackend(): com.flowmate.autoxiaoer.device.InputBackend {
+        val name = prefs.getString(KEY_INPUT_BACKEND, null)
+        return try {
+            if (name != null) com.flowmate.autoxiaoer.device.InputBackend.valueOf(name)
+            else com.flowmate.autoxiaoer.device.InputBackend.SHIZUKU
+        } catch (_: IllegalArgumentException) {
+            com.flowmate.autoxiaoer.device.InputBackend.SHIZUKU
+        }
+    }
+
+    /**
+     * Persists the selected device-control backend.
+     *
+     * @param backend The backend to activate on next component initialisation.
+     */
+    fun setInputBackend(backend: com.flowmate.autoxiaoer.device.InputBackend) {
+        prefs.edit().putString(KEY_INPUT_BACKEND, backend.name).apply()
     }
 
 }

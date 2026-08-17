@@ -8,11 +8,19 @@ import com.flowmate.autoxiaoer.agent.PhoneAgent
 import com.flowmate.autoxiaoer.agent.tools.ToolRegistry
 import com.flowmate.autoxiaoer.agent.PhoneAgentListener
 import com.flowmate.autoxiaoer.app.AppResolver
+import com.flowmate.autoxiaoer.device.AccessibilityDeviceExecutor
 import com.flowmate.autoxiaoer.device.DeviceExecutor
+import com.flowmate.autoxiaoer.device.IDeviceExecutor
+import com.flowmate.autoxiaoer.device.InputBackend
 import com.flowmate.autoxiaoer.history.HistoryManager
+import com.flowmate.autoxiaoer.input.AccessibilityTextInputManager
+import com.flowmate.autoxiaoer.input.ITextInputManager
 import com.flowmate.autoxiaoer.input.TextInputManager
 import com.flowmate.autoxiaoer.model.ModelClient
 import com.flowmate.autoxiaoer.model.ModelConfig
+import com.flowmate.autoxiaoer.screenshot.AccessibilityScreenshotService
+import com.flowmate.autoxiaoer.screenshot.IScreenshotService
+import com.flowmate.autoxiaoer.screenshot.MediaProjectionScreenshotService
 import com.flowmate.autoxiaoer.screenshot.ScreenshotService
 import com.flowmate.autoxiaoer.settings.SettingsManager
 import com.flowmate.autoxiaoer.ui.FloatingWindowService
@@ -71,10 +79,10 @@ class ComponentManager private constructor(private val context: Context) {
     // User service reference - set when Shizuku connects
     private var userService: IUserService? = null
 
-    // Lazily initialized components that depend on UserService
-    private var deviceExecutorInternal: DeviceExecutor? = null
-    private var textInputManagerInternal: TextInputManager? = null
-    private var screenshotServiceInternal: ScreenshotService? = null
+    // Lazily initialized components that depend on the active backend
+    private var deviceExecutorInternal: IDeviceExecutor? = null
+    private var textInputManagerInternal: ITextInputManager? = null
+    private var screenshotServiceInternal: IScreenshotService? = null
     private var actionHandlerInternal: ActionHandler? = null
     private var phoneAgentInternal: PhoneAgent? = null
 
@@ -92,23 +100,28 @@ class ComponentManager private constructor(private val context: Context) {
     private var brainLLMInternal: BrainLLM? = null
 
     /**
-     * Checks if the UserService is connected.
+     * Checks if the active backend's underlying service is connected.
+     * Shizuku backend checks the UserService; Accessibility backend checks
+     * [AutoXiaoerAccessibilityService.isConnected].
      */
     val isServiceConnected: Boolean
-        get() = userService != null
+        get() = when (settingsManager.getInputBackend()) {
+            InputBackend.SHIZUKU -> userService != null
+            InputBackend.ACCESSIBILITY -> com.flowmate.autoxiaoer.device.AutoXiaoerAccessibilityService.isConnected()
+        }
 
     /**
      * Gets the DeviceExecutor instance.
-     * Requires UserService to be connected.
+     * Requires a backend to be connected.
      */
-    val deviceExecutor: DeviceExecutor?
+    val deviceExecutor: IDeviceExecutor?
         get() = deviceExecutorInternal
 
     /**
      * Gets the ScreenshotService instance.
-     * Requires UserService to be connected.
+     * Requires a backend to be connected.
      */
-    val screenshotService: ScreenshotService?
+    val screenshotService: IScreenshotService?
         get() = screenshotServiceInternal
 
     /**
@@ -173,15 +186,17 @@ class ComponentManager private constructor(private val context: Context) {
     private var currentBrainLLMConfig: com.flowmate.autoxiaoer.agent.BrainLLMConfig? = null
 
     /**
-     * Called when UserService connects.
-     * Initializes all service-dependent components.
+     * Called when UserService connects (Shizuku backend).
+     * Initializes all service-dependent components if SHIZUKU backend is selected.
      *
      * @param service The connected UserService
      */
     fun onServiceConnected(service: IUserService) {
         Logger.i(TAG, "UserService connected, initializing components")
         userService = service
-        initializeServiceDependentComponents()
+        if (settingsManager.getInputBackend() == InputBackend.SHIZUKU) {
+            initializeShizukuComponents()
+        }
     }
 
     /**
@@ -191,13 +206,72 @@ class ComponentManager private constructor(private val context: Context) {
     fun onServiceDisconnected() {
         Logger.i(TAG, "UserService disconnected, cleaning up components")
         userService = null
-        cleanupServiceDependentComponents()
+        if (settingsManager.getInputBackend() == InputBackend.SHIZUKU) {
+            cleanupServiceDependentComponents()
+        }
     }
 
     /**
-     * Initializes components that depend on UserService.
+     * Called when [AutoXiaoerAccessibilityService] becomes connected.
+     * Initializes all accessibility-backend components if ACCESSIBILITY is selected.
      */
-    private fun initializeServiceDependentComponents() {
+    fun onAccessibilityServiceConnected() {
+        Logger.i(TAG, "AccessibilityService connected")
+        if (settingsManager.getInputBackend() == InputBackend.ACCESSIBILITY) {
+            initializeAccessibilityComponents()
+        }
+    }
+
+    /**
+     * Called when [AutoXiaoerAccessibilityService] is unbound by the system.
+     */
+    fun onAccessibilityServiceDisconnected() {
+        Logger.i(TAG, "AccessibilityService disconnected")
+        if (settingsManager.getInputBackend() == InputBackend.ACCESSIBILITY) {
+            cleanupServiceDependentComponents()
+        }
+    }
+
+    /**
+     * Switches the active device-control backend at runtime.
+     *
+     * Returns false (and does nothing) when a task is currently running or paused.
+     * Otherwise saves the setting and reinitialises the entire component stack.
+     *
+     * @param newBackend The backend to switch to.
+     * @return true if the switch succeeded, false if blocked by an active task.
+     */
+    fun switchBackend(newBackend: InputBackend): Boolean {
+        phoneAgentInternal?.let { agent ->
+            if (agent.isRunning() || agent.isPaused()) {
+                Logger.w(TAG, "switchBackend blocked: task is active")
+                return false
+            }
+        }
+        Logger.i(TAG, "Switching backend to $newBackend")
+        settingsManager.setInputBackend(newBackend)
+        cleanupServiceDependentComponents()
+        when (newBackend) {
+            InputBackend.SHIZUKU -> {
+                val svc = userService
+                if (svc != null) initializeShizukuComponents()
+                else Logger.w(TAG, "Shizuku UserService not connected, components deferred")
+            }
+            InputBackend.ACCESSIBILITY -> {
+                if (com.flowmate.autoxiaoer.device.AutoXiaoerAccessibilityService.isConnected()) {
+                    initializeAccessibilityComponents()
+                } else {
+                    Logger.w(TAG, "AccessibilityService not connected, components deferred")
+                }
+            }
+        }
+        return true
+    }
+
+    /**
+     * Initializes components using the Shizuku shell backend.
+     */
+    private fun initializeShizukuComponents() {
         val service = userService ?: return
 
         // Create DeviceExecutor
@@ -210,6 +284,38 @@ class ComponentManager private constructor(private val context: Context) {
         // Use a provider function so it can get the current instance dynamically
         screenshotServiceInternal = ScreenshotService(service) { FloatingWindowService.getInstance() }
 
+        buildActionHandlerAndAgents()
+
+        Logger.i(TAG, "Shizuku components initialized")
+    }
+
+    /**
+     * Initializes components using the AccessibilityService backend.
+     */
+    private fun initializeAccessibilityComponents() {
+        // DeviceExecutor
+        deviceExecutorInternal = AccessibilityDeviceExecutor()
+
+        // TextInputManager
+        textInputManagerInternal = AccessibilityTextInputManager()
+
+        // ScreenshotService — use takeScreenshot() on API 30+, MediaProjection below
+        screenshotServiceInternal = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+            AccessibilityScreenshotService { FloatingWindowService.getInstance() }
+        } else {
+            MediaProjectionScreenshotService { FloatingWindowService.getInstance() }
+        }
+
+        buildActionHandlerAndAgents()
+
+        Logger.i(TAG, "Accessibility components initialized")
+    }
+
+    /**
+     * Builds ActionHandler, PhoneAgent, LLMAgent and BrainLLM from the already-set
+     * device/input/screenshot components.
+     */
+    private fun buildActionHandlerAndAgents() {
         // Create ActionHandler with floating window provider to hide window during touch operations
         actionHandlerInternal =
             ActionHandler(
@@ -221,13 +327,13 @@ class ComponentManager private constructor(private val context: Context) {
             )
 
         // Create PhoneAgent
-        val PhoneAgentConfig = settingsManager.getPhoneAgentConfig()
+        val phoneAgentConfig = settingsManager.getPhoneAgentConfig()
         phoneAgentInternal =
             PhoneAgent(
                 modelClient = modelClient,
                 actionHandler = actionHandlerInternal!!,
                 screenshotService = screenshotServiceInternal!!,
-                config = PhoneAgentConfig,
+                config = phoneAgentConfig,
                 historyManager = historyManager,
             )
 
@@ -251,12 +357,10 @@ class ComponentManager private constructor(private val context: Context) {
             brainLLM = brainLLMInternal,
             toolRegistry = ToolRegistry.forBrainState(brainLLMInternal?.isEnabled == true),
         )
-
-        Logger.i(TAG, "All service-dependent components initialized")
     }
 
     /**
-     * Cleans up components that depend on UserService.
+     * Cleans up components that depend on the active backend.
      */
     private fun cleanupServiceDependentComponents() {
         llmAgentInternal = null
@@ -283,8 +387,13 @@ class ComponentManager private constructor(private val context: Context) {
      * to prevent accidentally cancelling user tasks.
      */
     fun reinitializeAgents() {
-        if (userService == null) {
-            Logger.w(TAG, "Cannot reinitialize agents: UserService not connected")
+        val backend = settingsManager.getInputBackend()
+        val backendReady = when (backend) {
+            InputBackend.SHIZUKU -> userService != null
+            InputBackend.ACCESSIBILITY -> com.flowmate.autoxiaoer.device.AutoXiaoerAccessibilityService.isConnected()
+        }
+        if (!backendReady) {
+            Logger.w(TAG, "Cannot reinitialize agents: backend not connected")
             return
         }
 
@@ -302,16 +411,8 @@ class ComponentManager private constructor(private val context: Context) {
         // Recreate model client with new config
         modelClientInternal = null
 
-        // Recreate PhoneAgent
-        val PhoneAgentConfig = settingsManager.getPhoneAgentConfig()
-        phoneAgentInternal =
-            PhoneAgent(
-                modelClient = modelClient,
-                actionHandler = actionHandlerInternal!!,
-                screenshotService = screenshotServiceInternal!!,
-                config = PhoneAgentConfig,
-                historyManager = historyManager,
-            )
+        // Rebuild the entire agent stack (ActionHandler + PhoneAgent + LLMAgent + BrainLLM)
+        buildActionHandlerAndAgents()
 
         // Recreate LLMAgent with potentially updated config
         val llmAgentConfig = settingsManager.getLLMAgentConfig()
