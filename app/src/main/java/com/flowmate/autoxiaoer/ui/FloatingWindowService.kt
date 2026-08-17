@@ -27,6 +27,7 @@ import com.google.android.material.button.MaterialButton
 import com.flowmate.autoxiaoer.MainActivity
 import com.flowmate.autoxiaoer.R
 import com.flowmate.autoxiaoer.action.AgentAction
+import com.flowmate.autoxiaoer.config.I18n
 import com.flowmate.autoxiaoer.screenshot.FloatingWindowController
 import com.flowmate.autoxiaoer.task.StepSource
 import com.flowmate.autoxiaoer.task.TaskExecutionManager
@@ -415,7 +416,8 @@ class FloatingWindowService :
                 FloatingStep(
                     stepNumber = stepNumber,
                     thinking = thinking,
-                    action = action?.formatForDisplay() ?: "无",
+                    action = action?.formatForDisplay(TaskExecutionManager.getTaskLanguage())
+                        ?: I18n.getMessage("floating_action_none", TaskExecutionManager.getTaskLanguage()),
                 )
             stepsList.add(step)
             stepsAdapter?.notifyItemInserted(stepsList.size - 1)
@@ -458,7 +460,9 @@ class FloatingWindowService :
         serviceScope.launch {
             if (stepsList.isNotEmpty()) {
                 val lastIndex = stepsList.size - 1
-                stepsList[lastIndex] = stepsList[lastIndex].copy(action = action.formatForDisplay())
+                stepsList[lastIndex] = stepsList[lastIndex].copy(
+                    action = action.formatForDisplay(TaskExecutionManager.getTaskLanguage()),
+                )
                 stepsAdapter?.notifyItemChanged(lastIndex)
             }
         }

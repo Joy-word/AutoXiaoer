@@ -4,6 +4,7 @@ import android.content.Context
 import com.flowmate.autoxiaoer.ComponentManager
 import com.flowmate.autoxiaoer.action.AgentAction
 import com.flowmate.autoxiaoer.agent.PhoneAgentState
+import com.flowmate.autoxiaoer.config.I18n
 import com.flowmate.autoxiaoer.agent.LLMAgentListener
 import com.flowmate.autoxiaoer.agent.LLMTaskResult
 import com.flowmate.autoxiaoer.agent.PhoneAgentListener
@@ -45,6 +46,7 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
     private const val QUEUE_TASK_TTL_MS = 10 * 60 * 1000L // 10 minutes
 
     private var applicationContext: Context? = null
+    private var taskLanguage: String = I18n.Languages.CHINESE
     private val managerScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     // region Passive Task Queue
@@ -258,6 +260,9 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
      * UI components should observe this StateFlow to receive task state updates.
      */
     val taskState: StateFlow<TaskExecutionState> = _taskState.asStateFlow()
+
+    /** Language captured when the current task started, used by UI display formatting. */
+    fun getTaskLanguage(): String = taskLanguage
 
     // Steps list for waterfall display
     private val _steps = MutableStateFlow<List<TaskStep>>(emptyList())
@@ -474,6 +479,7 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
         }
 
         val componentManager = getComponentManager() ?: return false
+        taskLanguage = SettingsManager.getInstance(applicationContext ?: return false).getPromptLanguage().code
         val llmAgent = componentManager.llmAgent ?: run {
             Logger.w(TAG, "Cannot start task: LLMAgent not available")
             return false
@@ -587,7 +593,7 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
         _taskState.value =
             _taskState.value.copy(
                 status = TaskStatus.FAILED,
-                resultMessage = "任务已取消",
+                resultMessage = I18n.getMessage("task_cancelled", taskLanguage),
             )
         // processNextInQueue() is NOT called here intentionally.
         // The running coroutine will call onTaskFailed("任务已取消") once it
@@ -770,7 +776,7 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
      * @param action The action that was executed
      */
     override fun onActionExecuted(action: AgentAction) {
-        val actionText = action.formatForDisplay()
+        val actionText = action.formatForDisplay(taskLanguage)
         Logger.d(TAG, "Action executed: $actionText")
         _taskState.value = _taskState.value.copy(currentAction = actionText)
 

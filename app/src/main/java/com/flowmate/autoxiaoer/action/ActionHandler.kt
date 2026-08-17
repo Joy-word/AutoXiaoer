@@ -1,6 +1,7 @@
 ﻿package com.flowmate.autoxiaoer.action
 
 import com.flowmate.autoxiaoer.app.AppResolver
+import com.flowmate.autoxiaoer.config.I18n
 import com.flowmate.autoxiaoer.device.DeviceExecutor
 import com.flowmate.autoxiaoer.device.IDeviceExecutor
 import com.flowmate.autoxiaoer.input.ITextInputManager
@@ -33,6 +34,7 @@ class ActionHandler(
     private val swipeGenerator: HumanizedSwipeGenerator,
     private val textInputManager: ITextInputManager,
     private val floatingWindowProvider: (() -> FloatingWindowController?)? = null,
+    private val language: String = I18n.Languages.CHINESE,
 ) {
     /**
      * Callback interface for sensitive operation confirmation.
@@ -173,7 +175,7 @@ class ActionHandler(
         if (action.message != null) {
             val confirmed = confirmationCallback?.onConfirmationRequired(action.message) ?: true
             if (!confirmed) {
-                return ActionResult(true, false, "点击已被用户取消")
+                return ActionResult(true, false, I18n.getMessage("action_cancelled", language))
             }
         }
 
@@ -192,9 +194,9 @@ class ActionHandler(
             val result = deviceExecutor.tap(absX, absY)
             if (isDeviceExecutorError(result)) {
                 Logger.w(TAG, "Tap command failed: $result")
-                ActionResult(false, false, "点击失败: $result")
+                ActionResult(false, false, I18n.getFormattedMessage("action_tap_failed", language, result))
             } else {
-                ActionResult(true, false, "点击 ($absX, $absY)")
+                ActionResult(true, false, I18n.getFormattedMessage("action_tap_success", language, absX, absY))
             }
         } finally {
             // Always show floating window after tap, even if tap fails
@@ -256,9 +258,9 @@ class ActionHandler(
 
             if (isDeviceExecutorError(result)) {
                 Logger.w(TAG, "Swipe command failed: $result")
-                ActionResult(false, false, "滑动失败: $result")
+                ActionResult(false, false, I18n.getFormattedMessage("action_swipe_failed", language, result))
             } else {
-                ActionResult(true, false, "滑动 从($startAbsX, $startAbsY) 到($endAbsX, $endAbsY)")
+                ActionResult(true, false, I18n.getFormattedMessage("action_swipe_success", language, startAbsX, startAbsY, endAbsX, endAbsY))
             }
         } finally {
             // Always show floating window after swipe, even if swipe fails
@@ -305,7 +307,7 @@ class ActionHandler(
             delay(200)
 
             val result = textInputManager.typeText(action.text)
-            ActionResult(result.success, false, "输入名称: ${action.text}")
+            ActionResult(result.success, false, I18n.getFormattedMessage("action_type_name_result", language, action.text))
         } finally {
             // Always show floating window after typing, even if typing fails
             showFloatingWindow()
@@ -345,10 +347,15 @@ class ActionHandler(
                     // Operation itself succeeded, just app not found
                     success = true,
                     shouldFinish = false,
-                    message = "启动应用'$packageName'失败，已返回主屏幕。请在主屏幕或应用列表中查找并点击'${action.app}'应用图标来启动它。",
+                    message = I18n.getFormattedMessage(
+                        "action_launch_failed_hint",
+                        language,
+                        packageName,
+                        action.app,
+                    ),
                 )
             } else {
-                ActionResult(true, false, "启动应用: $packageName")
+                ActionResult(true, false, I18n.getFormattedMessage("action_launch_success", language, packageName))
             }
         } else {
             // Package not found - instruct model to find app icon on screen
@@ -358,7 +365,12 @@ class ActionHandler(
             ActionResult(
                 success = true,
                 shouldFinish = false,
-                message = "找不到应用包名'${action.app}'，已返回主屏幕。请在主屏幕或应用列表中查找并点击'${action.app}'应用图标来启动它。如果主屏幕没有，请上滑打开应用列表查找。",
+                message = I18n.getFormattedMessage(
+                    "action_app_package_not_found_hint",
+                    language,
+                    action.app,
+                    action.app,
+                ),
             )
         }
     }
@@ -373,7 +385,7 @@ class ActionHandler(
         val apps = appResolver.getAllLaunchableApps()
 
         if (apps.isEmpty()) {
-            return ActionResult(true, false, "未找到已安装的应用")
+            return ActionResult(true, false, I18n.getMessage("action_app_not_found", language))
         }
 
         // Format app list for display
@@ -406,9 +418,9 @@ class ActionHandler(
         val result = deviceExecutor.pressKey(DeviceExecutor.KEYCODE_BACK)
         return if (isDeviceExecutorError(result)) {
             Logger.w(TAG, "Back key press failed: $result")
-            ActionResult(false, false, "返回键失败: $result")
+            ActionResult(false, false, I18n.getFormattedMessage("action_back_failed", language, result))
         } else {
-            ActionResult(true, false, "返回")
+            ActionResult(true, false, I18n.getMessage("action_back", language))
         }
     }
 
@@ -419,9 +431,9 @@ class ActionHandler(
         val result = deviceExecutor.pressKey(DeviceExecutor.KEYCODE_HOME)
         return if (isDeviceExecutorError(result)) {
             Logger.w(TAG, "Home key press failed: $result")
-            ActionResult(false, false, "主页键失败: $result")
+            ActionResult(false, false, I18n.getFormattedMessage("action_home_failed", language, result))
         } else {
-            ActionResult(true, false, "主页")
+            ActionResult(true, false, I18n.getMessage("action_home", language))
         }
     }
 
@@ -432,9 +444,9 @@ class ActionHandler(
         val result = deviceExecutor.pressKey(DeviceExecutor.KEYCODE_VOLUME_UP)
         return if (isDeviceExecutorError(result)) {
             Logger.w(TAG, "Volume up key press failed: $result")
-            ActionResult(false, false, "音量+键失败: $result")
+            ActionResult(false, false, I18n.getFormattedMessage("action_volume_up_failed", language, result))
         } else {
-            ActionResult(true, false, "音量+")
+            ActionResult(true, false, I18n.getMessage("action_volume_up", language))
         }
     }
 
@@ -445,9 +457,9 @@ class ActionHandler(
         val result = deviceExecutor.pressKey(DeviceExecutor.KEYCODE_VOLUME_DOWN)
         return if (isDeviceExecutorError(result)) {
             Logger.w(TAG, "Volume down key press failed: $result")
-            ActionResult(false, false, "音量-键失败: $result")
+            ActionResult(false, false, I18n.getFormattedMessage("action_volume_down_failed", language, result))
         } else {
-            ActionResult(true, false, "音量-")
+            ActionResult(true, false, I18n.getMessage("action_volume_down", language))
         }
     }
 
@@ -458,9 +470,9 @@ class ActionHandler(
         val result = deviceExecutor.pressKey(DeviceExecutor.KEYCODE_POWER)
         return if (isDeviceExecutorError(result)) {
             Logger.w(TAG, "Power key press failed: $result")
-            ActionResult(false, false, "电源键失败: $result")
+            ActionResult(false, false, I18n.getFormattedMessage("action_power_failed", language, result))
         } else {
-            ActionResult(true, false, "电源键")
+            ActionResult(true, false, I18n.getMessage("action_power", language))
         }
     }
 
@@ -494,9 +506,9 @@ class ActionHandler(
 
             if (isDeviceExecutorError(result)) {
                 Logger.w(TAG, "Long press command failed: $result")
-                ActionResult(false, false, "长按失败: $result")
+                ActionResult(false, false, I18n.getFormattedMessage("action_long_press_failed", language, result))
             } else {
-                ActionResult(true, false, "长按 ($absX, $absY) ${action.durationMs}毫秒")
+                ActionResult(true, false, I18n.getFormattedMessage("action_long_press_success", language, absX, absY, action.durationMs))
             }
         } finally {
             // Always show floating window after long press, even if it fails
@@ -529,9 +541,9 @@ class ActionHandler(
             val result = deviceExecutor.doubleTap(absX, absY)
             if (isDeviceExecutorError(result)) {
                 Logger.w(TAG, "Double tap command failed: $result")
-                ActionResult(false, false, "双击失败: $result")
+                ActionResult(false, false, I18n.getFormattedMessage("action_double_tap_failed", language, result))
             } else {
-                ActionResult(true, false, "双击 ($absX, $absY)")
+                ActionResult(true, false, I18n.getFormattedMessage("action_double_tap_success", language, absX, absY))
             }
         } finally {
             // Always show floating window after double tap, even if it fails
@@ -545,7 +557,7 @@ class ActionHandler(
     private suspend fun executeWait(action: AgentAction.Wait): ActionResult {
         val durationMs = (action.durationSeconds * 1000).toLong()
         delay(durationMs)
-        return ActionResult(true, false, "等待 ${action.durationSeconds}秒")
+        return ActionResult(true, false, I18n.getFormattedMessage("action_wait_result", language, action.durationSeconds))
     }
 
     /**
@@ -553,7 +565,7 @@ class ActionHandler(
      */
     private suspend fun executeTakeOver(action: AgentAction.TakeOver): ActionResult {
         confirmationCallback?.onTakeOverRequested(action.message)
-        return ActionResult(true, false, "请求手动接管: ${action.message}")
+        return ActionResult(true, false, I18n.getFormattedMessage("action_takeover_result", language, action.message))
     }
 
     /**
@@ -563,9 +575,9 @@ class ActionHandler(
         val selectedIndex = confirmationCallback?.onInteractionRequired(action.options) ?: -1
         return if (selectedIndex >= 0) {
             val selectedOption = action.options?.getOrNull(selectedIndex) ?: "选项 $selectedIndex"
-            ActionResult(true, false, "用户选择: $selectedOption")
+            ActionResult(true, false, I18n.getFormattedMessage("action_user_selected", language, selectedOption))
         } else {
-            ActionResult(true, false, "交互已取消")
+            ActionResult(true, false, I18n.getMessage("action_interaction_cancelled", language))
         }
     }
 
@@ -574,7 +586,7 @@ class ActionHandler(
      */
     private suspend fun executeNote(action: AgentAction.Note): ActionResult {
         // Note action just records the message, no device operation needed
-        return ActionResult(true, false, "备注: ${action.message}")
+        return ActionResult(true, false, I18n.getFormattedMessage("action_note_result", language, action.message))
     }
 
     /**
@@ -582,7 +594,7 @@ class ActionHandler(
      */
     private suspend fun executeCallApi(action: AgentAction.CallApi): ActionResult {
         // CallApi action is handled by the agent layer, not device operations
-        return ActionResult(true, false, "API调用: ${action.instruction}")
+        return ActionResult(true, false, I18n.getFormattedMessage("action_api_result", language, action.instruction))
     }
 
     /**
@@ -614,10 +626,17 @@ class ActionHandler(
                 continue
             }
 
-            Logger.d(TAG, "Batch step ${index + 1}/${action.steps.size}: ${step.formatForDisplay()}")
+            Logger.d(TAG, "Batch step ${index + 1}/${action.steps.size}: ${step.formatForDisplay(language)}")
 
             val result = execute(step, screenWidth, screenHeight)
-            results.add("Step ${index + 1}: ${result.message ?: "OK"}")
+            results.add(
+                I18n.getFormattedMessage(
+                    "action_batch_step",
+                    language,
+                    index + 1,
+                    result.message ?: "OK",
+                ),
+            )
 
             if (!result.success) {
                 allSuccess = false
@@ -630,8 +649,11 @@ class ActionHandler(
             }
         }
 
-        val allSucceededMsg = if (allSuccess) "all succeeded" else "some failed"
-        val summary = "Batch completed: ${action.steps.size} steps, $allSucceededMsg"
+        val allSucceededMsg = I18n.getMessage(
+            if (allSuccess) "action_batch_all_succeeded" else "action_batch_some_failed",
+            language,
+        )
+        val summary = I18n.getFormattedMessage("action_batch_summary", language, action.steps.size, allSucceededMsg)
         Logger.d(TAG, summary)
 
         return ActionResult(
