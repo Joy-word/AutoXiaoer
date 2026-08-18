@@ -48,6 +48,7 @@ import com.flowmate.autoxiaoer.config.PersonaContext
 import com.flowmate.autoxiaoer.config.PromptManager
 import com.flowmate.autoxiaoer.config.PromptVersion
 import com.flowmate.autoxiaoer.config.RelationshipContext
+import com.flowmate.autoxiaoer.config.SystemPrompts
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -837,12 +838,17 @@ class SettingsFragment : Fragment() {
                 .setTitle(R.string.settings_system_prompt_reset)
                 .setMessage(R.string.settings_system_prompt_reset_confirm)
                 .setPositiveButton(R.string.dialog_confirm) { _, _ ->
-                    promptManager.deleteCurrent(PromptManager.PromptType.PHONE_AGENT, language)
+                    val defaultPrompt = if (language == "en") {
+                        SystemPrompts.getEnglishPromptTemplate()
+                    } else {
+                        SystemPrompts.getChinesePromptTemplate()
+                    }
+                    promptManager.resetToDefault(PromptManager.PromptType.PHONE_AGENT, language, defaultPrompt)
                     settingsManager.clearCustomSystemPrompt(language)
                     if (language == "en") {
-                        com.flowmate.autoxiaoer.config.SystemPrompts.setCustomEnglishPrompt(null)
+                        SystemPrompts.setCustomEnglishPrompt(defaultPrompt)
                     } else {
-                        com.flowmate.autoxiaoer.config.SystemPrompts.setCustomChinesePrompt(null)
+                        SystemPrompts.setCustomChinesePrompt(defaultPrompt)
                     }
                     Toast.makeText(ctx, R.string.settings_system_prompt_reset_done, Toast.LENGTH_SHORT).show()
                     dialog.dismiss()
@@ -1304,12 +1310,17 @@ class SettingsFragment : Fragment() {
                 .setTitle("重置为默认")
                 .setMessage(getString(R.string.settings_brain_llm_prompt_reset_confirm))
                 .setPositiveButton("确定") { _, _ ->
-                    promptManager.deleteCurrent(PromptManager.PromptType.BRAIN_LLM, language)
+                    val defaultPrompt = if (language == "en") {
+                        BrainLLMPrompts.getDefaultEnglishPromptTemplate()
+                    } else {
+                        BrainLLMPrompts.getDefaultChinesePromptTemplate()
+                    }
+                    promptManager.resetToDefault(PromptManager.PromptType.BRAIN_LLM, language, defaultPrompt)
                     settingsManager.clearBrainLLMCustomPrompt(language)
                     if (language == "en") {
-                        BrainLLMPrompts.setCustomEnglishPrompt(null)
+                        BrainLLMPrompts.setCustomEnglishPrompt(defaultPrompt)
                     } else {
-                        BrainLLMPrompts.setCustomChinesePrompt(null)
+                        BrainLLMPrompts.setCustomChinesePrompt(defaultPrompt)
                     }
                     Toast.makeText(ctx, getString(R.string.settings_brain_llm_prompt_reset_done), Toast.LENGTH_SHORT).show()
                     brainDialog.dismiss()
@@ -1524,12 +1535,17 @@ class SettingsFragment : Fragment() {
                 .setTitle("重置为默认")
                 .setMessage("确定要恢复默认的 LLM-agent System Prompt 吗？")
                 .setPositiveButton("确定") { _, _ ->
-                    promptManager.deleteCurrent(PromptManager.PromptType.LLM_AGENT, language)
+                    val defaultPrompt = if (language == "en") {
+                        LLMAgentPrompts.getDefaultEnglishPromptTemplate()
+                    } else {
+                        LLMAgentPrompts.getDefaultChinesePromptTemplate()
+                    }
+                    promptManager.resetToDefault(PromptManager.PromptType.LLM_AGENT, language, defaultPrompt)
                     settingsManager.clearLLMAgentCustomPrompt(language)
                     if (language == "en") {
-                        LLMAgentPrompts.setCustomEnglishPrompt(null)
+                        LLMAgentPrompts.setCustomEnglishPrompt(defaultPrompt)
                     } else {
-                        LLMAgentPrompts.setCustomChinesePrompt(null)
+                        LLMAgentPrompts.setCustomChinesePrompt(defaultPrompt)
                     }
                     Toast.makeText(ctx, "已恢复默认 System Prompt", Toast.LENGTH_SHORT).show()
                     dialog.dismiss()
@@ -1724,7 +1740,7 @@ class SettingsFragment : Fragment() {
                 }
             }
             .setNeutralButton(R.string.settings_dialog_reset_default) { _, _ ->
-                promptInput.setText(defaultContent)
+                BehaviorContext.saveNewVersion(defaultContent, language)
                 Toast.makeText(ctx, R.string.settings_behavior_rules_default_restored_toast, Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.dialog_cancel, null)
@@ -1784,6 +1800,11 @@ class SettingsFragment : Fragment() {
 
         val language = settingsManager.getPromptLanguage().code
         promptInput.setText(com.flowmate.autoxiaoer.config.RelationshipContext.getContext(language))
+        val defaultContent = if (language == "en") {
+            RelationshipContext.DEFAULT_ENGLISH_CONTENT
+        } else {
+            RelationshipContext.DEFAULT_CONTENT
+        }
 
         MaterialAlertDialogBuilder(ctx)
             .setTitle(R.string.settings_relationships_title)
@@ -1794,6 +1815,10 @@ class SettingsFragment : Fragment() {
                     com.flowmate.autoxiaoer.config.RelationshipContext.saveNewVersion(newContent, language)
                     Toast.makeText(ctx, R.string.settings_relationships_saved, Toast.LENGTH_SHORT).show()
                 }
+            }
+            .setNeutralButton(R.string.settings_dialog_reset_default) { _, _ ->
+                RelationshipContext.saveNewVersion(defaultContent, language)
+                Toast.makeText(ctx, R.string.settings_system_prompt_reset_done, Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.dialog_cancel, null)
             .create()
@@ -1852,6 +1877,11 @@ class SettingsFragment : Fragment() {
         btnHistory.text = getString(R.string.settings_dialog_history)
 
         promptInput.setText(com.flowmate.autoxiaoer.config.PersonaContext.getRawContent(language))
+        val defaultContent = if (language == "en") {
+            PersonaContext.DEFAULT_ENGLISH_CONTENT
+        } else {
+            PersonaContext.DEFAULT_CHINESE_CONTENT
+        }
 
         MaterialAlertDialogBuilder(ctx)
             .setTitle(R.string.settings_persona_title)
@@ -1862,6 +1892,10 @@ class SettingsFragment : Fragment() {
                     com.flowmate.autoxiaoer.config.PersonaContext.saveNewVersion(newContent, language)
                     Toast.makeText(ctx, R.string.settings_persona_saved, Toast.LENGTH_SHORT).show()
                 }
+            }
+            .setNeutralButton(R.string.settings_dialog_reset_default) { _, _ ->
+                PersonaContext.saveNewVersion(defaultContent, language)
+                Toast.makeText(ctx, R.string.settings_system_prompt_reset_done, Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.dialog_cancel, null)
             .create()

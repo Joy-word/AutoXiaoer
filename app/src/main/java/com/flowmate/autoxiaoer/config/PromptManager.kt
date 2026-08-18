@@ -121,6 +121,12 @@ class PromptManager private constructor(private val context: Context) {
         Logger.i(TAG, "Deleted current prompt for ${type.dirName}/$language")
     }
 
+    /**
+     * Restores the built-in [defaultContent] while archiving the current custom prompt.
+     */
+    fun resetToDefault(type: PromptType, language: String, defaultContent: String): PromptVersion? =
+        saveNewVersion(type, language, defaultContent)
+
     // ──────────────────────────────────────────────────────────────────────────
     // History / rollback
     // ──────────────────────────────────────────────────────────────────────────

@@ -1072,6 +1072,7 @@ class SettingsActivity : BaseActivity() {
      */
     private fun showEditPromptDialog(language: String) {
         Logger.d(TAG, "Showing edit prompt dialog for language: $language")
+        val promptManager = com.flowmate.autoxiaoer.config.PromptManager.getInstance(this)
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_system_prompt, null)
         val promptInput =
             dialogView.findViewById<
@@ -1081,7 +1082,10 @@ class SettingsActivity : BaseActivity() {
 
         // Get current prompt (custom or default template with placeholder)
         val currentPrompt =
-            settingsManager.getCustomSystemPrompt(language)
+            promptManager.getCurrent(
+                com.flowmate.autoxiaoer.config.PromptManager.PromptType.PHONE_AGENT,
+                language,
+            ) ?: settingsManager.getCustomSystemPrompt(language)
                 ?: if (language == "en") {
                     com.flowmate.autoxiaoer.config.SystemPrompts
                         .getEnglishPromptTemplate()
@@ -1105,6 +1109,11 @@ class SettingsActivity : BaseActivity() {
                 .setPositiveButton(R.string.dialog_confirm) { _, _ ->
                     val newPrompt = promptInput.text?.toString() ?: ""
                     if (newPrompt.isNotBlank()) {
+                        promptManager.saveNewVersion(
+                            com.flowmate.autoxiaoer.config.PromptManager.PromptType.PHONE_AGENT,
+                            language,
+                            newPrompt,
+                        )
                         settingsManager.saveCustomSystemPrompt(language, newPrompt)
                         // Update SystemPrompts singleton
                         if (language == "en") {
@@ -1126,14 +1135,23 @@ class SettingsActivity : BaseActivity() {
                 .setTitle(R.string.settings_system_prompt_reset)
                 .setMessage(R.string.settings_system_prompt_reset_confirm)
                 .setPositiveButton(R.string.dialog_confirm) { _, _ ->
+                    val defaultPrompt = if (language == "en") {
+                        com.flowmate.autoxiaoer.config.SystemPrompts.getEnglishPromptTemplate()
+                    } else {
+                        com.flowmate.autoxiaoer.config.SystemPrompts.getChinesePromptTemplate()
+                    }
+                    promptManager.resetToDefault(
+                        com.flowmate.autoxiaoer.config.PromptManager.PromptType.PHONE_AGENT,
+                        language,
+                        defaultPrompt,
+                    )
                     settingsManager.clearCustomSystemPrompt(language)
-                    // Clear from SystemPrompts singleton
                     if (language == "en") {
                         com.flowmate.autoxiaoer.config.SystemPrompts
-                            .setCustomEnglishPrompt(null)
+                            .setCustomEnglishPrompt(defaultPrompt)
                     } else {
                         com.flowmate.autoxiaoer.config.SystemPrompts
-                            .setCustomChinesePrompt(null)
+                            .setCustomChinesePrompt(defaultPrompt)
                     }
                     updatePromptStatus()
                     Toast.makeText(this, R.string.settings_system_prompt_reset_done, Toast.LENGTH_SHORT).show()
