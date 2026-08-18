@@ -812,7 +812,7 @@ class SettingsFragment : Fragment() {
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(title)
             .setView(dialogView)
-            .setPositiveButton(R.string.dialog_confirm) { _, _ ->
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val newPrompt = promptInput.text?.toString() ?: ""
                 if (newPrompt.isNotBlank()) {
                     promptManager.saveNewVersion(PromptManager.PromptType.PHONE_AGENT, language, newPrompt)
@@ -825,7 +825,7 @@ class SettingsFragment : Fragment() {
                     Toast.makeText(ctx, R.string.settings_system_prompt_saved, Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNeutralButton("历史版本") { _, _ ->
+            .setNeutralButton(R.string.settings_dialog_history) { _, _ ->
                 showPromptHistoryDialog(PromptManager.PromptType.PHONE_AGENT, language) { restored ->
                     promptInput.setText(restored)
                 }
@@ -1206,7 +1206,7 @@ class SettingsFragment : Fragment() {
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(getString(R.string.settings_brain_llm_dialog_title))
             .setView(scrollView)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val baseUrl = baseUrlEdit.text?.toString()?.trim() ?: ""
                 val apiKey = apiKeyEdit.text?.toString()?.trim().let {
                     if (it.isNullOrEmpty()) "EMPTY" else it
@@ -1241,7 +1241,7 @@ class SettingsFragment : Fragment() {
                 com.flowmate.autoxiaoer.ComponentManager.getInstance(ctx).reinitializeAgents()
                 Toast.makeText(ctx, getString(R.string.settings_brain_llm_saved), Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
 
         btnTestConn.setOnClickListener {
@@ -1286,7 +1286,7 @@ class SettingsFragment : Fragment() {
         val brainDialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(getString(R.string.settings_brain_llm_prompt_title))
             .setView(dialogView)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val prompt = promptInput.text?.toString() ?: ""
                 if (prompt.isNotBlank()) {
                     promptManager.saveNewVersion(PromptManager.PromptType.BRAIN_LLM, language, prompt)
@@ -1297,19 +1297,19 @@ class SettingsFragment : Fragment() {
                     Toast.makeText(ctx, getString(R.string.settings_brain_llm_prompt_saved), Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNeutralButton("历史版本") { _, _ ->
+            .setNeutralButton(R.string.settings_dialog_history) { _, _ ->
                 showPromptHistoryDialog(PromptManager.PromptType.BRAIN_LLM, language) { restored ->
                     promptInput.setText(restored)
                 }
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
 
         btnReset.setOnClickListener {
             MaterialAlertDialogBuilder(ctx)
-                .setTitle("重置为默认")
+                .setTitle(R.string.settings_system_prompt_reset)
                 .setMessage(getString(R.string.settings_brain_llm_prompt_reset_confirm))
-                .setPositiveButton("确定") { _, _ ->
+                .setPositiveButton(R.string.dialog_confirm) { _, _ ->
                     val defaultPrompt = if (language == "en") {
                         BrainLLMPrompts.getDefaultEnglishPromptTemplate()
                     } else {
@@ -1325,7 +1325,7 @@ class SettingsFragment : Fragment() {
                     Toast.makeText(ctx, getString(R.string.settings_brain_llm_prompt_reset_done), Toast.LENGTH_SHORT).show()
                     brainDialog.dismiss()
                 }
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.dialog_cancel, null)
                 .showWithPrimaryButtons()
         }
 
@@ -1421,7 +1421,7 @@ class SettingsFragment : Fragment() {
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(getString(R.string.settings_llm_agent_dialog_title))
             .setView(scrollView)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val baseUrl = baseUrlEdit.text?.toString()?.trim() ?: ""
                 val apiKey = apiKeyEdit.text?.toString()?.trim().let {
                     if (it.isNullOrEmpty()) "EMPTY" else it
@@ -1459,7 +1459,7 @@ class SettingsFragment : Fragment() {
                 com.flowmate.autoxiaoer.ComponentManager.getInstance(ctx).reinitializeAgents()
                 Toast.makeText(ctx, getString(R.string.settings_llm_agent_saved), Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
 
         btnTestConn.setOnClickListener {
@@ -1509,7 +1509,7 @@ class SettingsFragment : Fragment() {
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(title)
             .setView(dialogView)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val newPrompt = promptInput.text?.toString() ?: ""
                 if (newPrompt.isNotBlank()) {
                     promptManager.saveNewVersion(PromptManager.PromptType.LLM_AGENT, language, newPrompt)
@@ -1519,22 +1519,22 @@ class SettingsFragment : Fragment() {
                     } else {
                         LLMAgentPrompts.setCustomChinesePrompt(newPrompt)
                     }
-                    Toast.makeText(ctx, "LLM-agent System Prompt 已保存", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, R.string.settings_llm_agent_prompt_saved, Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNeutralButton("历史版本") { _, _ ->
+            .setNeutralButton(R.string.settings_dialog_history) { _, _ ->
                 showPromptHistoryDialog(PromptManager.PromptType.LLM_AGENT, language) { restored ->
                     promptInput.setText(restored)
                 }
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
 
         btnReset.setOnClickListener {
             MaterialAlertDialogBuilder(ctx)
-                .setTitle("重置为默认")
-                .setMessage("确定要恢复默认的 LLM-agent System Prompt 吗？")
-                .setPositiveButton("确定") { _, _ ->
+                .setTitle(R.string.settings_system_prompt_reset)
+                .setMessage(R.string.settings_llm_agent_prompt_reset_confirm)
+                .setPositiveButton(R.string.dialog_confirm) { _, _ ->
                     val defaultPrompt = if (language == "en") {
                         LLMAgentPrompts.getDefaultEnglishPromptTemplate()
                     } else {
@@ -1547,10 +1547,10 @@ class SettingsFragment : Fragment() {
                     } else {
                         LLMAgentPrompts.setCustomChinesePrompt(defaultPrompt)
                     }
-                    Toast.makeText(ctx, "已恢复默认 System Prompt", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, R.string.settings_llm_agent_prompt_reset_done, Toast.LENGTH_SHORT).show()
                     dialog.dismiss()
                 }
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.dialog_cancel, null)
                 .showWithPrimaryButtons()
         }
 

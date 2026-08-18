@@ -101,6 +101,9 @@
     <string name="settings_llm_agent_dialog_title">LLM-agent 设置（控制者）</string>
     <string name="settings_llm_agent_saved">LLM-agent 设置已保存</string>
     <string name="settings_llm_agent_prompt_edit">编辑自定义 System Prompt</string>
+    <string name="settings_llm_agent_prompt_saved">LLM-agent System Prompt 已保存</string>
+    <string name="settings_llm_agent_prompt_reset_confirm">确定要恢复默认的 LLM-agent System Prompt 吗？</string>
+    <string name="settings_llm_agent_prompt_reset_done">已恢复默认 LLM-agent System Prompt</string>
     <string name="settings_brain_llm_title">BrainLLM（表达者）</string>
     <string name="settings_brain_llm_description">配置负责人设表达和人际关系的表达者模型。启用后，所有需要发送给朋友的文字将由表达者生成，可单独配置更具表达力的模型。</string>
     <string name="settings_brain_llm_configure">配置表达者 (BrainLLM)</string>
