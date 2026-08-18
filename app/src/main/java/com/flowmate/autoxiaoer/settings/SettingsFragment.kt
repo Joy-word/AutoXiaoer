@@ -1782,7 +1782,8 @@ class SettingsFragment : Fragment() {
         val btnHistory = dialogView.findViewById<Button>(R.id.btnResetPrompt)
         btnHistory.text = getString(R.string.settings_dialog_history)
 
-        promptInput.setText(com.flowmate.autoxiaoer.config.RelationshipContext.getContext())
+        val language = settingsManager.getPromptLanguage().code
+        promptInput.setText(com.flowmate.autoxiaoer.config.RelationshipContext.getContext(language))
 
         MaterialAlertDialogBuilder(ctx)
             .setTitle(R.string.settings_relationships_title)
@@ -1790,7 +1791,7 @@ class SettingsFragment : Fragment() {
             .setPositiveButton(R.string.settings_save) { _, _ ->
                 val newContent = promptInput.text?.toString() ?: ""
                 if (newContent.isNotBlank()) {
-                    com.flowmate.autoxiaoer.config.RelationshipContext.saveNewVersion(newContent)
+                    com.flowmate.autoxiaoer.config.RelationshipContext.saveNewVersion(newContent, language)
                     Toast.makeText(ctx, R.string.settings_relationships_saved, Toast.LENGTH_SHORT).show()
                 }
             }
@@ -1798,7 +1799,7 @@ class SettingsFragment : Fragment() {
             .create()
             .also { dialog ->
                 btnHistory.setOnClickListener {
-                    val history = com.flowmate.autoxiaoer.config.RelationshipContext.getHistory()
+                    val history = com.flowmate.autoxiaoer.config.RelationshipContext.getHistory(language)
                     if (history.isEmpty()) {
                         Toast.makeText(ctx, R.string.settings_dialog_no_history, Toast.LENGTH_SHORT).show()
                         return@setOnClickListener
@@ -1812,7 +1813,7 @@ class SettingsFragment : Fragment() {
                         .setItems(labels) { _, idx ->
                             val selected = history[idx]
                             val content = com.flowmate.autoxiaoer.config.RelationshipContext
-                                .readHistoryVersion(selected)
+                                .readHistoryVersion(selected, language)
                             if (content == null) {
                                 Toast.makeText(ctx, getString(R.string.settings_dialog_unable_to_read), Toast.LENGTH_SHORT).show()
                                 return@setItems

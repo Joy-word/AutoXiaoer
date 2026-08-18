@@ -19,10 +19,13 @@ import java.util.Locale
  * Storage layout under `context.filesDir/behavior_rules/`:
  * ```
  * behavior_rules/
- * ├── current.md          ← active rules injected into LLMAgent
- * └── history/
- *     ├── v1_20260507_143000.md
- *     └── v2_20260508_090000.md
+ * ├── current_cn.md       ← active Chinese rules
+ * ├── current_en.md       ← active English rules
+ * ├── history_cn/
+ * │   ├── v1_20260507_143000.md
+ * │   └── v2_20260508_090000.md
+ * └── history_en/
+ *     └── v1_20260508_090000.md
  * ```
  */
 object BehaviorContext {
@@ -88,7 +91,8 @@ object BehaviorContext {
         val fallbackFile = File(getBehaviorDir(ctx), CURRENT_FILE)
         val targetFile = when {
             currentFile.exists() -> currentFile
-            fallbackFile.exists() -> fallbackFile
+            // `current.md` predates language-specific storage and is treated as Chinese.
+            resolvedLanguage == "cn" && fallbackFile.exists() -> fallbackFile
             else -> currentFile
         }
 

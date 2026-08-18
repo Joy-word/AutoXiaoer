@@ -1,6 +1,7 @@
 package com.flowmate.autoxiaoer.config
 
 import android.content.Context
+import com.flowmate.autoxiaoer.settings.SettingsManager
 import com.flowmate.autoxiaoer.util.Logger
 import java.io.File
 import java.text.SimpleDateFormat
@@ -31,6 +32,8 @@ object RelationshipContext {
     private const val DIR_NAME = "relationships"
     private const val HISTORY_DIR = "history"
     private const val CURRENT_FILE = "current.md"
+    private const val CURRENT_FILE_CN = "current_cn.md"
+    private const val CURRENT_FILE_EN = "current_en.md"
     private const val VERSION_PREFIX = "v"
     private const val VERSION_DATE_FORMAT = "yyyyMMdd_HHmmss"
 
@@ -91,21 +94,28 @@ object RelationshipContext {
      * Used by BrainLLM to inject into its system prompt, and returned to
      * LLMAgent when it issues a `read_relationships` action.
      */
-    fun getContext(language: String = "cn"): String {
-        val defaultContent = if (language.equals("en", ignoreCase = true) || language.equals("english", ignoreCase = true)) {
+    fun getContext(language: String? = null): String {
+        val resolvedLanguage = resolveLanguage(language)
+        val defaultContent = if (resolvedLanguage == "en") {
             DEFAULT_ENGLISH_CONTENT
         } else {
             DEFAULT_CONTENT
         }
         val ctx = appContext ?: return defaultContent
-        val currentFile = File(getRelationshipDir(ctx), CURRENT_FILE)
-        return if (currentFile.exists()) {
+        val currentFile = getCurrentFile(ctx, resolvedLanguage)
+        val legacyFile = File(getRelationshipDir(ctx), CURRENT_FILE)
+        val targetFile = when {
+            currentFile.exists() -> currentFile
+            resolvedLanguage == "cn" && legacyFile.exists() -> legacyFile
+            else -> currentFile
+        }
+        return if (targetFile.exists()) {
             try {
-                currentFile.readText().also {
-                    Logger.d(TAG, "Loaded relationship context (${it.length} chars)")
+                targetFile.readText().also {
+                    Logger.d(TAG, "Loaded relationship context [$resolvedLanguage] (${it.length} chars)")
                 }
             } catch (e: Exception) {
-                Logger.e(TAG, "Failed to read relationship context", e)
+                Logger.e(TAG, "Failed to read relationship context [$resolvedLanguage]", e)
                 defaultContent
             }
         } else {
@@ -126,14 +136,15 @@ object RelationshipContext {
      * @return The [RelationshipVersion] that was just archived from the old current,
      *         or null if there was no previous version to archive.
      */
-    fun saveNewVersion(content: String): RelationshipVersion? {
+    fun saveNewVersion(content: String, language: String? = null): RelationshipVersion? {
         val ctx = appContext ?: run {
             Logger.e(TAG, "RelationshipContext not initialized — call init() first")
             return null
         }
+        val resolvedLanguage = resolveLanguage(language)
         val relDir = getRelationshipDir(ctx)
-        val historyDir = File(relDir, HISTORY_DIR).also { it.mkdirs() }
-        val currentFile = File(relDir, CURRENT_FILE)
+        val historyDir = File(relDir, getHistoryDirName(resolvedLanguage)).also { it.mkdirs() }
+        val currentFile = getCurrentFile(ctx, resolvedLanguage)
 
         var archivedVersion: RelationshipVersion? = null
 
@@ -151,18 +162,18 @@ object RelationshipContext {
                     savedAt = System.currentTimeMillis(),
                     sizeBytes = archiveFile.length().toInt(),
                 )
-                Logger.i(TAG, "Archived relationship context to $archiveName")
+                Logger.i(TAG, "Archived relationship context [$resolvedLanguage] to $archiveName")
             } catch (e: Exception) {
-                Logger.e(TAG, "Failed to archive relationship context", e)
+                Logger.e(TAG, "Failed to archive relationship context [$resolvedLanguage]", e)
             }
         }
 
         // Write new current
         try {
             currentFile.writeText(content)
-            Logger.i(TAG, "Saved new relationship context (${content.length} chars)")
+            Logger.i(TAG, "Saved new relationship context [$resolvedLanguage] (${content.length} chars)")
         } catch (e: Exception) {
-            Logger.e(TAG, "Failed to write relationship context", e)
+            Logger.e(TAG, "Failed to write relationship context [$resolvedLanguage]", e)
         }
 
         return archivedVersion
@@ -175,9 +186,9 @@ object RelationshipContext {
     /**
      * Returns a list of archived versions, most recent first.
      */
-    fun getHistory(): List<RelationshipVersion> {
+    fun getHistory(language: String? = null): List<RelationshipVersion> {
         val ctx = appContext ?: return emptyList()
-        val historyDir = File(getRelationshipDir(ctx), HISTORY_DIR)
+        val historyDir = File(getRelationshipDir(ctx), getHistoryDirName(resolveLanguage(language)))
         if (!historyDir.exists()) return emptyList()
 
         return historyDir.listFiles()
@@ -191,9 +202,10 @@ object RelationshipContext {
      * Rolls back to the given [version]: copies that file's content into `current.md`
      * (archiving the current content first).
      */
-    fun rollback(version: RelationshipVersion) {
+    fun rollback(version: RelationshipVersion, language: String? = null) {
         val ctx = appContext ?: return
-        val historyDir = File(getRelationshipDir(ctx), HISTORY_DIR)
+        val resolvedLanguage = resolveLanguage(language)
+        val historyDir = File(getRelationshipDir(ctx), getHistoryDirName(resolvedLanguage))
         val archiveFile = File(historyDir, version.filename)
         if (!archiveFile.exists()) {
             Logger.e(TAG, "Rollback target not found: ${version.filename}")
@@ -205,16 +217,17 @@ object RelationshipContext {
             Logger.e(TAG, "Failed to read rollback target", e)
             return
         }
-        saveNewVersion(content)
+        saveNewVersion(content, resolvedLanguage)
         Logger.i(TAG, "Rolled back to ${version.filename}")
     }
 
     /**
      * Reads the content of a historical version without applying it.
      */
-    fun readHistoryVersion(version: RelationshipVersion): String? {
+    fun readHistoryVersion(version: RelationshipVersion, language: String? = null): String? {
         val ctx = appContext ?: return null
-        val file = File(File(getRelationshipDir(ctx), HISTORY_DIR), version.filename)
+        val historyDir = File(getRelationshipDir(ctx), getHistoryDirName(resolveLanguage(language)))
+        val file = File(historyDir, version.filename)
         return try {
             file.readText()
         } catch (e: Exception) {
@@ -229,6 +242,17 @@ object RelationshipContext {
 
     private fun getRelationshipDir(ctx: Context): File =
         File(ctx.filesDir, DIR_NAME).also { it.mkdirs() }
+
+    private fun resolveLanguage(language: String?): String {
+        val raw = language ?: appContext?.let { SettingsManager.getInstance(it).getPromptLanguage().code } ?: "cn"
+        return if (raw.equals("en", ignoreCase = true) || raw.equals("english", ignoreCase = true)) "en" else "cn"
+    }
+
+    private fun getCurrentFile(ctx: Context, language: String): File =
+        File(getRelationshipDir(ctx), if (language == "en") CURRENT_FILE_EN else CURRENT_FILE_CN)
+
+    private fun getHistoryDirName(language: String): String =
+        if (language == "en") "${HISTORY_DIR}_en" else "${HISTORY_DIR}_cn"
 
     private fun nextVersionNumber(historyDir: File): Int {
         val existing = historyDir.listFiles()

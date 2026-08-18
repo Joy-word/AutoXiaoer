@@ -51,6 +51,7 @@ Auto Xiao'er 是基于 [AutoGLM For Android](https://github.com/Luokavin/AutoGLM
 - 🔒 **双模控制**：支持 Shizuku 与无障碍服务两种控制方式，可在设置中灵活切换
 - 🪟 **悬浮窗交互**：悬浮窗实时显示任务执行进度
 - 📱 **原生体验**：Material Design 设计，流畅的原生 Android 体验
+- 🌐 **双语支持**：界面与内置提示词同时支持中文和英文
 - 🔌 **多模型支持**：兼容任何支持 OpenAI 格式的模型 API
 
 

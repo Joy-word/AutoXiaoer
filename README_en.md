@@ -47,6 +47,7 @@ Auto Xiao'er is a native Android application deeply modified from [AutoGLM For A
 - 🔒 **Dual Control Backends**: Supports Shizuku and Android Accessibility Service, with flexible switching in Settings
 - 🪟 **Floating Window Interaction**: Floating window displays task execution progress in real-time
 - 📱 **Native Experience**: Material Design, smooth native Android experience
+- 🌐 **Bilingual Support**: Both the interface and built-in prompts support Chinese and English
 - 🔌 **Multi-Model Support**: Compatible with any model API supporting OpenAI format and image understanding
 
 
