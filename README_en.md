@@ -17,14 +17,14 @@ English | [中文](README.md)
 
 <table>
   <tr>
-    <td><img src="screenshots/screenshot_1.jpg" width="100%"/></td>
-    <td><img src="screenshots/screenshot_2.jpg" width="100%"/></td>
-    <td><img src="screenshots/screenshot_3.jpg" width="100%"/></td>
+    <td><img src="screenshots/en/screenshot_1.jpg" width="100%"/></td>
+    <td><img src="screenshots/en/screenshot_2.jpg" width="100%"/></td>
+    <td><img src="screenshots/en/screenshot_3.jpg" width="100%"/></td>
   </tr>
   <tr>
-    <td><img src="screenshots/screenshot_4.jpg" width="100%"/></td>
-    <td><img src="screenshots/screenshot_5.jpg" width="100%"/></td>
-    <td><img src="screenshots/screenshot_6.jpg" width="100%"/></td>
+    <td><img src="screenshots/en/screenshot_4.jpg" width="100%"/></td>
+    <td><img src="screenshots/en/screenshot_5.jpg" width="100%"/></td>
+    <td><img src="screenshots/en/screenshot_6.jpg" width="100%"/></td>
   </tr>
 </table>
 
