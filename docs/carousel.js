@@ -15,6 +15,14 @@
   var index = 0;
   var touchStartX = null;
 
+  function text(key, values) {
+    if (window.siteI18n) return window.siteI18n.t(key, values);
+    if (key === "carouselPosition") {
+      return "第 " + values.current + " 张，共 " + values.total + " 张";
+    }
+    return "截图区域，按左右方向键切换";
+  }
+
   if (
     !viewport ||
     !track ||
@@ -34,7 +42,7 @@
     dot.className = "shot-carousel-dot";
     dot.setAttribute(
       "aria-label",
-      "第 " + (i + 1) + " 张，共 " + slides.length + " 张"
+      text("carouselPosition", { current: i + 1, total: slides.length })
     );
     dot.addEventListener("click", function () {
       go(i);
@@ -48,13 +56,19 @@
 
   function announce() {
     if (!live) return;
-    live.textContent =
-      "第 " + (index + 1) + " 张，共 " + slides.length + " 张";
+    live.textContent = text("carouselPosition", {
+      current: index + 1,
+      total: slides.length
+    });
   }
 
   function syncDots() {
     dots.forEach(function (d, i) {
       var active = i === index;
+      d.setAttribute(
+        "aria-label",
+        text("carouselPosition", { current: i + 1, total: slides.length })
+      );
       d.setAttribute("aria-current", active ? "true" : "false");
       d.tabIndex = active ? 0 : -1;
     });
@@ -126,8 +140,13 @@
   viewport.tabIndex = 0;
   viewport.setAttribute(
     "aria-label",
-    "截图区域，按左右方向键切换"
+    text("carouselViewport")
   );
+
+  document.addEventListener("languagechange", function () {
+    viewport.setAttribute("aria-label", text("carouselViewport"));
+    syncDots();
+  });
 
   syncDots();
   go(0);

@@ -33,7 +33,12 @@
       <a href="#how">快速上手</a>
       <a href="#scenarios">使用场景</a>
       <a href="#shots">界面一览</a>
+      <a href="#contact">联系我</a>
       <a class="btn btn-primary" href="#download">立即下载</a>
+      <div class="language-switcher" role="group" aria-label="语言选择">
+        <button type="button" data-language="zh-CN" aria-pressed="true">中文</button>
+        <button type="button" data-language="en" aria-pressed="false">EN</button>
+      </div>
     </nav>
   </header>
 
@@ -64,7 +69,7 @@
             >
           </div>
           <p class="hero-note">
-            开源 · MIT · Android 7.0+ · 需要 <a href="https://shizuku.rikka.app/">Shizuku</a> 与自有模型 API
+            开源 · MIT · Android 7.0+ · 支持自有模型 API
           </p>
         </div>
         <div class="hero-visual" aria-hidden="true">
@@ -143,9 +148,9 @@
         </p>
         <div class="steps-list">
           <article class="step-card">
-            <h3>安装并启动 Shizuku</h3>
+            <h3>开启无障碍或者使用 Shizuku</h3>
             <p>
-              通过无线调试等方式授权，让本机拥有执行点击、滑动等操作的能力。
+              授权界面操作，让本机拥有执行点击、滑动等操作的能力。
             </p>
           </article>
           <article class="step-card">
@@ -349,6 +354,49 @@
       </div>
     </section>
 
+    <section id="contact" class="contact" aria-labelledby="contact-title">
+      <div class="wrap">
+        <p class="section-label">Contact</p>
+        <h2 id="contact-title" class="section-title">联系我</h2>
+        <p class="section-lead">
+          加入交流群交流使用体验，也可以通过微信联系开发者。
+        </p>
+        <div class="contact-grid" data-contact-language="zh-CN">
+          <article class="contact-card">
+            <div class="contact-image-wrap">
+              <img
+                src="../pictures/交流群.jpg"
+                alt="Auto 小二交流群二维码"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div>
+              <h3>加入交流群</h3>
+              <p>扫码加入 Auto 小二交流群，和其他用户一起交流。</p>
+            </div>
+          </article>
+          <article class="contact-card">
+            <div class="contact-image-wrap">
+              <img
+                src="../pictures/微信联系.png"
+                alt="微信联系二维码"
+                loading="lazy"
+                decoding="async"
+              />
+            </div>
+            <div>
+              <h3>微信联系</h3>
+              <p>扫码添加微信，反馈问题或交流项目合作。</p>
+            </div>
+          </article>
+        </div>
+        <div class="contact-email" data-contact-language="en" hidden>
+          <a href="mailto:wxrachel@outlook.com">wxrachel@outlook.com</a>
+        </div>
+      </div>
+    </section>
+
     <section class="final-cta wrap" aria-labelledby="cta-title">
       <h2 id="cta-title">准备好让伙伴住进手机了吗？</h2>
       <p>开源可审计，欢迎提 Issue 与 PR 一起完善小二。</p>
@@ -383,6 +431,7 @@
     </nav>
     <p>Auto 小二 — Powered by Auto小二工作室</p>
   </footer>
+  <script src="i18n.js" defer></script>
   <script src="carousel.js" defer></script>
 </body>
 </html>
