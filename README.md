@@ -9,7 +9,7 @@
 [![Android](https://img.shields.io/badge/Android-7.0%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9-purple.svg)](https://kotlinlang.org)
 
-English | [中文](README.md)
+English | [中文](README_zh.md)
 
 </div>
 
