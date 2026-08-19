@@ -93,11 +93,11 @@
     <string name="settings_title">设置</string>
     <string name="settings_phone_agent_title">Phone-agent（执行者）</string>
     <string name="settings_phone_agent_description">配置负责直接操控手机屏幕的执行模型，包括 API 地址、密钥、截图延迟等参数。</string>
-    <string name="settings_phone_agent_configure">配置执行者 (Phone-agent)</string>
+    <string name="settings_phone_agent_configure">配置执行者</string>
     <string name="settings_phone_agent_saved">Phone-agent 设置已保存</string>
     <string name="settings_llm_agent_title">LLM-agent（控制者）</string>
     <string name="settings_llm_agent_description">配置负责任务规划和能力调用的控制者模型，可使用与 Phone-agent（执行者）不同的模型和 API。</string>
-    <string name="settings_llm_agent_configure">配置控制者 (LLM-agent)</string>
+    <string name="settings_llm_agent_configure">配置控制者</string>
     <string name="settings_llm_agent_dialog_title">LLM-agent 设置（控制者）</string>
     <string name="settings_llm_agent_saved">LLM-agent 设置已保存</string>
     <string name="settings_llm_agent_prompt_edit">编辑自定义 System Prompt</string>
@@ -106,7 +106,7 @@
     <string name="settings_llm_agent_prompt_reset_done">已恢复默认 LLM-agent System Prompt</string>
     <string name="settings_brain_llm_title">BrainLLM（表达者）</string>
     <string name="settings_brain_llm_description">配置负责人设表达和人际关系的表达者模型。启用后，所有需要发送给朋友的文字将由表达者生成，可单独配置更具表达力的模型。</string>
-    <string name="settings_brain_llm_configure">配置表达者 (BrainLLM)</string>
+    <string name="settings_brain_llm_configure">配置表达者</string>
     <string name="settings_brain_llm_dialog_title">BrainLLM 设置（表达者）</string>
     <string name="settings_brain_llm_saved">BrainLLM 设置已保存</string>
     <string name="settings_brain_llm_prompt_edit">编辑表达者 System Prompt</string>
