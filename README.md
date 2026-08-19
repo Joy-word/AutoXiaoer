@@ -1,135 +1,133 @@
-# Auto小二
+# Auto Xiao'er
 
 <div align="center">
 <img src="screenshots/okxiaoer.png" width="120"/>
 
-> “哐哐哐，我来啦！”
+> "Kuang Kuang Kuang, I'm here!"
 
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Android](https://img.shields.io/badge/Android-7.0%2B-green.svg)](https://developer.android.com)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9-purple.svg)](https://kotlinlang.org)
 
-中文 | [English](README_en.md)
+English | [中文](README.md)
 
 </div>
 
-## 📽️视频介绍
-请查看B站视频：[手机里的全能智能体，Auto小二开源啦](https://www.bilibili.com/video/BV1S7dWBWE3S)
-
-获取最新开发资讯，请关注: [小二开发日记](https://space.bilibili.com/7090735/lists/7991306)
-
-## 📸 应用截图
+## 📸 Screenshots
 
 <table>
   <tr>
-    <td><img src="screenshots/zh/screenshot_1.jpg" width="100%"/></td>
-    <td><img src="screenshots/zh/screenshot_2.jpg" width="100%"/></td>
-    <td><img src="screenshots/zh/screenshot_3.jpg" width="100%"/></td>
+    <td><img src="screenshots/en/screenshot_1.jpg" width="100%"/></td>
+    <td><img src="screenshots/en/screenshot_2.jpg" width="100%"/></td>
+    <td><img src="screenshots/en/screenshot_3.jpg" width="100%"/></td>
   </tr>
   <tr>
-    <td><img src="screenshots/zh/screenshot_4.jpg" width="100%"/></td>
-    <td><img src="screenshots/zh/screenshot_5.jpg" width="100%"/></td>
-    <td><img src="screenshots/zh/screenshot_6.jpg" width="100%"/></td>
+    <td><img src="screenshots/en/screenshot_4.jpg" width="100%"/></td>
+    <td><img src="screenshots/en/screenshot_5.jpg" width="100%"/></td>
+    <td><img src="screenshots/en/screenshot_6.jpg" width="100%"/></td>
   </tr>
 </table>
 
 ---
 
-## 📖 项目简介
-Auto Xiao'er 是基于 [AutoGLM For Android](https://github.com/Luokavin/AutoGLM-For-Android) 深度修改开发的 Android 原生应用。借鉴一些 OpenClaw 思想，使它可以独立操作手机，成为你的赛博伙伴。
+## 📖 Introduction
 
-> AutoGLM For Android 是基于 [Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM) 开源项目二次开发的 Android 原生应用。它将原本需要电脑 + ADB 连接的手机自动化方案，转变为一个独立运行在手机上的 App，让用户可以直接在手机上使用自然语言控制手机完成各种任务。
+Auto Xiao'er is a native Android application deeply modified from [AutoGLM For Android](https://github.com/Luokavin/AutoGLM-For-Android), drawing on OpenClaw ideas to let it operate your phone independently as your cyber companion.
+
+> AutoGLM For Android is based on [Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM) — it transforms the original computer + ADB phone automation into a standalone app running entirely on the phone.
+
+**Key Features:**
+
+- 🚀 **No Computer Required**: Runs directly on the phone without ADB connection
+- 🎯 **Seamless Integration with Social Apps**: Vision-based operation works with any social app installed on your phone
+- 🤖 **Dual Agent + Optional Persona**: **Controller** (LLM Agent) + **Executor** (Phone Agent) collaborate on planning and screen actions; optional **Expresser** (BrainLLM) handles persona-driven wording and interpersonal expression for friends/users, decoupled from task planning
+- ⏰ **Scheduled Tasks**: Supports timed task execution with repeat modes, auto wake screen
+- 🔔 **Notification Triggers**: Monitors specified app notifications and auto-triggers preset tasks
+- 📶 **WeChat Remote Control**: Connect via WeChat QR code scan to control Xiao'er remotely
+- 🔒 **Dual Control Backends**: Supports Shizuku and Android Accessibility Service, with flexible switching in Settings
+- 🪟 **Floating Window Interaction**: Floating window displays task execution progress in real-time
+- 📱 **Native Experience**: Material Design, smooth native Android experience
+- 🌐 **Bilingual Support**: Both the interface and built-in prompts support Chinese and English
+- 🔌 **Multi-Model Support**: Compatible with any model API supporting OpenAI format and image understanding
 
 
-**核心特点：**
-- 🚀 **纯端侧**：直接在手机上运行，无需与电脑连接
-- 🎯 **无缝对接各种社交软件**：基于视觉操作，手机上可以安装的社交软件都可以使用
-- 🤖 **双 Agent + 可选人设**：规划控制（LLM Agent / 控制者）+ 屏幕执行（Phone Agent / 执行者）协同；可选独立 **BrainLLM（表达者）** 专门负责面向好友/用户的人设话术与人际表达，与任务规划解耦
-- ⏰ **定时任务**：支持定时执行任务，可设置重复模式，自动亮屏执行
-- 🔔 **通知触发**：监听指定 App 的通知，收到通知时自动触发预设任务
-- 📶 **微信远程控制**：通过微信扫码连接 ClawBot，随时随地用微信与小二连接
-- 🔒 **双模控制**：支持 Shizuku 与无障碍服务两种控制方式，可在设置中灵活切换
-- 🪟 **悬浮窗交互**：悬浮窗实时显示任务执行进度
-- 📱 **原生体验**：Material Design 设计，流畅的原生 Android 体验
-- 🌐 **双语支持**：界面与内置提示词同时支持中文和英文
-- 🔌 **多模型支持**：兼容任何支持 OpenAI 格式的模型 API
+## 📋 Features
 
+### Core Features
 
-## 📋 功能特性
+- ✅ **Task Execution**: Input natural language task descriptions, AI automatically plans and executes
+- ✅ **Screen Understanding**: Screenshot → Vision model analysis → Output action commands
+- ✅ **Multiple Actions**: Click, swipe, long press, double tap, text input, launch apps, etc.
+- ✅ **Task Control**: Pause, resume, cancel task execution
+- ✅ **History**: Save task execution history, view details and screenshots; the model can also actively call tools to look back at history records during task execution
+- ✅ **Experience Memory**: The Agent reads accumulated operation experience at the start of a task and writes new experience to the memory store upon completion; supports categorized storage by app, contact, and custom notes to continuously improve efficiency on repeated tasks
+- ✅ **Scheduled Tasks**: Preset tasks to execute automatically at designated times, supporting one-time and repetitive tasks
+- ✅ **Notification Triggers**: Monitor specific app notifications to automatically trigger corresponding tasks
+- ✅ **WeChat Remote Control (ClawBot)**: Connect via WeChat QR code scan, send commands remotely and receive task execution results
+- ✅ **Persona Separation**: The **Controller** (LLM Agent) focuses on task breakdown and tool dispatch; when **Expresser** (BrainLLM) is configured separately, it generates natural-language messages to friends or users, with persona and relationship context on the expresser side while the controller can stay in a neutral scheduling voice
+- ✅ **Expresser Wording (BrainLLM)**: When enabled, outgoing text can be polished via `request_brain` using persona and relationship archives; can use a different provider/model from the controller, e.g. a text model better at dialogue and role-play
 
-### 核心功能
+### User Interface
 
-- ✅ **任务执行**：输入自然语言任务描述，AI 自动规划并执行
-- ✅ **屏幕理解**：截图 → 视觉模型分析 → 输出操作指令
-- ✅ **多种操作**：点击、滑动、长按、双击、输入文本、启动应用等
-- ✅ **任务控制**：暂停、继续、取消任务执行
-- ✅ **历史记录**：保存任务执行历史，支持查看详情和截图；模型在任务执行过程中也可主动调用工具回溯历史记录
-- ✅ **经验记忆**：Agent 可在任务开始时读取已积累的操作经验，任务结束后将新经验写入记忆库，支持按 App、联系人、自定义备忘分类存储，持续提升重复任务的执行效率
-- ✅ **定时任务**：预设任务在指定时间自动执行，支持一次性和重复任务
-- ✅ **通知触发任务**：监听指定 App 通知，自动触发对应任务
-- ✅ **微信远程控制（ClawBot）**：通过微信扫码连接，远程发送指令并接收任务执行反馈
-- ✅ **人设分离**：**控制者**（LLM Agent）专注任务拆解与工具调用；**表达者**（BrainLLM）单独配置时可专门生成发往好友或用户的自然语言文案，人设与关系上下文由表达者侧承载，控制层可保持「不带角色口吻」的调度逻辑
-- ✅ **表达者话术（BrainLLM）**：启用后，需对外发送的文字可先经 `request_brain` 由表达者按人设与关系档案润色；可指向与控制模型不同的服务商与模型，便于选用更擅长对话与角色扮演的纯文本模型
+- ✅ **Main Screen**: Task input, status display, quick actions
+- ✅ **Floating Window**: Real-time display of execution steps, thinking process, action results
+- ✅ **Settings Page**: Model configuration, Agent parameters, multi-profile management
+- ✅ **History Page**: Task history list, detail view, screenshot annotations
 
-### 用户界面
+### Advanced Features
 
-- ✅ **主界面**：任务输入、状态显示、快捷操作
-- ✅ **悬浮窗**：实时显示执行步骤、思考过程、操作结果
-- ✅ **设置页面**：模型配置、Agent 参数、多配置管理
-- ✅ **历史页面**：任务历史列表、详情查看、截图标注
+- ✅ **Multi-Model Configuration**: Support saving multiple model configuration profiles for quick switching
+- ✅ **Custom Prompts**: Support custom system prompts
+- ✅ **Quick Tile**: Notification bar quick tile, fast access to floating window
+- ✅ **Log Export**: Export debug logs with automatic sensitive data sanitization
 
-### 高级功能
+## 📱 Requirements
 
-- ✅ **多模型配置**：支持保存多个模型配置，快速切换
-- ✅ **自定义 Prompt**：支持自定义系统提示词
-- ✅ **快捷磁贴**：通知栏快捷磁贴，快速打开悬浮窗
-- ✅ **日志导出**：支持导出调试日志，自动脱敏敏感信息
+- **Android Version**: Android 7.0 (API 24) or higher
+- **Control Method (choose one)**:
+  - [Shizuku](https://shizuku.rikka.app/): Install and activate Shizuku for more complete system-level controls
+  - Accessibility Service: No additional app required; enable "Accessibility → Auto Xiao'er" in system Settings
+- **Network**: Connection to model API service (supports any OpenAI-compatible vision model)
+- **Permissions**:
+  - Overlay permission (for floating window)
+  - Network permission (for API communication)
+  - Background running permission (for background task execution)
+  - Shizuku permission (required when using the Shizuku backend, for system operations)
+  - Accessibility Service permission (required when using the Accessibility backend, for taps, swipes, text input, and other screen operations)
+  - Notification listening permission (optional, for notification trigger feature)
 
-## 📱 系统要求
+## 🚀 Quick Start
 
-- **Android 版本**：Android 7.0 (API 24) 及以上
-- **控制方式（二选一）**：
-  - [Shizuku](https://shizuku.rikka.app/)：需安装并激活 Shizuku，用于获得更完整的系统操作能力
-  - 无障碍服务：无需安装额外应用，在系统设置中启用「无障碍 → Auto小二」即可
-- **网络连接**：需要连接到模型 API 服务（支持任何 OpenAI 格式兼容的视觉模型）
-- **权限要求**：
-  - 悬浮窗权限 (用于显示悬浮窗)
-  - 网络权限 (用于 API 通信)
-  - 后台运行权限（用于后台执行任务）
-  - Shizuku 权限（选择 Shizuku 控制时需要，用于执行系统操作）
-  - 无障碍服务权限（选择无障碍控制时需要，用于点击、滑动、输入等屏幕操作）
-  - 通知监听权限 (可选，用于通知触发任务功能)
+### Step 1: Choose a Control Method
 
-## 🚀 快速开始 （同 AutoGLM-For-Android）
+Auto Xiao'er supports both Shizuku and Android Accessibility Service. Choose either method for setup, and switch between them any time in Settings.
 
-### 第一步：选择控制方式
+#### Option A: Shizuku Control (Optional)
 
-Auto小二支持 Shizuku 与无障碍服务两种控制方式。请根据需要任选其一，并可在应用设置中随时切换。
+Shizuku provides more complete system-level controls, making it suitable for tasks that need key events such as volume or power buttons.
 
-#### 方案 A：Shizuku 控制（可选）
+**Download and Install**
 
-**下载安装**
+- [Google Play Download](https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api)
+- [GitHub Download](https://github.com/RikkaApps/Shizuku/releases)
 
-- [Google Play 下载](https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api)
-- [GitHub 下载](https://github.com/RikkaApps/Shizuku/releases)
+**Activation Methods (Choose One)**
 
-**激活方式（三选一）**
+| Method           | Use Case                  | Persistence              |
+| ---------------- | ------------------------- | ------------------------ |
+| Wireless Debug   | Recommended, no PC needed | Re-pair after reboot     |
+| ADB Connection   | When PC is available      | Re-execute after reboot  |
+| Root Permission  | Rooted devices            | Permanent                |
 
-| 方式      | 适用场景       | 持久性           |
-| --------- | -------------- | ---------------- |
-| 无线调试  | 推荐，无需电脑 | 重启后需重新配对 |
-| ADB 连接  | 有电脑时使用   | 重启后需重新执行 |
-| Root 授权 | 已 Root 设备   | 永久有效         |
+**Wireless Debugging Activation Steps (Recommended)**
 
-**无线调试激活步骤（推荐）**
-
-1. 连接任意 WIFI
-2. 打开手机「设置」→「开发者选项」
-3. 开启「无线调试」
-4. 点击「使用配对码配对设备」
-5. 等待 Shizuku 通知弹出，在通知内输入配对码完成配对
-6. 打开 Shizuku 点击「启动」，等待启动完毕
-7. 看到 Shizuku 显示「正在运行」即为成功
+1. Connect to any WiFi network
+2. Go to phone "Settings" → "Developer Options"
+3. Enable "Wireless Debugging"
+4. Tap "Pair device with pairing code"
+5. Wait for Shizuku notification to appear, enter the pairing code in the notification
+6. Open Shizuku and tap "Start", wait for it to complete
+7. When Shizuku shows "Running", activation is successful
 
 <table>
   <tr>
@@ -144,34 +142,34 @@ Auto小二支持 Shizuku 与无障碍服务两种控制方式。请根据需要�
   </tr>
 </table>
 
-> 💡 **提示**：如果找不到开发者选项，请在「关于手机」中连续点击「版本号」多次开启。
+> 💡 **Tip**: If you can't find Developer Options, go to "About Phone" and tap "Build Number" multiple times to enable it.
 
-#### 方案 B：无障碍控制（推荐快速上手）
+#### Option B: Accessibility Control (Recommended for Quick Setup)
 
-无需安装 Shizuku。在手机「设置」→「无障碍」中找到「Auto小二」，开启无障碍服务即可。
+No Shizuku installation is required. In your phone's "Settings" → "Accessibility", find "Auto Xiao'er" and enable its Accessibility Service.
 
-#### 两种控制方式对比
+#### Control Method Comparison
 
-| 方式 | 优势 | 注意事项 |
-| ---- | ---- | -------- |
-| **Shizuku** | 系统操作能力更完整，支持包括音量键、电源键在内的按键操作 | 需要安装并激活 Shizuku；使用无线调试激活时，设备重启后需重新启动或配对 |
-| **无障碍服务** | 无需额外应用或 ADB，开启后即可使用，适合快速上手 | 不支持注入音量键；电源操作会执行锁屏 |
+| Method | Advantages | Notes |
+| ------ | ---------- | ----- |
+| **Shizuku** | More complete system-level controls, including volume and power key events | Requires installing and activating Shizuku; wireless-debugging activation must be restarted or paired again after a reboot |
+| **Accessibility Service** | No additional app or ADB required; usable as soon as the service is enabled | Does not support volume-key injection; power operations lock the screen |
 
-### 第二步：安装 Auto小二
+### Step 2: Install Auto Xiao'er
 
-1. 从 [Releases 页面](https://github.com/Joy-word/AutoXiaoer/releases) 下载最新 APK
-2. 安装 APK 并打开应用
+1. Download the latest APK from [Releases Page](https://github.com/Joy-word/AutoXiaoer/releases)
+2. Install the APK and open the app
 
-### 第三步：授予必要权限
+### Step 3: Grant Required Permissions
 
-打开应用后，需要依次授予以下权限：
+After opening the app, grant the following permissions in order:
 
-| 权限         | 用途             | 操作                                    |
-| ------------ | ---------------- | --------------------------------------- |
-| Shizuku 权限（选择 Shizuku 时） | 执行系统级屏幕操作 | 点击「授权」→ 始终允许                  |
-| 无障碍服务权限（选择无障碍时） | 执行点击、滑动、输入等屏幕操作 | 前往系统「无障碍」→ 启用「Auto小二」 |
-| 悬浮窗权限   | 显示任务执行窗口 | 点击「授权」→ 开启开关                  |
-| 键盘权限     | 输入文本内容     | 点击「启用键盘」→ 启用 小二 Keyboard |
+| Permission          | Purpose                    | Action                                           |
+| ------------------- | -------------------------- | ------------------------------------------------ |
+| Shizuku Permission (when using Shizuku) | Execute system-level screen operations | Tap "Authorize" → Always Allow |
+| Accessibility Service permission (when using Accessibility) | Execute taps, swipes, text input, and other screen operations | Go to system "Accessibility" → Enable "Auto Xiao'er" |
+| Overlay Permission  | Display task execution window | Tap "Authorize" → Enable toggle               |
+| Keyboard Permission | Input text content         | Tap "Enable Keyboard" → Enable Xiao'er Keyboard  |
 
 <table>
   <tr>
@@ -181,72 +179,72 @@ Auto小二支持 Shizuku 与无障碍服务两种控制方式。请根据需要�
   </tr>
 </table>
 
-> 💡 **提示**：如果悬浮窗无法授权，进入应用详情页，点击「右上角菜单」→ 允许受限制的设置，再次尝试授权悬浮窗。
+> 💡 **Tip**: If overlay permission cannot be granted, go to app details page, tap "Menu (top right)" → Allow restricted settings, then try granting overlay permission again.
 
-### 第四步：配置模型服务
+### Step 4: Configure Model Service
 
-进入「设置」页面，配置 AI 模型 API。
+Go to "Settings" page and configure the AI model API.
 
-本应用采用 **双模型双层 Agent 架构**，并可选叠加独立 **表达者（BrainLLM）**：
+This app uses a **dual-model, dual-agent architecture**, with an optional standalone **Expresser (BrainLLM)**:
 
-| 角色 | 责任 | 推荐模型 |
-| ---- | ---- | -------- |
-| **LLM Agent（控制者）** | 接收用户任务，通过 ReAct 循环进行高层规划，将复杂任务拆分为子任务；可结合截图回检子任务结果 | 推荐具备图片理解能力的多模态大语言模型 |
-| **Phone Agent（执行者）** | 等待子任务，截图分析屏幕并执行具体操作 | 具备图片理解能力的视觉模型（如 autoglm-phone） |
-| **BrainLLM（表达者 · 可选）** | 负责人设表达、人际关系与面向人类的发话内容；启用后对外发送的文案可由表达者单独生成 | 纯文本大语言模型（可与控制者相同或不同服务商，宜选擅长角色与对话的模型，如 doubao-seed-2.0） |
+| Role | Responsibility | Recommended Model |
+| ---- | -------------- | ----------------- |
+| **LLM Agent (Controller)** | Receives user tasks, performs high-level planning via ReAct loop, breaks complex tasks into sub-tasks, and can review sub-task results using screenshots | A multimodal LLM with image understanding is recommended |
+| **Phone Agent (Executor)** | Awaits sub-tasks, analyzes screenshots and executes actions | Vision model with image understanding (e.g. autoglm-phone) |
+| **BrainLLM (Expresser · optional)** | Persona expression, relationships, and human-facing wording; when enabled, outgoing messages can be generated solely by the expresser | Pure text LLM (same or different provider as the controller; models strong at role-play and dialogue, e.g. doubao-seed-2.0) |
 
-> Phone Agent（执行者）与 LLM Agent（控制者）的 API 始终独立配置；**表达者**为第三套独立端点，默认关闭，在设置中开启后即参与话术生成。
+> Phone Agent (Executor) and LLM Agent (Controller) APIs are always configured independently; the **Expresser** is a third independent endpoint, off by default and participates in wording once enabled in Settings.
 
-**Phone Agent 配置（视觉模型）**
+**Phone Agent Configuration (Vision Model)**
 
-**推荐配置（智谱 BigModel）** 🎉 目前 `autoglm-phone` 模型限时免费！
+**Recommended Configuration (Zhipu BigModel)** 🎉 `autoglm-phone` model is currently FREE!
 
-| 配置项   | 值                                                                                |
-| -------- | --------------------------------------------------------------------------------- |
-| Base URL | `https://open.bigmodel.cn/api/paas/v4`                                            |
-| Model    | `autoglm-phone`                                                                   |
-| API Key  | 在 [智谱 AI 开放平台](https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys) 获取 |
+| Setting  | Value                                                                                   |
+| -------- | --------------------------------------------------------------------------------------- |
+| Base URL | `https://open.bigmodel.cn/api/paas/v4`                                                  |
+| Model    | `autoglm-phone`                                                                         |
+| API Key  | Get from [Zhipu AI Open Platform](https://open.bigmodel.cn/usercenter/proj-mgmt/apikeys)|
 
-**备选配置（ModelScope）**
+**Alternative Configuration (ModelScope)**
 
-| 配置项   | 值                                           |
+| Setting  | Value                                        |
 | -------- | -------------------------------------------- |
 | Base URL | `https://api-inference.modelscope.cn/v1`     |
 | Model    | `ZhipuAI/AutoGLM-Phone-9B`                   |
-| API Key  | 在 [ModelScope](https://modelscope.cn/) 获取 |
+| API Key  | Get from [ModelScope](https://modelscope.cn/)|
 
-配置完成后，点击「测试连接」验证配置是否正确。
+After configuration, tap "Test Connection" to verify the settings.
 
-**LLM Agent 配置（控制者 · 规划大语言模型）**
+**LLM Agent Configuration (Controller · Planning LLM)**
 
-进入设置 → LLM Agent 配置，配置用于控制者的大语言模型：
+Go to Settings → LLM Agent Configuration to set up the controller's large language model:
 
-| 配置项       | 说明                                              |
-| ------------ | --------------------------------------------------- |
-| Base URL     | OpenAI 兼容的 API 地址                             |
-| Model        | 任意 OpenAI 格式兼容的大语言模型；推荐支持图片理解的多模态模型 |
-| API Key      | 对应服务的 API Key                             |
-| 最大规划步数   | LLM 循环的最大迭代轮次，默认 20              |
-| 自定义系统提示词 | 可重写内置的控制者提示词，优化特定场景的规划行为 |
+| Setting             | Description                                                    |
+| ------------------- | -------------------------------------------------------------- |
+| Base URL            | OpenAI-compatible API endpoint                                 |
+| Model               | Any OpenAI-compatible LLM; a multimodal model with image understanding is recommended |
+| API Key             | API key for the corresponding service                          |
+| Max Planning Steps  | Maximum ReAct iterations for the LLM loop, default 20         |
+| Custom System Prompt| Overrides the built-in controller prompt to tune behaviour       |
 
-> 💡 LLM Agent 配置严格独立于 Phone Agent 配置，可使用任意 OpenAI 格式兼容的大语言模型。
+> 💡 LLM Agent config is strictly independent from Phone Agent config — any OpenAI-compatible LLM can be used.
 
-在「高级设置」中可开启 **Phone-agent 回检**：每个子任务结束后，LLM Agent 会根据 Phone Agent 的最后一张截图核对完成情况，从而提升任务成功率。可选择「失败回检」或「每轮回检」；该功能需要模型支持视觉输入，并会增加 Token 消耗。
+Under **Advanced Settings**, enable **Phone-agent Screenshot Review** to have the LLM Agent check the final Phone Agent screenshot after each sub-task, improving task success rates. Choose either "Review on Failure" or "Review Every Round"; this feature requires visual input support and increases token usage.
 
-**BrainLLM（表达者）配置**
+**BrainLLM Configuration (Expresser)**
 
-进入设置 → **配置表达者 (BrainLLM)**（或「人设」相关入口中的表达者开关），用于与人设、人际关系档案配套的话术模型。与 **LLM Agent（控制者）** 完全解耦，可指向不同 Base URL / 模型 / Key。
+Go to Settings → **Configure Expresser (BrainLLM)** (or use the expresser toggle under persona settings) for the wording model that works with persona and relationship archives. Fully decoupled from **LLM Agent (Controller)** — different Base URL, model, and API key are supported.
 
-| 配置项 | 说明 |
-| ------ | ---- |
-| **启用表达者** | 关闭时，面向人类的文案由控制者模型直接生成；开启后控制者需通过 `request_brain` 获取表达者输出再填入发送类 action |
-| **Base URL** | OpenAI 兼容的 API 根地址（`/chat/completions`） |
-| **Model** | 纯文本模型名（如 `glm-4-plus` 等） |
-| **API Key** | 对应服务的密钥（与控制者、Phone Agent 可各不相同） |
-| **最大 Token / 温度** | 控制表达者单次生成上限与采样随机性 |
-| **自定义 System Prompt** | 非空时覆盖内置表达者提示词，用于细化人设与说话规则 |
+| Setting | Description |
+| ------- | ----------- |
+| **Enable Expresser** | When off, human-facing text is generated by the controller model; when on, the controller must obtain expresser output via `request_brain` before filling send-related actions |
+| **Base URL** | OpenAI-compatible API root (`/chat/completions`) |
+| **Model** | Pure text model name (e.g. `glm-4-plus`) |
+| **API Key** | API key for this service (can differ from controller and Phone Agent) |
+| **Max Tokens / Temperature** | Limits expresser output length and sampling randomness |
+| **Custom System Prompt** | When set, overrides the built-in expresser prompt for persona and speaking style |
 
-> 💡 小二人设、人际关系与行为准则在「管理人设」中维护；表达者侧提示词会与之配合，实现**控制与话术分层**。
+> 💡 Persona, relationships, and behavior rules are maintained under **Manage Persona**; expresser prompts work with them for **control vs. wording separation**.
 
 <table>
   <tr>
@@ -254,102 +252,85 @@ Auto小二支持 Shizuku 与无障碍服务两种控制方式。请根据需要�
   </tr>
 </table>
 
-**使用其他第三方模型**：
+**Using Other Third-Party Models**:
 
-只要模型服务满足以下条件，即可在本应用中使用：
+Any model service can be used as long as it meets the following requirements:
 
-1. **API 格式兼容**：提供 OpenAI 兼容的 `/chat/completions` 端点
-2. **多模态支持**：支持 `image_url` 格式的图片输入
-3. **图片理解能力**：能够分析屏幕截图并理解 UI 元素
+1. **API Format Compatible**: Provides OpenAI-compatible `/chat/completions` endpoint
+2. **Multi-modal Support**: Supports `image_url` format for image input
+3. **Image Understanding**: Can analyze screenshots and understand UI elements
 
-**Phone Agent（执行者）** 需满足以上全部条件。**LLM Agent（控制者）** 仅需满足第 1 条即可；若要在高级设置中启用 Phone-agent 回检并接收截图进行核对，则还需满足第 2、3 条。**BrainLLM（表达者）** 同样仅需满足第 1 条的标准文本对话能力即可。
+**Phone Agent (Executor)** must meet all requirements above. **LLM Agent (Controller)** only needs requirement 1; it must also meet requirements 2 and 3 when Phone-agent Screenshot Review is enabled in Advanced Settings to receive and review screenshots. **BrainLLM (Expresser)** also only needs requirement 1 (standard text chat).
 
-> ⚠️ **注意**：非 AutoGLM 模型可能需要调整系统提示词才能正确输出操作指令格式。可在设置 → 高级设置中自定义系统提示词。
+> ⚠️ **Note**: Non-AutoGLM models may require custom system prompts to output the correct action command format. You can customize system prompts in Settings → Advanced Settings.
 
-### 第五步：开始使用
+### Step 5: Start Using
 
-1. 在主界面输入任务描述，如："打开微信，给文件传输助手发送消息：测试"
-2. 点击「开始任务」按钮
-3. 悬浮窗会自动弹出，显示执行进度
-4. 观察 AI 的思考过程和执行操作
-
----
-
-## ⚠️ 安全与隐私风险提示
-
-在使用本应用前，请务必了解以下风险：
-
-### 安全限制基于提示词
-
-本应用的安全行为限制（如拒绝执行危险操作）**依赖于 AI 模型的系统提示词实现**，并非底层硬性约束。这意味着：
-
-- 提示词可能被精心构造的任务描述绕过（即"提示词注入"攻击）
-- 不同模型对同一提示词的遵从程度存在差异
-- **请勿将本应用用于涉及敏感账户、资金操作、隐私数据等高风险场景**
-
-### 模型 API 数据安全
-
-- 本应用所有 AI 功能均通过**用户自行配置的第三方模型 API** 实现
-- 应用本身不收集、不上传、不存储任何用户数据或截图内容
-- 任务执行过程中的截图会通过你配置的 API 发送至对应的模型服务商
-- **请确保你信任所使用的模型服务商，并仔细阅读其隐私政策**
-
-### 使用建议
-
-- 🔒 敏感页面（支付、密码输入框等）会触发系统保护，截图显示为黑屏
-- 👀 建议在执行涉及敏感任务时保持对屏幕操作的观察，随时准备手动干预
-- 🔑 不要在任务描述中包含密码、验证码等敏感信息
-
-
-
-## 使用教程与常见问题
-
-[跳转使用教程与常见问题](Instructions.md)
+1. Enter a task description on the main screen, e.g., "Open WeChat and send a message to File Transfer: test"
+2. Tap "Start Task" button
+3. The floating window will automatically appear, showing execution progress
+4. Watch the AI's thinking process and execution actions
 
 ---
 
-## 📞 联系方式
+
+## ⚠️ Security & Privacy Risks
+
+Please read the following risks carefully before using this app:
+
+### Safety Limits Are Prompt-Based
+
+The app's safety restrictions (e.g. refusing to perform dangerous actions) are **implemented via AI model system prompts**, not hard-coded constraints. This means:
+
+- Prompts can potentially be bypassed by carefully crafted task descriptions (i.e. "prompt injection" attacks)
+- Different models vary in how strictly they follow the same prompt
+- **Do not use this app for high-risk scenarios involving sensitive accounts, financial transactions, or private data**
+
+### Model API Data Security
+
+- All AI features in this app are powered **exclusively by third-party model APIs configured by the user**
+- The app itself does not collect, upload, or store any user data or screenshots
+- Screenshots taken during task execution are sent to your configured model service provider via the API you set up
+- **Ensure you trust the model service provider you use, and review their privacy policy carefully**
+
+### Usage Recommendations
+
+- 🔒 Sensitive screens (payment pages, password fields, etc.) trigger system protection and appear as black screenshots
+- 👀 When executing tasks involving sensitive operations, keep an eye on the screen and be ready to intervene manually
+- 🔑 Do not include passwords, verification codes, or other sensitive information in task descriptions
+
+---
+
+## User Guide && FAQ
+[User Guide && FAQ](Instructions_en.md)
+
+---
+
+## 📞 Contact
 
 - Email: wxrachel@outlook.com
 
-- 交流群
-<table>
-  <tr>
-    <td><img src="pictures/交流群.jpg" width="100%"/></td>
-    <td><img src="pictures/微信联系.png" width="100%"/></td>
-  </tr>
-</table>
-
-- 赞赏作者
-<table>
-  <tr>
-    <td><img src="pictures/赞赏.jpg" width="100%"/></td>
-  </tr>
-</table>
 
 ## ⭐ Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=Joy-word/AutoXiaoer&type=Date)](https://star-history.com/#Joy-word/AutoXiaoer&Date)
 
 
+## 📄 License
 
-## 📄 开源协议
+This project is licensed under [MIT License](LICENSE).
 
-本项目基于 [MIT License](LICENSE) 开源。
+## 🙏 Acknowledgments
 
-## 🙏 致谢
-
-- [AutoGLM-For-Android](https://github.com/Luokavin/AutoGLM-For-Android) Luokavin 大佬开源项目
-- [Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM) - 原始开源项目
-- [Shizuku](https://github.com/RikkaApps/Shizuku) - 系统权限框架
-- [智谱 AI](https://www.zhipuai.cn/) - AutoGLM 模型提供方
-
-
+- [AutoGLM-For-Android](https://github.com/Luokavin/AutoGLM-For-Android) - Luokavin's open-source project
+- [Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM) - Original open-source project
+- [Shizuku](https://github.com/RikkaApps/Shizuku) - System permission framework
+- [Zhipu AI](https://www.zhipuai.cn/) - AutoGLM model provider
 
 ---
 
 <div align="center">
 
-**如果这个项目对你有帮助，请给一个 ⭐ Star！您的支持是项目迭代的最大动力！**
+**If this project helps you, please give it a ⭐ Star!**
 
 </div>
