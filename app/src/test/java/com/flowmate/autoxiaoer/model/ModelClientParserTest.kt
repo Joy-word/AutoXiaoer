@@ -409,47 +409,6 @@ The button is not visible yet.
     // ==================== LLMAgent format ====================
 
     @Test
-    fun `parseLlmAgentThinking_redactedThinkingTag_extractsContent`() {
-        val content = """
-            <think>
-            1. 【任务全貌】完成微信回复
-            2. 【已完成】打开微信
-            3. 【待完成】发送消息
-            </think>
-            <action>
-            {"type":"execute_subtask","subtask":{"description":"发送消息"}}
-            </action>
-        """.trimIndent()
-
-        val thinking = ModelResponseParser.parseLlmAgentThinking(content)
-
-        assertTrue(thinking.contains("【任务全貌】"))
-        assertTrue(thinking.contains("【待完成】"))
-        assertFalse(thinking.contains("<action>"))
-    }
-
-    @Test
-    fun `parseLlmAgentThinking_noThinkingTag_usesTextBeforeAction`() {
-        val content = """
-            简要推理：先打开微信
-            <action>{"type":"finish","message":"完成"}</action>
-        """.trimIndent()
-
-        val thinking = ModelResponseParser.parseLlmAgentThinking(content)
-
-        assertEquals("简要推理：先打开微信", thinking)
-    }
-
-    @Test
-    fun `parseLlmAgentThinking_onlyActionBlock_returnsEmpty`() {
-        val content = """<action>{"type":"finish","message":"完成"}</action>"""
-
-        val thinking = ModelResponseParser.parseLlmAgentThinking(content)
-
-        assertEquals("", thinking)
-    }
-
-    @Test
     fun `parseThinkingAndAction_taggedThinkingAndAnswerBlock_separatesCorrectly`() {
         val content = """
             <think>

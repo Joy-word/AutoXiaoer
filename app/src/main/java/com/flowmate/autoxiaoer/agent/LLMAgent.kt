@@ -53,6 +53,9 @@ interface LLMAgentListener {
     /** Called when the LLM has produced its thinking text for the current round. */
     fun onThinkingUpdate(thinking: String)
 
+    /** Called after the LLM selects a tool for the current round. */
+    fun onToolCallStarted(toolName: String)
+
     /** Called when a sub-task is about to be dispatched to PhoneAgent. */
     fun onSubTaskStarted(subTask: SubTask)
 
@@ -79,8 +82,9 @@ interface LLMAgentListener {
  * OpenAI Function-Calling.
  *
  * Each ReAct round:
- *   1. **Think** — call the LLM with the registered tool catalogue. The model returns
- *      `<think>三步思考</think>` in `assistant.content` and a single `tool_call`.
+ *   1. **Plan** — call the LLM with the registered tool catalogue. The model returns
+ *      a `<plan>` block in `assistant.content` and a single `tool_call`. Provider-side
+ *      reasoning is recorded when the model API returns it separately.
  *   2. **Act**   — dispatch the tool call to the matching [com.flowmate.autoxiaoer.agent.tools.AgentTool].
  *   3. **Observe** — the tool returns either a [ToolResult.Continue] observation (echoed
  *      back as `role: "tool"`) or a [ToolResult.Terminate] that ends the loop.
@@ -234,9 +238,7 @@ class LLMAgent(
                 val response = requestModel(ctx, advertisedTools, pendingReviewScreenshot)
                     ?: return@coroutineScope finishOnNetworkError(round)
 
-                val thinking = response.thinking.ifBlank {
-                    ModelResponseParser.parseLlmAgentThinking(response.rawContent)
-                }
+                val thinking = response.thinking
                 Logger.d(TAG, "LLM thinking: ${thinking.take(200)}")
                 listener?.onThinkingUpdate(thinking)
 
@@ -264,6 +266,7 @@ class LLMAgent(
                     }
                     continue
                 }
+                listener?.onToolCallStarted(toolCall.name)
 
                 ctx.addAssistantWithToolCalls(
                     content = ModelResponseParser.stripPersistedTags(response.rawContent),

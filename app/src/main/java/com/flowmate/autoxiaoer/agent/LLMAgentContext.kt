@@ -37,8 +37,7 @@ class LLMAgentContext(private val systemPrompt: String) {
 
     /**
      * Appends an assistant turn that carries tool calls. The OpenAI spec requires the same
-     * assistant message to also include `content` (which may be empty); pass any natural-
-     * language reasoning (e.g. the `<think>` block) as [content].
+        * assistant message to also include `content` (which may be empty).
      */
     fun addAssistantWithToolCalls(content: String, toolCalls: List<ParsedToolCall>) {
         messages.add(ChatMessage.Assistant(content = content, toolCalls = toolCalls))

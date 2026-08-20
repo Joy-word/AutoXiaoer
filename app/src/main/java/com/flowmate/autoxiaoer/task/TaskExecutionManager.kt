@@ -916,6 +916,18 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
         _steps.value = _steps.value + newStep
     }
 
+    /** Shows the selected native tool call on the current LLMAgent step. */
+    override fun onToolCallStarted(toolName: String) {
+        Logger.d(TAG, "LLM tool call started: $toolName")
+        val toolLabel = "● $toolName"
+        val currentSteps = _steps.value.toMutableList()
+        val lastLLMIdx = currentSteps.indexOfLast { it.source == StepSource.LLM_AGENT }
+        if (lastLLMIdx != -1) {
+            currentSteps[lastLLMIdx] = currentSteps[lastLLMIdx].copy(thinking = toolLabel)
+            _steps.value = currentSteps
+        }
+    }
+
     /**
      * Called when LLMAgent is about to dispatch a sub-task to PhoneAgent.
      */
