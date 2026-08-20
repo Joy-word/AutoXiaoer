@@ -72,7 +72,9 @@
         <item name="colorOnSurface">@color/on_surface</item>
         <item name="colorOnSurfaceVariant">@color/on_surface_variant</item>
         <item name="colorSurface">@color/dialog_background</item>
+        <item name="colorSurfaceContainerHigh">@color/dialog_background</item>
         <item name="colorSurfaceVariant">@color/surface_variant</item>
+        <item name="elevationOverlayEnabled">false</item>
         <!-- Button styles -->
         <item name="buttonBarPositiveButtonStyle">@style/Widget.App.Button.TextButton.Dialog</item>
         <item name="buttonBarNegativeButtonStyle">@style/Widget.App.Button.TextButton.Dialog</item>
