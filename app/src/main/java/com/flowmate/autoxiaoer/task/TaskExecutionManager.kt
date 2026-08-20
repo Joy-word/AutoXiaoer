@@ -919,7 +919,7 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
     /** Shows the selected native tool call on the current LLMAgent step. */
     override fun onToolCallStarted(toolName: String) {
         Logger.d(TAG, "LLM tool call started: $toolName")
-        val toolLabel = "● $toolName"
+        val toolLabel = "◉ $toolName"
         val currentSteps = _steps.value.toMutableList()
         val lastLLMIdx = currentSteps.indexOfLast { it.source == StepSource.LLM_AGENT }
         if (lastLLMIdx != -1) {

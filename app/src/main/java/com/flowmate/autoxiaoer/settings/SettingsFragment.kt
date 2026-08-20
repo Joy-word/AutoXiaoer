@@ -34,7 +34,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
 import com.flowmate.autoxiaoer.R
 import com.flowmate.autoxiaoer.agent.LLMAgentConfig
 import com.flowmate.autoxiaoer.agent.PhoneAgentConfig
@@ -953,119 +952,40 @@ class SettingsFragment : Fragment() {
         Logger.d(TAG, "Showing Phone-agent settings dialog")
         val ctx = requireContext()
         val modelConfig = settingsManager.getModelConfig()
-        val PhoneAgentConfig = settingsManager.getPhoneAgentConfig()
+        val phoneAgentConfig = settingsManager.getPhoneAgentConfig()
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_phone_agent_settings, null)
 
-        val scrollView = androidx.core.widget.NestedScrollView(ctx)
-        val container = android.widget.LinearLayout(ctx).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            val paddingPx = (16 * resources.displayMetrics.density).toInt()
-            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-        }
-        scrollView.addView(container)
-
-        fun makeInputLayout(hint: String, helperText: String? = null): Pair<TextInputLayout, TextInputEditText> {
-            val layout = TextInputLayout(ctx).apply {
-                this.hint = hint
-                boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
-                if (helperText != null) {
-                    isHelperTextEnabled = true
-                    this.helperText = helperText
-                }
-                val lp = android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                )
-                lp.bottomMargin = (8 * resources.displayMetrics.density).toInt()
-                layoutParams = lp
-            }
-            val edit = TextInputEditText(ctx)
-            layout.addView(edit)
-            return layout to edit
-        }
-
-        val (baseUrlLayout, baseUrlEdit) = makeInputLayout("API Base URL")
-        baseUrlEdit.setText(modelConfig.baseUrl)
-        baseUrlEdit.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
-        container.addView(baseUrlLayout)
-
-        val (apiKeyLayout, apiKeyEdit) = makeInputLayout("API Key")
-        apiKeyEdit.setText(if (modelConfig.apiKey == "EMPTY") "" else modelConfig.apiKey)
-        apiKeyEdit.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-        container.addView(apiKeyLayout)
-
-        val (modelNameLayout, modelNameEdit) = makeInputLayout(getString(R.string.settings_model_name))
-        modelNameEdit.setText(modelConfig.modelName)
-        container.addView(modelNameLayout)
-
-        val (maxStepsLayout, maxStepsEdit) = makeInputLayout(
-            getString(R.string.settings_max_steps),
-            getString(R.string.settings_max_steps_hint),
-        )
-        maxStepsEdit.setText(PhoneAgentConfig.maxSteps.toString())
-        maxStepsEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
-        container.addView(maxStepsLayout)
-
-        val (screenshotDelayLayout, screenshotDelayEdit) = makeInputLayout(
-            getString(R.string.settings_screenshot_delay),
-            getString(R.string.settings_screenshot_delay_hint),
-        )
-        screenshotDelayEdit.setText((PhoneAgentConfig.screenshotDelayMs / 1000.0).toString())
-        screenshotDelayEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
-        container.addView(screenshotDelayLayout)
-
-        val dp4 = (4 * resources.displayMetrics.density).toInt()
-        val dp8 = (8 * resources.displayMetrics.density).toInt()
-
-        // Test connection button
-        val btnTestConn = Button(ctx).apply {
-            text = getString(R.string.settings_test_connection)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp8
-            layoutParams = lp
-        }
-        container.addView(btnTestConn)
-
-        // System prompt section header
-        val promptSectionLabel = TextView(ctx).apply {
-            text = getString(R.string.settings_advanced)
-            setTextColor(android.graphics.Color.parseColor("#888888"))
-            textSize = 14f
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp8 * 2
-            layoutParams = lp
-        }
-        container.addView(promptSectionLabel)
-
+        val baseUrlInput = dialogView.findViewById<TextInputEditText>(R.id.baseUrlInput)
+        val apiKeyInput = dialogView.findViewById<TextInputEditText>(R.id.apiKeyInput)
+        val modelNameInput = dialogView.findViewById<TextInputEditText>(R.id.modelNameInput)
+        val maxStepsInput = dialogView.findViewById<TextInputEditText>(R.id.maxStepsInput)
+        val screenshotDelayInput = dialogView.findViewById<TextInputEditText>(R.id.screenshotDelayInput)
+        val btnTestConn = dialogView.findViewById<Button>(R.id.btnTestConnection)
+        val btnEditPromptDialog = dialogView.findViewById<Button>(R.id.btnEditPrompt)
         val activePromptLanguage = settingsManager.getPromptLanguage().code
-        val btnEditPromptDialog = Button(ctx).apply {
-            text = getString(R.string.settings_system_prompt_edit)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(btnEditPromptDialog)
+
+        baseUrlInput.setText(modelConfig.baseUrl)
+        baseUrlInput.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+        apiKeyInput.setText(if (modelConfig.apiKey == "EMPTY") "" else modelConfig.apiKey)
+        apiKeyInput.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        modelNameInput.setText(modelConfig.modelName)
+        maxStepsInput.setText(phoneAgentConfig.maxSteps.toString())
+        maxStepsInput.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+        screenshotDelayInput.setText((phoneAgentConfig.screenshotDelayMs / 1000.0).toString())
+        screenshotDelayInput.inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
 
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(getString(R.string.settings_phone_agent_title))
-            .setView(scrollView)
+            .setView(dialogView)
             .setPositiveButton(getString(R.string.settings_save)) { _, _ ->
-                val baseUrl = baseUrlEdit.text?.toString()?.trim() ?: ""
-                val apiKey = apiKeyEdit.text?.toString()?.trim().let {
+                val baseUrl = baseUrlInput.text?.toString()?.trim() ?: ""
+                val apiKey = apiKeyInput.text?.toString()?.trim().let {
                     if (it.isNullOrEmpty()) "EMPTY" else it
                 }
-                val modelName = modelNameEdit.text?.toString()?.trim() ?: ""
-                val maxSteps = maxStepsEdit.text?.toString()?.trim()?.toIntOrNull() ?: PhoneAgentConfig.maxSteps
-                val screenshotDelaySeconds = screenshotDelayEdit.text?.toString()?.trim()?.toDoubleOrNull()
-                    ?: (PhoneAgentConfig.screenshotDelayMs / 1000.0)
+                val modelName = modelNameInput.text?.toString()?.trim() ?: ""
+                val maxSteps = maxStepsInput.text?.toString()?.trim()?.toIntOrNull() ?: phoneAgentConfig.maxSteps
+                val screenshotDelaySeconds = screenshotDelayInput.text?.toString()?.trim()?.toDoubleOrNull()
+                    ?: (phoneAgentConfig.screenshotDelayMs / 1000.0)
                 val language = settingsManager.getPromptLanguage().code
 
                 if (baseUrl.isEmpty() || !isValidUrl(baseUrl)) {
@@ -1094,7 +1014,7 @@ class SettingsFragment : Fragment() {
                     ),
                 )
 
-                com.flowmate.autoxiaoer.ComponentManager.getInstance(ctx).reinitializeAgents()
+                ComponentManager.getInstance(ctx).reinitializeAgents()
                 Toast.makeText(ctx, getString(R.string.settings_phone_agent_saved), Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(getString(R.string.dialog_cancel), null)
@@ -1102,9 +1022,9 @@ class SettingsFragment : Fragment() {
 
         btnTestConn.setOnClickListener {
             testConnectionInDialog(
-                baseUrl = baseUrlEdit.text?.toString()?.trim() ?: "",
-                apiKey = apiKeyEdit.text?.toString()?.trim() ?: "",
-                modelName = modelNameEdit.text?.toString()?.trim() ?: "",
+                baseUrl = baseUrlInput.text?.toString()?.trim() ?: "",
+                apiKey = apiKeyInput.text?.toString()?.trim() ?: "",
+                modelName = modelNameInput.text?.toString()?.trim() ?: "",
                 testButton = btnTestConn,
             )
         }
@@ -1126,96 +1046,36 @@ class SettingsFragment : Fragment() {
         Logger.d(TAG, "Showing BrainLLM settings dialog")
         val ctx = requireContext()
         val config = settingsManager.getBrainLLMConfig()
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_brain_llm_settings, null)
 
-        val scrollView = androidx.core.widget.NestedScrollView(ctx)
-        val container = android.widget.LinearLayout(ctx).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            val paddingPx = (16 * resources.displayMetrics.density).toInt()
-            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-        }
-        scrollView.addView(container)
+        val baseUrlInput = dialogView.findViewById<TextInputEditText>(R.id.baseUrlInput)
+        val apiKeyInput = dialogView.findViewById<TextInputEditText>(R.id.apiKeyInput)
+        val modelNameInput = dialogView.findViewById<TextInputEditText>(R.id.modelNameInput)
+        val maxTokensInput = dialogView.findViewById<TextInputEditText>(R.id.maxTokensInput)
+        val temperatureInput = dialogView.findViewById<TextInputEditText>(R.id.temperatureInput)
+        val btnTestConn = dialogView.findViewById<Button>(R.id.btnTestConnection)
+        val btnCustomPrompt = dialogView.findViewById<Button>(R.id.btnCustomPrompt)
 
-        fun makeInputLayout(hint: String): Pair<TextInputLayout, TextInputEditText> {
-            val layout = TextInputLayout(ctx).apply {
-                this.hint = hint
-                boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
-                val lp = android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                )
-                lp.bottomMargin = (8 * resources.displayMetrics.density).toInt()
-                layoutParams = lp
-            }
-            val edit = TextInputEditText(ctx)
-            layout.addView(edit)
-            return layout to edit
-        }
-
-        val dp8 = (8 * resources.displayMetrics.density).toInt()
-        val dp4 = (4 * resources.displayMetrics.density).toInt()
-
-        val (baseUrlLayout, baseUrlEdit) = makeInputLayout("Base URL")
-        baseUrlEdit.setText(config.baseUrl)
-        container.addView(baseUrlLayout)
-
-        val (apiKeyLayout, apiKeyEdit) = makeInputLayout("API Key")
-        apiKeyEdit.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-        apiKeyLayout.endIconMode = TextInputLayout.END_ICON_PASSWORD_TOGGLE
-        apiKeyEdit.setText(if (config.apiKey == "EMPTY") "" else config.apiKey)
-        container.addView(apiKeyLayout)
-
-        val (modelNameLayout, modelNameEdit) = makeInputLayout("模型名称 (Model Name)")
-        modelNameEdit.setText(config.modelName)
-        container.addView(modelNameLayout)
-
-        // Test connection button
-        val btnTestConn = Button(ctx).apply {
-            text = getString(R.string.settings_test_connection)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.bottomMargin = dp8
-            layoutParams = lp
-        }
-        container.addView(btnTestConn)
-
-        val (maxTokensLayout, maxTokensEdit) = makeInputLayout("输出最大 Token 数 (Max Output Tokens)")
-        maxTokensEdit.setText(config.maxTokens.toString())
-        maxTokensEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
-        container.addView(maxTokensLayout)
-
-        val (temperatureLayout, temperatureEdit) = makeInputLayout("Temperature (0.0 - 2.0)")
-        temperatureEdit.setText(config.temperature.toString())
-        temperatureEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER or
-            android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
-        container.addView(temperatureLayout)
-
-        // Custom system prompt button
-        val btnCustomPrompt = Button(ctx).apply {
-            text = getString(R.string.settings_brain_llm_prompt_edit)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(btnCustomPrompt)
+        baseUrlInput.setText(config.baseUrl)
+        apiKeyInput.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        apiKeyInput.setText(if (config.apiKey == "EMPTY") "" else config.apiKey)
+        modelNameInput.setText(config.modelName)
+        maxTokensInput.setText(config.maxTokens.toString())
+        maxTokensInput.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+        temperatureInput.setText(config.temperature.toString())
+        temperatureInput.inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
 
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(getString(R.string.settings_brain_llm_dialog_title))
-            .setView(scrollView)
+            .setView(dialogView)
             .setPositiveButton(R.string.settings_save) { _, _ ->
-                val baseUrl = baseUrlEdit.text?.toString()?.trim() ?: ""
-                val apiKey = apiKeyEdit.text?.toString()?.trim().let {
+                val baseUrl = baseUrlInput.text?.toString()?.trim() ?: ""
+                val apiKey = apiKeyInput.text?.toString()?.trim().let {
                     if (it.isNullOrEmpty()) "EMPTY" else it
                 }
-                val modelName = modelNameEdit.text?.toString()?.trim() ?: ""
-                val maxTokens = maxTokensEdit.text?.toString()?.trim()?.toIntOrNull()
-                    ?: config.maxTokens
-                val temperature = temperatureEdit.text?.toString()?.trim()?.toFloatOrNull()
-                    ?: config.temperature
+                val modelName = modelNameInput.text?.toString()?.trim() ?: ""
+                val maxTokens = maxTokensInput.text?.toString()?.trim()?.toIntOrNull() ?: config.maxTokens
+                val temperature = temperatureInput.text?.toString()?.trim()?.toFloatOrNull() ?: config.temperature
                 val enabled = config.enabled
 
                 if (baseUrl.isNotEmpty() && !isValidUrl(baseUrl)) {
@@ -1238,7 +1098,7 @@ class SettingsFragment : Fragment() {
                     customSystemPrompt = settingsManager.getBrainLLMCustomPrompt(language) ?: "",
                 )
                 settingsManager.saveBrainLLMConfig(newConfig)
-                com.flowmate.autoxiaoer.ComponentManager.getInstance(ctx).reinitializeAgents()
+                ComponentManager.getInstance(ctx).reinitializeAgents()
                 Toast.makeText(ctx, getString(R.string.settings_brain_llm_saved), Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.dialog_cancel, null)
@@ -1246,9 +1106,9 @@ class SettingsFragment : Fragment() {
 
         btnTestConn.setOnClickListener {
             testConnectionInDialog(
-                baseUrl = baseUrlEdit.text?.toString()?.trim() ?: "",
-                apiKey = apiKeyEdit.text?.toString()?.trim() ?: "",
-                modelName = modelNameEdit.text?.toString()?.trim() ?: "",
+                baseUrl = baseUrlInput.text?.toString()?.trim() ?: "",
+                apiKey = apiKeyInput.text?.toString()?.trim() ?: "",
+                modelName = modelNameInput.text?.toString()?.trim() ?: "",
                 testButton = btnTestConn,
             )
         }
@@ -1337,102 +1197,40 @@ class SettingsFragment : Fragment() {
         Logger.d(TAG, "Showing LLM-agent settings dialog")
         val ctx = requireContext()
         val config = settingsManager.getLLMAgentConfig()
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_llm_agent_settings, null)
 
-        val scrollView = androidx.core.widget.NestedScrollView(ctx)
-        val container = android.widget.LinearLayout(ctx).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            val paddingPx = (16 * resources.displayMetrics.density).toInt()
-            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-        }
-        scrollView.addView(container)
+        val baseUrlInput = dialogView.findViewById<TextInputEditText>(R.id.baseUrlInput)
+        val apiKeyInput = dialogView.findViewById<TextInputEditText>(R.id.apiKeyInput)
+        val modelNameInput = dialogView.findViewById<TextInputEditText>(R.id.modelNameInput)
+        val maxTokensInput = dialogView.findViewById<TextInputEditText>(R.id.maxTokensInput)
+        val temperatureInput = dialogView.findViewById<TextInputEditText>(R.id.temperatureInput)
+        val planningStepsInput = dialogView.findViewById<TextInputEditText>(R.id.planningStepsInput)
+        val btnTestConn = dialogView.findViewById<Button>(R.id.btnTestConnection)
+        val btnCustomPrompt = dialogView.findViewById<Button>(R.id.btnCustomPrompt)
 
-        fun makeInputLayout(hint: String): Pair<TextInputLayout, TextInputEditText> {
-            val layout = TextInputLayout(ctx).apply {
-                this.hint = hint
-                boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
-                val lp = android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                )
-                lp.bottomMargin = (8 * resources.displayMetrics.density).toInt()
-                layoutParams = lp
-            }
-            val edit = TextInputEditText(ctx)
-            layout.addView(edit)
-            return layout to edit
-        }
-
-        val (baseUrlLayout2, baseUrlEdit) = makeInputLayout("Base URL")
-        baseUrlEdit.setText(config.baseUrl)
-        container.addView(baseUrlLayout2)
-
-        val (apiKeyLayout2, apiKeyEdit) = makeInputLayout("API Key")
-        apiKeyEdit.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-        apiKeyLayout2.endIconMode = TextInputLayout.END_ICON_PASSWORD_TOGGLE
-        apiKeyEdit.setText(if (config.apiKey == "EMPTY") "" else config.apiKey)
-        container.addView(apiKeyLayout2)
-
-        val (modelNameLayout2, modelNameEdit) = makeInputLayout("模型名称 (Model Name)")
-        modelNameEdit.setText(config.modelName)
-        container.addView(modelNameLayout2)
-
-        val dp8 = (8 * resources.displayMetrics.density).toInt()
-
-        // Test connection button
-        val btnTestConn = Button(ctx).apply {
-            text = getString(R.string.settings_test_connection)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.bottomMargin = dp8
-            layoutParams = lp
-        }
-        container.addView(btnTestConn)
-
-        val (maxTokensLayout2, maxTokensEdit) = makeInputLayout("输出最大 Token 数 (Max Output Tokens)")
-        maxTokensEdit.setText(config.maxTokens.toString())
-        maxTokensEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
-        container.addView(maxTokensLayout2)
-
-        val (temperatureLayout2, temperatureEdit) = makeInputLayout("Temperature (0.0 - 2.0)")
-        temperatureEdit.setText(config.temperature.toString())
-        temperatureEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER or
-            android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
-        container.addView(temperatureLayout2)
-
-        val (planningStepsLayout2, planningStepsEdit) = makeInputLayout("最大规划步数 (Max Planning Steps)")
-        planningStepsEdit.setText(config.maxPlanningSteps.toString())
-        planningStepsEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
-        container.addView(planningStepsLayout2)
-
-        // Custom system prompt button
-        val btnCustomPrompt = Button(ctx).apply {
-            text = getString(R.string.settings_llm_agent_prompt_edit)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp8
-            layoutParams = lp
-        }
-        container.addView(btnCustomPrompt)
+        baseUrlInput.setText(config.baseUrl)
+        apiKeyInput.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        apiKeyInput.setText(if (config.apiKey == "EMPTY") "" else config.apiKey)
+        modelNameInput.setText(config.modelName)
+        maxTokensInput.setText(config.maxTokens.toString())
+        maxTokensInput.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+        temperatureInput.setText(config.temperature.toString())
+        temperatureInput.inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+        planningStepsInput.setText(config.maxPlanningSteps.toString())
+        planningStepsInput.inputType = android.text.InputType.TYPE_CLASS_NUMBER
 
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(getString(R.string.settings_llm_agent_dialog_title))
-            .setView(scrollView)
+            .setView(dialogView)
             .setPositiveButton(R.string.settings_save) { _, _ ->
-                val baseUrl = baseUrlEdit.text?.toString()?.trim() ?: ""
-                val apiKey = apiKeyEdit.text?.toString()?.trim().let {
+                val baseUrl = baseUrlInput.text?.toString()?.trim() ?: ""
+                val apiKey = apiKeyInput.text?.toString()?.trim().let {
                     if (it.isNullOrEmpty()) "EMPTY" else it
                 }
-                val modelName = modelNameEdit.text?.toString()?.trim() ?: ""
-                val maxTokens = maxTokensEdit.text?.toString()?.trim()?.toIntOrNull()
-                    ?: config.maxTokens
-                val temperature = temperatureEdit.text?.toString()?.trim()?.toFloatOrNull()
-                    ?: config.temperature
-                val maxPlanningSteps = planningStepsEdit.text?.toString()?.trim()?.toIntOrNull()
-                    ?: config.maxPlanningSteps
+                val modelName = modelNameInput.text?.toString()?.trim() ?: ""
+                val maxTokens = maxTokensInput.text?.toString()?.trim()?.toIntOrNull() ?: config.maxTokens
+                val temperature = temperatureInput.text?.toString()?.trim()?.toFloatOrNull() ?: config.temperature
+                val maxPlanningSteps = planningStepsInput.text?.toString()?.trim()?.toIntOrNull() ?: config.maxPlanningSteps
                 val language = settingsManager.getPromptLanguage().code
 
                 if (baseUrl.isEmpty() || !isValidUrl(baseUrl)) {
@@ -1455,8 +1253,7 @@ class SettingsFragment : Fragment() {
                     customSystemPrompt = settingsManager.getLLMAgentCustomPrompt(language) ?: "",
                 )
                 settingsManager.saveLLMAgentConfig(newConfig)
-                // Reinitialize so the new config takes effect immediately without an app restart.
-                com.flowmate.autoxiaoer.ComponentManager.getInstance(ctx).reinitializeAgents()
+                ComponentManager.getInstance(ctx).reinitializeAgents()
                 Toast.makeText(ctx, getString(R.string.settings_llm_agent_saved), Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.dialog_cancel, null)
@@ -1464,9 +1261,9 @@ class SettingsFragment : Fragment() {
 
         btnTestConn.setOnClickListener {
             testConnectionInDialog(
-                baseUrl = baseUrlEdit.text?.toString()?.trim() ?: "",
-                apiKey = apiKeyEdit.text?.toString()?.trim() ?: "",
-                modelName = modelNameEdit.text?.toString()?.trim() ?: "",
+                baseUrl = baseUrlInput.text?.toString()?.trim() ?: "",
+                apiKey = apiKeyInput.text?.toString()?.trim() ?: "",
+                modelName = modelNameInput.text?.toString()?.trim() ?: "",
                 testButton = btnTestConn,
             )
         }
@@ -1572,122 +1369,19 @@ class SettingsFragment : Fragment() {
         Logger.d(TAG, "Showing persona settings dialog")
         val ctx = requireContext()
         val brainConfig = settingsManager.getBrainLLMConfig()
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_persona_settings, null)
+        val nameEdit = dialogView.findViewById<TextInputEditText>(R.id.agentNameInput)
+        val brainSwitch = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.expressorSwitch)
+        val btnPersona = dialogView.findViewById<Button>(R.id.btnEditPersona)
+        val btnRelationships = dialogView.findViewById<Button>(R.id.btnEditRelationships)
+        val btnBehavior = dialogView.findViewById<Button>(R.id.btnEditBehavior)
 
-        val scrollView = androidx.core.widget.NestedScrollView(ctx)
-        val container = android.widget.LinearLayout(ctx).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            val paddingPx = (16 * resources.displayMetrics.density).toInt()
-            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-        }
-        scrollView.addView(container)
-
-        val dp4 = (4 * resources.displayMetrics.density).toInt()
-        val dp8 = (8 * resources.displayMetrics.density).toInt()
-
-        // ── Agent name ───────────────────────────────────────────────
-        val nameLabel = TextView(ctx).apply {
-            text = getString(R.string.settings_persona_agent_name_title)
-            setTextColor(android.graphics.Color.parseColor("#888888"))
-            textSize = 14f
-        }
-        container.addView(nameLabel)
-
-        val nameLayout = TextInputLayout(ctx).apply {
-            boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
-            isHelperTextEnabled = true
-            helperText = getString(R.string.settings_persona_agent_name_helper)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.bottomMargin = dp8
-            layoutParams = lp
-        }
-        val nameEdit = TextInputEditText(ctx)
         nameEdit.setText(settingsManager.getAgentName())
-        nameLayout.addView(nameEdit)
-        container.addView(nameLayout)
+        brainSwitch.isChecked = brainConfig.enabled
 
-        // ── Brain enable switch ──────────────────────────────────────
-        val brainSwitch = android.widget.Switch(ctx).apply {
-            text = getString(R.string.settings_persona_enable_expressor)
-            isChecked = brainConfig.enabled
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp8
-            lp.bottomMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(brainSwitch)
-
-        val brainDesc = android.widget.TextView(ctx).apply {
-            text = getString(R.string.settings_persona_enable_expressor_desc)
-            textSize = 12f
-            setTextColor(android.graphics.Color.parseColor("#888888"))
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.bottomMargin = dp8
-            layoutParams = lp
-        }
-        container.addView(brainDesc)
-
-        // ── Persona editor ───────────────────────────────────────────
-        val personaLabel = TextView(ctx).apply {
-            text = getString(R.string.settings_persona_title)
-            setTextColor(android.graphics.Color.parseColor("#888888"))
-            textSize = 14f
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp8
-            layoutParams = lp
-        }
-        container.addView(personaLabel)
-
-        val btnPersona = Button(ctx).apply {
-            text = getString(R.string.settings_persona_editor)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(btnPersona)
-
-        // ── Relationships editor ─────────────────────────────────────
-        val btnRelationships = Button(ctx).apply {
-            text = getString(R.string.settings_persona_relationships)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(btnRelationships)
-
-        // ── Behavior rules editor ────────────────────────────────────
-        val btnBehavior = Button(ctx).apply {
-            text = getString(R.string.settings_persona_behavior)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(btnBehavior)
-
-        // ── Dialog ───────────────────────────────────────────────────
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(getString(R.string.settings_persona_title_dialog))
-            .setView(scrollView)
+            .setView(dialogView)
             .setPositiveButton(R.string.settings_save) { _, _ ->
                 val newName = nameEdit.text?.toString()?.trim() ?: ""
                 if (newName.isNotBlank()) {
@@ -1698,10 +1392,10 @@ class SettingsFragment : Fragment() {
                 if (newEnabled != brainConfig.enabled) {
                     val updated = brainConfig.copy(enabled = newEnabled)
                     settingsManager.saveBrainLLMConfig(updated)
-                    com.flowmate.autoxiaoer.ComponentManager.getInstance(ctx).reinitializeAgents()
+                    ComponentManager.getInstance(ctx).reinitializeAgents()
                 }
 
-                Toast.makeText(ctx, R.string.settings_persona_title, Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, R.string.settings_persona_saved, Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(R.string.dialog_cancel, null)
             .create()
