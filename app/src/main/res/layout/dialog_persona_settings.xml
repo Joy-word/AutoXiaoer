@@ -33,12 +33,14 @@
                 android:inputType="textCapWords" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <com.google.android.material.materialswitch.MaterialSwitch
+        <Switch
             android:id="@+id/expressorSwitch"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:text="@string/settings_persona_enable_expressor" />
+            android:text="@string/settings_persona_enable_expressor"
+            android:textColor="@color/text_primary"
+            android:textSize="15sp" />
 
         <TextView
             android:layout_width="match_parent"

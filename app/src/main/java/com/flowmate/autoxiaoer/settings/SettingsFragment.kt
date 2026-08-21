@@ -1371,7 +1371,7 @@ class SettingsFragment : Fragment() {
         val brainConfig = settingsManager.getBrainLLMConfig()
         val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_persona_settings, null)
         val nameEdit = dialogView.findViewById<TextInputEditText>(R.id.agentNameInput)
-        val brainSwitch = dialogView.findViewById<com.google.android.material.materialswitch.MaterialSwitch>(R.id.expressorSwitch)
+        val brainSwitch = dialogView.findViewById<android.widget.Switch>(R.id.expressorSwitch)
         val btnPersona = dialogView.findViewById<Button>(R.id.btnEditPersona)
         val btnRelationships = dialogView.findViewById<Button>(R.id.btnEditRelationships)
         val btnBehavior = dialogView.findViewById<Button>(R.id.btnEditBehavior)
