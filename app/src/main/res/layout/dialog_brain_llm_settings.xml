@@ -47,7 +47,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:hint="模型名称 (Model Name)">
+            android:hint="@string/settings_model_name">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/modelNameInput"
@@ -55,13 +55,42 @@
                 android:layout_height="wrap_content" />
         </com.google.android.material.textfield.TextInputLayout>
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnTestConnection"
-            style="@style/Widget.App.Button.Secondary"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="@string/settings_test_connection" />
+            android:layout_marginTop="8dp"
+            android:layout_marginStart="0dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnTestConnection"
+                style="@style/Widget.App.Button.Text"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="0dp"
+                android:minWidth="0dp"
+                android:paddingStart="4dp"
+                android:paddingEnd="4dp"
+                android:text="@string/settings_test_connection" />
+
+            <TextView
+                android:id="@+id/connectionStatusText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/settings_advanced"
+            android:textColor="@color/text_secondary"
+            android:textSize="14sp" />
 
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/maxTokensLayout"
@@ -69,7 +98,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:hint="输出最大 Token 数 (Max Output Tokens)">
+            android:hint="@string/settings_max_output_tokens">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/maxTokensInput"
@@ -84,7 +113,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:hint="Temperature (0.0 - 2.0)">
+            android:hint="@string/settings_temperature">
 
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/temperatureInput"
@@ -95,7 +124,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnCustomPrompt"
-            style="@style/Widget.App.Button.Text"
+            style="@style/Widget.App.Button.Secondary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"

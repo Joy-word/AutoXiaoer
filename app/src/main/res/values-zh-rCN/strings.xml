@@ -211,6 +211,8 @@
     <string name="settings_test_connection_error">连接失败: %s</string>
     <string name="settings_test_timeout">连接超时: %s</string>
     <string name="settings_test_invalid_config">请先填写完整的配置信息</string>
+    <string name="settings_max_output_tokens">最大输出长度</string>
+    <string name="settings_temperature">Temperature（0.0 - 2.0）</string>
     
     <!-- Post-Task Action -->
     <string name="settings_post_task_action">任务完成后操作</string>

@@ -211,6 +211,8 @@
     <string name="settings_test_connection_error">Connection failed: %s</string>
     <string name="settings_test_timeout">Connection timed out: %s</string>
     <string name="settings_test_invalid_config">Complete the configuration first</string>
+    <string name="settings_max_output_tokens">Max output tokens</string>
+    <string name="settings_temperature">Temperature (0.0 - 2.0)</string>
     
     <!-- Post-Task Action -->
     <string name="settings_post_task_action">After Task Completion</string>

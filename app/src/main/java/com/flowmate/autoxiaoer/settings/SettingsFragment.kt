@@ -736,8 +736,12 @@ class SettingsFragment : Fragment() {
         apiKey: String,
         modelName: String,
         testButton: Button,
+        statusText: TextView,
     ) {
         if (baseUrl.isEmpty() || !isValidUrl(baseUrl) || modelName.isEmpty()) {
+            statusText.text = getString(R.string.settings_test_invalid_config)
+            statusText.setTextColor(ContextCompat.getColor(requireContext(), R.color.status_failed))
+            statusText.visibility = View.VISIBLE
             Toast.makeText(requireContext(), R.string.settings_test_invalid_config, Toast.LENGTH_SHORT).show()
             return
         }
@@ -752,6 +756,9 @@ class SettingsFragment : Fragment() {
         val client = ModelClient(testConfig)
         testButton.isEnabled = false
         testButton.text = getString(R.string.settings_testing)
+        statusText.text = getString(R.string.settings_testing)
+        statusText.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+        statusText.visibility = View.VISIBLE
 
         viewLifecycleOwner.lifecycleScope.launch {
             val result = client.testConnection()
@@ -774,6 +781,14 @@ class SettingsFragment : Fragment() {
                 is ModelClient.TestResult.Timeout ->
                     getString(R.string.settings_test_timeout, result.message)
             }
+            statusText.text = message
+            statusText.setTextColor(
+                ContextCompat.getColor(
+                    requireContext(),
+                    if (result is ModelClient.TestResult.Success) R.color.status_running else R.color.status_failed,
+                ),
+            )
+            statusText.visibility = View.VISIBLE
             Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
         }
     }
@@ -960,6 +975,7 @@ class SettingsFragment : Fragment() {
         val modelNameInput = dialogView.findViewById<TextInputEditText>(R.id.modelNameInput)
         val maxStepsInput = dialogView.findViewById<TextInputEditText>(R.id.maxStepsInput)
         val screenshotDelayInput = dialogView.findViewById<TextInputEditText>(R.id.screenshotDelayInput)
+        val connectionStatusText = dialogView.findViewById<TextView>(R.id.connectionStatusText)
         val btnTestConn = dialogView.findViewById<Button>(R.id.btnTestConnection)
         val btnEditPromptDialog = dialogView.findViewById<Button>(R.id.btnEditPrompt)
         val activePromptLanguage = settingsManager.getPromptLanguage().code
@@ -1026,6 +1042,7 @@ class SettingsFragment : Fragment() {
                 apiKey = apiKeyInput.text?.toString()?.trim() ?: "",
                 modelName = modelNameInput.text?.toString()?.trim() ?: "",
                 testButton = btnTestConn,
+                statusText = connectionStatusText,
             )
         }
 
@@ -1054,6 +1071,7 @@ class SettingsFragment : Fragment() {
         val maxTokensInput = dialogView.findViewById<TextInputEditText>(R.id.maxTokensInput)
         val temperatureInput = dialogView.findViewById<TextInputEditText>(R.id.temperatureInput)
         val btnTestConn = dialogView.findViewById<Button>(R.id.btnTestConnection)
+        val connectionStatusText = dialogView.findViewById<TextView>(R.id.connectionStatusText)
         val btnCustomPrompt = dialogView.findViewById<Button>(R.id.btnCustomPrompt)
 
         baseUrlInput.setText(config.baseUrl)
@@ -1110,6 +1128,7 @@ class SettingsFragment : Fragment() {
                 apiKey = apiKeyInput.text?.toString()?.trim() ?: "",
                 modelName = modelNameInput.text?.toString()?.trim() ?: "",
                 testButton = btnTestConn,
+                statusText = connectionStatusText,
             )
         }
 
@@ -1206,6 +1225,7 @@ class SettingsFragment : Fragment() {
         val temperatureInput = dialogView.findViewById<TextInputEditText>(R.id.temperatureInput)
         val planningStepsInput = dialogView.findViewById<TextInputEditText>(R.id.planningStepsInput)
         val btnTestConn = dialogView.findViewById<Button>(R.id.btnTestConnection)
+        val connectionStatusText = dialogView.findViewById<TextView>(R.id.connectionStatusText)
         val btnCustomPrompt = dialogView.findViewById<Button>(R.id.btnCustomPrompt)
 
         baseUrlInput.setText(config.baseUrl)
@@ -1265,6 +1285,7 @@ class SettingsFragment : Fragment() {
                 apiKey = apiKeyInput.text?.toString()?.trim() ?: "",
                 modelName = modelNameInput.text?.toString()?.trim() ?: "",
                 testButton = btnTestConn,
+                statusText = connectionStatusText,
             )
         }
 
