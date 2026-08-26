@@ -552,4 +552,35 @@
     <string name="accessibility_status_enabled">Enabled</string>
     <string name="accessibility_status_not_enabled">Not enabled</string>
     <string name="request_accessibility_permission">Enable</string>
+
+    <!-- MCP Servers -->
+    <string name="settings_mcp_title">MCP Servers</string>
+    <string name="settings_mcp_description">Connect external tools via Model Context Protocol</string>
+    <string name="settings_mcp_manage">Manage</string>
+    <string name="mcp_server_list_title">MCP Servers</string>
+    <string name="mcp_server_list_empty">No servers configured</string>
+    <string name="mcp_server_add">+ Add Server</string>
+    <string name="mcp_server_add_title">Add MCP Server</string>
+    <string name="mcp_server_edit_title">Edit MCP Server</string>
+    <string name="mcp_server_builtin_badge">Built-in</string>
+    <string name="mcp_server_field_name">Server Name</string>
+    <string name="mcp_server_field_endpoint">HTTPS Endpoint URL</string>
+    <string name="mcp_server_field_secret">API Key</string>
+    <string name="mcp_server_field_secret_configured">API Key (already configured)</string>
+    <string name="mcp_server_field_connect_timeout">Connect Timeout (seconds)</string>
+    <string name="mcp_server_field_call_timeout">Call Timeout (seconds)</string>
+    <string name="mcp_server_test_connection">Test Connection</string>
+    <string name="mcp_server_test_connecting">Connecting\u2026</string>
+    <string name="mcp_server_test_success">Connected \u00b7 %d tools found</string>
+    <string name="mcp_server_test_failed">Failed: %s</string>
+    <string name="mcp_server_delete_title">Delete Server</string>
+    <string name="mcp_server_delete_message">Delete \"%s\"?</string>
+    <string name="mcp_status_connected">Connected \u00b7 %d tools</string>
+    <string name="mcp_status_connecting">Connecting\u2026</string>
+    <string name="mcp_status_missing_key">API Key not configured</string>
+    <string name="mcp_status_error">Error: %s</string>
+    <string name="mcp_status_disabled">Disabled</string>
+    <string name="mcp_error_name_required">Name is required</string>
+    <string name="mcp_error_endpoint_https">Endpoint must start with https://</string>
+    <string name="delete">Delete</string>
 </resources>

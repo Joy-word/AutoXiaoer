@@ -146,6 +146,11 @@ dependencies {
     // Kotlin Serialization for JSON parsing
     implementation(libs.kotlinx.serialization.json)
 
+    // MCP Kotlin SDK (Streamable HTTP client)
+    implementation(libs.mcp.kotlin.sdk)
+    // Ktor OkHttp engine required by StreamableHttpClientTransport on Android
+    implementation(libs.ktor.client.okhttp)
+
     // Sherpa-ONNX for offline speech recognition
     // Available via JitPack: https://jitpack.io/#k2-fsa/sherpa-onnx
     implementation("com.github.k2-fsa:sherpa-onnx:1.12.20")

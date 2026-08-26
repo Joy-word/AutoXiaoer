@@ -9,8 +9,13 @@ import com.flowmate.autoxiaoer.agent.LLMAgentConfig
 import com.flowmate.autoxiaoer.agent.PhoneAgentConfig
 import com.flowmate.autoxiaoer.agent.ScreenshotReviewLevel
 import com.flowmate.autoxiaoer.config.AppLanguage
+import com.flowmate.autoxiaoer.mcp.BuiltInMcpServers
+import com.flowmate.autoxiaoer.mcp.McpServerConfig
+import com.flowmate.autoxiaoer.mcp.McpServerConfigList
 import com.flowmate.autoxiaoer.model.ModelConfig
 import com.flowmate.autoxiaoer.util.Logger
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -188,6 +193,10 @@ class SettingsManager private constructor(private val context: Context) {
 
         // Input backend key
         private const val KEY_INPUT_BACKEND = "input_backend"
+
+        // MCP
+        private const val KEY_MCP_SERVERS = "mcp_servers_v1"
+        private const val MCP_SECRET_PREFIX = "mcp_secret_"
 
         // Default values
         private val DEFAULT_MODEL_CONFIG = ModelConfig()
@@ -1289,6 +1298,83 @@ class SettingsManager private constructor(private val context: Context) {
      */
     fun setInputBackend(backend: com.flowmate.autoxiaoer.device.InputBackend) {
         prefs.edit().putString(KEY_INPUT_BACKEND, backend.name).apply()
+    }
+
+    // ==================== MCP Servers ====================
+
+    private val mcpJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+
+    /** Returns the full server list. Injects built-in AMap entry when storage is empty. */
+    fun getMcpServers(): List<McpServerConfig> {
+        val raw = prefs.getString(KEY_MCP_SERVERS, null)
+        if (raw.isNullOrBlank()) {
+            val defaults = listOf(BuiltInMcpServers.amapTemplate())
+            saveMcpServers(defaults)
+            return defaults
+        }
+        return try {
+            mcpJson.decodeFromString<McpServerConfigList>(raw).servers
+        } catch (e: Exception) {
+            Logger.e(TAG, "Failed to decode MCP servers list, returning defaults", e)
+            val defaults = listOf(BuiltInMcpServers.amapTemplate())
+            saveMcpServers(defaults)
+            defaults
+        }
+    }
+
+    private fun saveMcpServers(servers: List<McpServerConfig>) {
+        val encoded = mcpJson.encodeToString(McpServerConfigList(servers = servers))
+        prefs.edit().putString(KEY_MCP_SERVERS, encoded).apply()
+    }
+
+    /** Saves or updates a single server. Preserves order; appends if new. */
+    fun saveMcpServer(config: McpServerConfig) {
+        val current = getMcpServers().toMutableList()
+        val idx = current.indexOfFirst { it.id == config.id }
+        if (idx >= 0) current[idx] = config else current.add(config)
+        saveMcpServers(current)
+    }
+
+    /** Deletes a server and its secret. Built-in servers cannot be deleted. */
+    fun deleteMcpServer(serverId: String) {
+        val current = getMcpServers().toMutableList()
+        val server = current.find { it.id == serverId } ?: return
+        if (server.isBuiltIn) return
+        current.removeAll { it.id == serverId }
+        saveMcpServers(current)
+        deleteMcpSecret(serverId)
+    }
+
+    /** Toggles the enabled state of a server. */
+    fun setMcpServerEnabled(serverId: String, enabled: Boolean) {
+        val current = getMcpServers().toMutableList()
+        val idx = current.indexOfFirst { it.id == serverId }
+        if (idx < 0) return
+        current[idx] = current[idx].copy(enabled = enabled)
+        saveMcpServers(current)
+    }
+
+    // --- MCP Secrets (EncryptedSharedPreferences) ---
+
+    /** Returns the stored secret for [serverId], or null if not set. */
+    fun getMcpSecret(serverId: String): String? =
+        securePrefs.getString("$MCP_SECRET_PREFIX$serverId", null)?.takeIf { it.isNotBlank() }
+
+    /** Returns true if a non-blank secret exists for [serverId]. */
+    fun hasMcpSecret(serverId: String): Boolean = getMcpSecret(serverId) != null
+
+    /**
+     * Saves the secret for [serverId].
+     * Throws [IllegalStateException] when secure storage is unavailable
+     * (encryption initialisation failed and the fallback is plaintext).
+     */
+    fun saveMcpSecret(serverId: String, secret: String) {
+        securePrefs.edit().putString("$MCP_SECRET_PREFIX$serverId", secret).apply()
+    }
+
+    /** Removes the secret for [serverId]. */
+    fun deleteMcpSecret(serverId: String) {
+        securePrefs.edit().remove("$MCP_SECRET_PREFIX$serverId").apply()
     }
 
 }

@@ -58,6 +58,8 @@ import com.flowmate.autoxiaoer.ui.MainViewModel
 import com.flowmate.autoxiaoer.ui.PermissionStates
 import com.flowmate.autoxiaoer.schedule.ScheduledTaskManager
 import com.flowmate.autoxiaoer.util.DataMigrationManager
+import com.flowmate.autoxiaoer.mcp.McpServerEditDialog
+import com.flowmate.autoxiaoer.mcp.McpServerListDialog
 import com.flowmate.autoxiaoer.util.LogFileManager
 import com.flowmate.autoxiaoer.util.Logger
 import com.flowmate.autoxiaoer.clawbot.ClawBotManager
@@ -278,6 +280,10 @@ class SettingsFragment : Fragment() {
         // BrainLLM settings entry button
         view.findViewById<Button>(R.id.btnBrainLLMSettings)
             .setOnClickListener { showBrainLLMSettingsDialog() }
+
+        // MCP servers entry button
+        view.findViewById<Button>(R.id.btnMcpServers)
+            .setOnClickListener { showMcpServerListDialog() }
 
         // Persona settings entry button
         view.findViewById<Button>(R.id.btnPersonaSettings)
@@ -1139,6 +1145,26 @@ class SettingsFragment : Fragment() {
 
         dialog.show()
         dialog.applyPrimaryButtonColors()
+    }
+
+    private fun showMcpServerListDialog() {
+        val ctx = requireContext()
+        McpServerListDialog(
+            context = ctx,
+            lifecycleOwner = viewLifecycleOwner,
+            onEditServer = { config -> showMcpServerEditDialog(config) },
+            onAddServer = { showMcpServerEditDialog(null) },
+        ).show()
+    }
+
+    private fun showMcpServerEditDialog(config: com.flowmate.autoxiaoer.mcp.McpServerConfig?) {
+        val ctx = requireContext()
+        McpServerEditDialog(
+            context = ctx,
+            lifecycleOwner = viewLifecycleOwner,
+            onSaved = {},
+            existingConfig = config,
+        ).show()
     }
 
     /**
