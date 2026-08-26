@@ -25,10 +25,10 @@ navigation = "2.8.5"
 fragment = "1.8.5"
 # SwipeRefreshLayout
 swiperefreshlayout = "1.1.0"
-# MCP Kotlin SDK (last version compatible with Kotlin 2.1.x)
-mcpSdk = "0.4.0"
-# Ktor client (version aligned with what mcp-kotlin-sdk 0.4.0 pulls in)
-ktor = "3.0.3"
+# 0.8.4 is the last version before the 0.9.0 Kotlin 2.3 bump; has StreamableHttpClientTransport
+mcpSdk = "0.8.4"
+# Ktor version aligned with mcp-kotlin-sdk 0.8.4
+ktor = "3.3.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -75,6 +75,9 @@ androidx-swiperefreshlayout = { group = "androidx.swiperefreshlayout", name = "s
 mcp-kotlin-sdk = { group = "io.modelcontextprotocol", name = "kotlin-sdk", version.ref = "mcpSdk" }
 # Ktor OkHttp engine for Android (no bundled engine in SDK)
 ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
+# Ktor ContentNegotiation + kotlinx-json serialization (required by StreamableHttpClientTransport)
+ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

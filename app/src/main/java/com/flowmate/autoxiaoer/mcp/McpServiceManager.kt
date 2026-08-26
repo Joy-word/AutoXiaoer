@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import io.modelcontextprotocol.kotlin.sdk.types.Tool as McpTool
+import io.modelcontextprotocol.kotlin.sdk.types.ToolSchema
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
@@ -121,7 +123,7 @@ class McpServiceManager(
                 val schema = mcpTool.inputSchema?.let { schemaToJsonObject(it) } ?: emptyParamsSchema()
                 tools += McpAgentTool(
                     name = namespacedName,
-                    description = mcpTool.description ?: "",
+                    description = mcpTool.annotations?.title ?: mcpTool.description ?: "",
                     parametersSchema = schema,
                     serverToolName = mcpTool.name,
                     invoker = conn,
@@ -158,13 +160,13 @@ class McpServiceManager(
             return "mcp__${safeId}__${safeTool}"
         }
 
-        private fun schemaToJsonObject(schema: io.modelcontextprotocol.kotlin.sdk.Tool.Input): JsonObject {
-            // The SDK exposes properties and required as maps/lists; rebuild as JsonObject
+        private fun schemaToJsonObject(schema: ToolSchema): JsonObject {
             return buildJsonObject {
                 put("type", JsonPrimitive("object"))
-                if (schema.properties.isNotEmpty()) {
+                val props = schema.properties
+                if (!props.isNullOrEmpty()) {
                     put("properties", buildJsonObject {
-                        for ((k, v) in schema.properties) {
+                        for ((k, v) in props) {
                             put(k, v)
                         }
                     })

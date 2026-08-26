@@ -14,11 +14,13 @@ import com.flowmate.autoxiaoer.R
 import com.flowmate.autoxiaoer.util.applyPrimaryButtonColors
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
-import io.ktor.client.plugins.sse.SSE
-import io.modelcontextprotocol.kotlin.sdk.Implementation
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.serialization.kotlinx.json.json
+import io.modelcontextprotocol.kotlin.sdk.shared.McpJson
 import io.modelcontextprotocol.kotlin.sdk.client.Client
 import io.modelcontextprotocol.kotlin.sdk.client.ClientOptions
-import io.modelcontextprotocol.kotlin.sdk.client.SseClientTransport
+import io.modelcontextprotocol.kotlin.sdk.client.StreamableHttpClientTransport
+import io.modelcontextprotocol.kotlin.sdk.types.Implementation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -104,11 +106,11 @@ class McpServerEditDialog(
                     } else {
                         config.endpointUrl
                     }
-                    val http = HttpClient(OkHttp) { install(SSE) }
+                    val http = HttpClient(OkHttp) { install(ContentNegotiation) { json(McpJson) } }
                     try {
-                        val transport = SseClientTransport(http, endpointUrl)
+                        val transport = StreamableHttpClientTransport(http, endpointUrl)
                         val client = Client(
-                            clientInfo = Implementation(name = "autoxiaoer-probe", version = "1.0"),
+                            clientInfo = Implementation(name = "autoxiaoer-probe", version = "1.0", title = null),
                             options = ClientOptions(),
                         )
                         client.connect(transport)

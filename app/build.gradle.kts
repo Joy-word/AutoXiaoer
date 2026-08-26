@@ -150,6 +150,9 @@ dependencies {
     implementation(libs.mcp.kotlin.sdk)
     // Ktor OkHttp engine required by StreamableHttpClientTransport on Android
     implementation(libs.ktor.client.okhttp)
+    // ContentNegotiation + kotlinx-json required by StreamableHttpClientTransport
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
 
     // Sherpa-ONNX for offline speech recognition
     // Available via JitPack: https://jitpack.io/#k2-fsa/sherpa-onnx
