@@ -6,6 +6,7 @@ import com.flowmate.autoxiaoer.action.ActionParser
 import com.flowmate.autoxiaoer.action.AgentAction
 import com.flowmate.autoxiaoer.action.CoordinateOutOfRangeException
 import com.flowmate.autoxiaoer.config.SystemPrompts
+import com.flowmate.autoxiaoer.config.I18n
 import com.flowmate.autoxiaoer.history.HistoryManager
 import com.flowmate.autoxiaoer.model.ModelClient
 import com.flowmate.autoxiaoer.model.ModelResult
@@ -146,12 +147,9 @@ class PhoneAgent(
      *
      * @return Localized cancellation message
      */
-    private fun getCancellationMessage(): String =
-        if (config.language.lowercase() == "en" || config.language.lowercase() == "english") {
-            CANCELLATION_MESSAGE_EN
-        } else {
-            CANCELLATION_MESSAGE
-        }
+    private fun getCancellationMessage(): String = I18n.getMessage("phone_task_cancelled", config.language)
+
+    private fun getPauseMessage(): String = I18n.getMessage("phone_task_paused", config.language)
 
     /**
      * Sets the listener for agent events.
@@ -261,7 +259,7 @@ class PhoneAgent(
             Logger.w(TAG, "Task validation failed: empty or whitespace only")
             return@coroutineScope TaskResult(
                 success = false,
-                message = "Task description cannot be empty or whitespace only",
+                message = I18n.getMessage("phone_empty_task", config.language),
                 stepCount = 0,
             )
         }
@@ -271,7 +269,7 @@ class PhoneAgent(
             Logger.w(TAG, "Task rejected: another task is already running")
             return@coroutineScope TaskResult(
                 success = false,
-                message = "A task is already running. Please wait or cancel it first.",
+                message = I18n.getMessage("phone_task_already_running", config.language),
                 stepCount = 0,
             )
         }
@@ -377,14 +375,14 @@ class PhoneAgent(
                     }
 
                     success = false
-                    lastMessage = stepResult.message ?: "Step execution failed"
+                    lastMessage = stepResult.message ?: I18n.getMessage("step_failed", config.language)
                     Logger.w(TAG, "Step $stepCount failed: $lastMessage")
                     // Don't call listener here - let the caller handle UI updates
                     break
                 }
 
                 if (stepResult.finished) {
-                    lastMessage = stepResult.message ?: "Task completed"
+                    lastMessage = stepResult.message ?: I18n.getMessage("task_completed_fallback", config.language)
                     Logger.i(TAG, "Task finished at step $stepCount: $lastMessage")
                     // Don't call listener here - let the caller handle UI updates
                     break
@@ -395,7 +393,7 @@ class PhoneAgent(
 
             // Check if max steps reached (only when maxSteps > 0)
             if (config.maxSteps > 0 && stepCount >= config.maxSteps) {
-                lastMessage = "Maximum steps (${config.maxSteps}) reached"
+                lastMessage = I18n.getFormattedMessage("max_steps_reached_with_count", config.language, config.maxSteps)
                 Logger.w(TAG, lastMessage)
                 success = false
             }
@@ -480,7 +478,7 @@ class PhoneAgent(
                     finished = false,
                     action = null,
                     thinking = "",
-                    message = "Agent context not initialized",
+                    message = I18n.getMessage("phone_context_not_initialized", config.language),
                 )
             }
 
@@ -526,7 +524,7 @@ class PhoneAgent(
                     finished = false,
                     action = null,
                     thinking = "",
-                    message = PAUSE_MESSAGE,
+                    message = getPauseMessage(),
                     paused = true,
                 )
             }
@@ -560,7 +558,7 @@ class PhoneAgent(
                     finished = false,
                     action = null,
                     thinking = "",
-                    message = PAUSE_MESSAGE,
+                    message = getPauseMessage(),
                     paused = true,
                 )
             }
@@ -570,10 +568,18 @@ class PhoneAgent(
 
             // Build user message
             val userText =
-                when {
-                    task != null -> "任务: $task\n当前屏幕截图如下:"
-                    hint != null -> "上一步执行结果: $hint\n继续执行任务，当前屏幕截图如下:"
-                    else -> "继续执行任务，当前屏幕截图如下:"
+                if (config.language.equals("en", ignoreCase = true) || config.language.equals("english", ignoreCase = true)) {
+                    when {
+                        task != null -> "Task: $task\nThe current screen is shown below:"
+                        hint != null -> "Previous action result: $hint\nContinue the task. The current screen is shown below:"
+                        else -> "Continue the task. The current screen is shown below:"
+                    }
+                } else {
+                    when {
+                        task != null -> "任务: $task\n当前屏幕截图如下:"
+                        hint != null -> "上一步执行结果: $hint\n继续执行任务，当前屏幕截图如下:"
+                        else -> "继续执行任务，当前屏幕截图如下:"
+                    }
                 }
 
             // Add user message to context (screenshot is passed separately to model)
@@ -607,7 +613,7 @@ class PhoneAgent(
                     finished = false,
                     action = null,
                     thinking = "",
-                    message = PAUSE_MESSAGE,
+                    message = getPauseMessage(),
                     paused = true,
                 )
             }
@@ -643,7 +649,7 @@ class PhoneAgent(
                             finished = false,
                             action = null,
                             thinking = response.thinking,
-                            message = PAUSE_MESSAGE,
+                            message = getPauseMessage(),
                             paused = true,
                         )
                     }
@@ -670,7 +676,7 @@ class PhoneAgent(
                                 finished = false,
                                 action = null,
                                 thinking = retryResult?.thinking ?: response.thinking,
-                                message = PAUSE_MESSAGE,
+                                message = getPauseMessage(),
                                 paused = true,
                             )
                         }
@@ -680,16 +686,16 @@ class PhoneAgent(
                                 stepNumber = currentStepNumber,
                                 thinking = response.thinking,
                                 action = null,
-                                actionDescription = "无操作",
+                                actionDescription = I18n.getMessage("floating_action_none", config.language),
                                 success = false,
-                                message = "模型响应中没有操作（已重试${MAX_EMPTY_ACTION_RETRIES}次）",
+                                message = I18n.getFormattedMessage("phone_no_action", config.language, MAX_EMPTY_ACTION_RETRIES),
                             )
                             return StepResult(
                                 success = false,
                                 finished = false,
                                 action = null,
                                 thinking = response.thinking,
-                                message = "模型响应中没有操作（已重试${MAX_EMPTY_ACTION_RETRIES}次）",
+                                message = I18n.getFormattedMessage("phone_no_action", config.language, MAX_EMPTY_ACTION_RETRIES),
                             )
                         }
 
@@ -737,7 +743,7 @@ class PhoneAgent(
                             finished = false,
                             action = null,
                             thinking = "",
-                            message = PAUSE_MESSAGE,
+                            message = getPauseMessage(),
                             paused = true,
                         )
                     }
@@ -754,7 +760,7 @@ class PhoneAgent(
                     if (_state.value == PhoneAgentState.PAUSED) {
                         currentStepNumber--
                         ctx.removeLastUserMessage()
-                        return StepResult(success = true, finished = false, action = null, thinking = "", message = PAUSE_MESSAGE, paused = true)
+                        return StepResult(success = true, finished = false, action = null, thinking = "", message = getPauseMessage(), paused = true)
                     }
 
                     val retryResult = modelClient.request(ctx.getMessages(), screenshot.base64Data, config.maxResponseLength)
@@ -766,7 +772,7 @@ class PhoneAgent(
                             stepNumber = currentStepNumber,
                             thinking = "",
                             action = null,
-                            actionDescription = "模型错误",
+                            actionDescription = I18n.getMessage("phone_model_error", config.language),
                             success = false,
                             message = retryError.userMessage,
                         )
@@ -788,7 +794,7 @@ class PhoneAgent(
                             stepNumber = currentStepNumber,
                             thinking = "",
                             action = null,
-                            actionDescription = "模型错误",
+                            actionDescription = I18n.getMessage("phone_model_error", config.language),
                             success = false,
                             message = handledError.userMessage,
                         )
@@ -830,7 +836,7 @@ class PhoneAgent(
                     finished = false,
                     action = null,
                     thinking = "",
-                    message = PAUSE_MESSAGE,
+                    message = getPauseMessage(),
                     paused = true,
                 )
             }
@@ -1041,7 +1047,7 @@ class PhoneAgent(
             stepNumber = currentStepNumber,
             thinking = thinking,
             action = action,
-            actionDescription = action.formatForDisplay(),
+            actionDescription = action.formatForDisplay(config.language),
             success = result.success,
             message = result.message,
             tokenUsage = tokenUsage,
@@ -1058,7 +1064,8 @@ class PhoneAgent(
         val resultMessage = result.message
         val nextHint =
             if (result.success && !result.shouldFinish && resultMessage != null &&
-                resultMessage.contains("请在主屏幕或应用列表中查找")
+                (resultMessage.startsWith(I18n.getMessage("action_launch_failed_hint", config.language).substringBefore("%s")) ||
+                    resultMessage.startsWith(I18n.getMessage("action_app_package_not_found_hint", config.language).substringBefore("%s")))
             ) {
                 resultMessage
             } else {
@@ -1083,7 +1090,7 @@ class PhoneAgent(
             stepNumber = currentStepNumber,
             thinking = thinking,
             action = null,
-            actionDescription = "坐标越界: ${e.originalAction}",
+            actionDescription = I18n.getFormattedMessage("phone_coordinate_error_label", config.language, e.originalAction),
             success = false,
             message = correctionHint,
             tokenUsage = tokenUsage,
@@ -1106,7 +1113,7 @@ class PhoneAgent(
             stepNumber = currentStepNumber,
             thinking = thinking,
             action = null,
-            actionDescription = "解析错误: $actionStr",
+            actionDescription = I18n.getFormattedMessage("phone_parse_error_label", config.language, actionStr),
             success = false,
             message = handledError.userMessage,
             tokenUsage = tokenUsage,
@@ -1168,7 +1175,7 @@ Please re-analyze the current screenshot and output correct coordinates (within 
                     finished = false,
                     action = null,
                     thinking = "",
-                    message = "Task description required for first step",
+                    message = I18n.getMessage("phone_first_task_required", config.language),
                 )
             }
 
@@ -1179,7 +1186,7 @@ Please re-analyze the current screenshot and output correct coordinates (within 
                     finished = false,
                     action = null,
                     thinking = "",
-                    message = "A task is already running",
+                    message = I18n.getMessage("phone_step_already_running", config.language),
                 )
             }
 
@@ -1228,7 +1235,7 @@ Please re-analyze the current screenshot and output correct coordinates (within 
                 finished = false,
                 action = null,
                 thinking = "",
-                message = "Step execution error: ${e.message}",
+                message = I18n.getFormattedMessage("phone_step_error", config.language, e.message ?: ""),
             )
         }
     }
@@ -1319,7 +1326,7 @@ Please re-analyze the current screenshot and output correct coordinates (within 
         val enhancedTask = buildEnhancedTaskDescription(subTask)
         Logger.i("PhoneAgent", "Running SubTask ${subTask.id}: ${subTask.description.take(80)}")
         val taskResult = run(enhancedTask, initHistory = false)
-        val needsTakeOver = taskResult.message.startsWith(TAKEOVER_PREFIX)
+        val needsTakeOver = taskResult.message.startsWith(I18n.getMessage("action_takeover_result", config.language).substringBefore("%s"))
         val last = taskResult.lastStepResult
         return SubTaskResult(
             subTaskId = subTask.id,
@@ -1329,7 +1336,7 @@ Please re-analyze the current screenshot and output correct coordinates (within 
             failureReason = if (!taskResult.success) taskResult.message else null,
             needsUserTakeOver = needsTakeOver,
             lastStepThinking = last?.thinking?.ifBlank { null },
-            lastStepAction = last?.action?.formatForDisplay(),
+            lastStepAction = last?.action?.formatForDisplay(config.language),
             lastStepMessage = last?.message,
             lastScreenshotBase64 = lastCapturedScreenshotBase64,
         )
@@ -1365,25 +1372,8 @@ Please re-analyze the current screenshot and output correct coordinates (within 
     companion object {
         private const val TAG = "PhoneAgent"
 
-        /** Cancellation message in Chinese. */
-        const val CANCELLATION_MESSAGE = "任务已被用户取消"
-
-        /** Cancellation message in English. */
-        const val CANCELLATION_MESSAGE_EN = "Task cancelled by user"
-
-        /** Pause message in Chinese. */
-        const val PAUSE_MESSAGE = "任务已暂停"
-
-        /** Pause message in English. */
-        const val PAUSE_MESSAGE_EN = "Task paused"
-
         /** Maximum retries when model returns empty action. */
         private const val MAX_EMPTY_ACTION_RETRIES = 3
 
-        /**
-         * Prefix used by the TakeOver action result message (see ActionHandler.executeTakeOver).
-         * Used by [runSubTask] to detect when the phone-agent needs user intervention.
-         */
-        internal const val TAKEOVER_PREFIX = "请求手动接管"
     }
 }

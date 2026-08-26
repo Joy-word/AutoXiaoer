@@ -140,17 +140,17 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
             }
 
             val duration = formatDuration(task.duration)
-            val stepInfo = if (task.stepCount > 0) " · ${task.stepCount}步" else ""
-            val roundInfo = if (task.planningRoundCount > 0) " · ${task.planningRoundCount}轮规划" else ""
+            val stepInfo = if (task.stepCount > 0) " · ${context.getString(R.string.history_steps_format, task.stepCount)}" else ""
+            val roundInfo = if (task.planningRoundCount > 0) " · ${context.getString(R.string.history_rounds_format, task.planningRoundCount)}" else ""
             infoText.text = "${dateFormat.format(Date(task.startTime))}$stepInfo$roundInfo · $duration"
         }
 
         private fun formatDuration(ms: Long): String {
             val seconds = ms / 1000
             return when {
-                seconds < 60 -> "${seconds}秒"
-                seconds < 3600 -> "${seconds / 60}分${seconds % 60}秒"
-                else -> "${seconds / 3600}时${(seconds % 3600) / 60}分"
+                seconds < 60 -> itemView.context.getString(R.string.history_duration_seconds, seconds)
+                seconds < 3600 -> itemView.context.getString(R.string.history_duration_minutes, seconds / 60, seconds % 60)
+                else -> itemView.context.getString(R.string.history_duration_hours, seconds / 3600, (seconds % 3600) / 60)
             }
         }
     }
@@ -272,19 +272,19 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
          */
         private fun actionChipInfo(context: android.content.Context, actionType: String): Pair<String, Int> {
             return when (actionType) {
-                "execute_subtask" -> "执行子任务" to ContextCompat.getColor(context, R.color.primary)
-                "finish" -> "完成" to ContextCompat.getColor(context, R.color.status_success)
-                "request_user" -> "需要介入" to ContextCompat.getColor(context, R.color.status_paused)
+                "execute_subtask" -> context.getString(R.string.history_action_execute_subtask) to ContextCompat.getColor(context, R.color.primary)
+                "finish" -> context.getString(R.string.history_action_finish) to ContextCompat.getColor(context, R.color.status_success)
+                "request_user" -> context.getString(R.string.history_action_request_user) to ContextCompat.getColor(context, R.color.status_paused)
                 "request_brain" -> context.getString(R.string.history_action_request_brain) to ContextCompat.getColor(context, R.color.step_llm_agent_action)
-                "schedule_task" -> "记录日程" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
-                "query_scheduled_tasks" -> "查询日程" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
-                "update_scheduled_task" -> "更新日程" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
-                "delete_scheduled_task" -> "删除日程" to ContextCompat.getColor(context, R.color.status_error)
-                "read_relationships" -> "读取人际关系" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
-                "update_relationships" -> "更新人际关系" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
-                "read_behavior_rules" -> "读取行为准则" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
-                "update_behavior_rules" -> "更新行为准则" to ContextCompat.getColor(context, R.color.step_llm_agent_action)
-                ACTION_DIRECT_EXECUTION -> "直接执行" to ContextCompat.getColor(context, R.color.primary)
+                "schedule_task" -> context.getString(R.string.history_action_schedule_task) to ContextCompat.getColor(context, R.color.step_llm_agent_action)
+                "query_scheduled_tasks" -> context.getString(R.string.history_action_query_schedule) to ContextCompat.getColor(context, R.color.step_llm_agent_action)
+                "update_scheduled_task" -> context.getString(R.string.history_action_update_schedule) to ContextCompat.getColor(context, R.color.step_llm_agent_action)
+                "delete_scheduled_task" -> context.getString(R.string.history_action_delete_schedule) to ContextCompat.getColor(context, R.color.status_error)
+                "read_relationships" -> context.getString(R.string.history_action_read_relationships) to ContextCompat.getColor(context, R.color.step_llm_agent_action)
+                "update_relationships" -> context.getString(R.string.history_action_update_relationships) to ContextCompat.getColor(context, R.color.step_llm_agent_action)
+                "read_behavior_rules" -> context.getString(R.string.history_action_read_behavior_rules) to ContextCompat.getColor(context, R.color.step_llm_agent_action)
+                "update_behavior_rules" -> context.getString(R.string.history_action_update_behavior_rules) to ContextCompat.getColor(context, R.color.step_llm_agent_action)
+                ACTION_DIRECT_EXECUTION -> context.getString(R.string.history_action_direct_execution) to ContextCompat.getColor(context, R.color.primary)
                 else -> actionType to ContextCompat.getColor(context, R.color.icon_secondary)
             }
         }

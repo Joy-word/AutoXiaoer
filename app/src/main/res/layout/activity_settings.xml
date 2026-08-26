@@ -341,42 +341,6 @@
                             android:textSize="15sp" />
                     </com.google.android.material.textfield.TextInputLayout>
 
-                    <!-- Language Selection -->
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="20dp"
-                        android:text="@string/settings_language"
-                        android:textColor="@color/text_secondary"
-                        android:textSize="14sp" />
-
-                    <RadioGroup
-                        android:id="@+id/languageRadioGroup"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:orientation="horizontal">
-
-                        <RadioButton
-                            android:id="@+id/languageChinese"
-                            style="@style/Widget.App.RadioButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginEnd="32dp"
-                            android:text="@string/settings_language_chinese"
-                            android:textColor="@color/primary"
-                            android:textSize="14sp" />
-
-                        <RadioButton
-                            android:id="@+id/languageEnglish"
-                            style="@style/Widget.App.RadioButton"
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/settings_language_english"
-                            android:textColor="@color/primary"
-                            android:textSize="14sp" />
-                    </RadioGroup>
-
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>

@@ -207,7 +207,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="子任务"
+                android:text="@string/history_subtask_label"
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp" />
 
@@ -247,7 +247,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="执行观察"
+                android:text="@string/history_execution_observation_label"
                 android:textColor="@color/text_secondary"
                 android:textSize="12sp" />
 

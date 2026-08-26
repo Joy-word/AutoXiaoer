@@ -324,6 +324,7 @@ class ComponentManager private constructor(private val context: Context) {
                 swipeGenerator = swipeGenerator,
                 textInputManager = textInputManagerInternal!!,
                 floatingWindowProvider = { FloatingWindowService.getInstance() },
+                language = settingsManager.getPromptLanguage().code,
             )
 
         // Create PhoneAgent

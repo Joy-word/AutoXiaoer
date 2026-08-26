@@ -231,7 +231,9 @@ private fun applyPermissionUpdate(state: PermissionStates, type: PermissionType,
         PermissionType.SHIZUKU -> state.copy(shizuku = granted)
         PermissionType.OVERLAY -> state.copy(overlay = granted)
         PermissionType.KEYBOARD -> state.copy(keyboard = granted)
+        PermissionType.KEYBOARD_DEFAULT -> state.copy(keyboardDefault = granted)
         PermissionType.BATTERY -> state.copy(battery = granted)
+        PermissionType.ACCESSIBILITY -> state.copy(accessibility = granted)
     }
 
 /**

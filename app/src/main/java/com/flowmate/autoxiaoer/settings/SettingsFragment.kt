@@ -34,12 +34,12 @@ import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
 import com.flowmate.autoxiaoer.R
 import com.flowmate.autoxiaoer.agent.LLMAgentConfig
 import com.flowmate.autoxiaoer.agent.PhoneAgentConfig
 import com.flowmate.autoxiaoer.agent.ScreenshotReviewLevel
 import com.flowmate.autoxiaoer.config.BehaviorContext
+import com.flowmate.autoxiaoer.config.AppLanguage
 import com.flowmate.autoxiaoer.config.MemoryContext
 import com.flowmate.autoxiaoer.config.BrainLLMPrompts
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
@@ -47,6 +47,7 @@ import com.flowmate.autoxiaoer.config.PersonaContext
 import com.flowmate.autoxiaoer.config.PromptManager
 import com.flowmate.autoxiaoer.config.PromptVersion
 import com.flowmate.autoxiaoer.config.RelationshipContext
+import com.flowmate.autoxiaoer.config.SystemPrompts
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -85,6 +86,7 @@ import rikka.shizuku.Shizuku
 class SettingsFragment : Fragment() {
     private val viewModel: MainViewModel by activityViewModels()
     private lateinit var settingsManager: SettingsManager
+    private lateinit var promptLanguageGroup: RadioGroup
 
     // Permissions center views
     private lateinit var permissionsCenterCard: View
@@ -221,6 +223,14 @@ class SettingsFragment : Fragment() {
         // Backend selection
         rgInputBackend = view.findViewById(R.id.rgInputBackend)
         tvBackendHelper = view.findViewById(R.id.tvBackendHelper)
+        promptLanguageGroup = view.findViewById(R.id.promptLanguageGroup)
+        promptLanguageGroup.check(
+            if (settingsManager.getPromptLanguage() == AppLanguage.SIMPLIFIED_CHINESE) {
+                R.id.promptLanguageChinese
+            } else {
+                R.id.promptLanguageEnglish
+            },
+        )
 
         // Set initial backend selection from saved setting
         val savedBackend = settingsManager.getInputBackend()
@@ -339,6 +349,19 @@ class SettingsFragment : Fragment() {
      * Sets up click listeners for all interactive views.
      */
     private fun setupListeners() {
+        promptLanguageGroup.setOnCheckedChangeListener { _, checkedId ->
+            val language = if (checkedId == R.id.promptLanguageChinese) {
+                AppLanguage.SIMPLIFIED_CHINESE
+            } else {
+                AppLanguage.ENGLISH
+            }
+            if (settingsManager.getPromptLanguage() != language) {
+                settingsManager.savePromptLanguage(language)
+                ComponentManager.getInstance(requireContext()).reinitializeAgents()
+                Toast.makeText(requireContext(), R.string.settings_prompt_language_saved, Toast.LENGTH_SHORT).show()
+            }
+        }
+
         // Permissions center expand/collapse
         permissionsHeader.setOnClickListener { togglePermissionsExpanded() }
         btnExpandCollapse.setOnClickListener { togglePermissionsExpanded() }
@@ -408,8 +431,8 @@ class SettingsFragment : Fragment() {
         btnClawBotAction.setOnClickListener {
             if (ClawBotManager.isConnected(requireContext())) {
                 MaterialAlertDialogBuilder(requireContext())
-                    .setTitle("解绑 ClawBot")
-                    .setMessage("确定要断开 ClawBot 连接吗？断开后将停止接收微信消息。")
+                    .setTitle(R.string.settings_clawbot_disconnect_confirm_title)
+                    .setMessage(R.string.settings_clawbot_disconnect_confirm_message)
                     .setPositiveButton(R.string.dialog_confirm) { _, _ ->
                         ClawBotManager.disconnect(requireContext())
                         updateClawBotUI()
@@ -675,11 +698,11 @@ class SettingsFragment : Fragment() {
     private fun updateClawBotUI() {
         val connected = ClawBotManager.isConnected(requireContext())
         if (connected) {
-            clawBotStatusText.text = "已连接"
-            btnClawBotAction.text = "解绑"
+            clawBotStatusText.text = getString(R.string.settings_clawbot_connected)
+            btnClawBotAction.text = getString(R.string.settings_clawbot_disconnect)
         } else {
-            clawBotStatusText.text = "未连接"
-            btnClawBotAction.text = "连接"
+            clawBotStatusText.text = getString(R.string.settings_clawbot_disconnected)
+            btnClawBotAction.text = getString(R.string.settings_clawbot_connect)
         }
     }
 
@@ -713,8 +736,12 @@ class SettingsFragment : Fragment() {
         apiKey: String,
         modelName: String,
         testButton: Button,
+        statusText: TextView,
     ) {
         if (baseUrl.isEmpty() || !isValidUrl(baseUrl) || modelName.isEmpty()) {
+            statusText.text = getString(R.string.settings_test_invalid_config)
+            statusText.setTextColor(ContextCompat.getColor(requireContext(), R.color.status_failed))
+            statusText.visibility = View.VISIBLE
             Toast.makeText(requireContext(), R.string.settings_test_invalid_config, Toast.LENGTH_SHORT).show()
             return
         }
@@ -729,6 +756,9 @@ class SettingsFragment : Fragment() {
         val client = ModelClient(testConfig)
         testButton.isEnabled = false
         testButton.text = getString(R.string.settings_testing)
+        statusText.text = getString(R.string.settings_testing)
+        statusText.setTextColor(ContextCompat.getColor(requireContext(), R.color.text_secondary))
+        statusText.visibility = View.VISIBLE
 
         viewLifecycleOwner.lifecycleScope.launch {
             val result = client.testConnection()
@@ -751,6 +781,14 @@ class SettingsFragment : Fragment() {
                 is ModelClient.TestResult.Timeout ->
                     getString(R.string.settings_test_timeout, result.message)
             }
+            statusText.text = message
+            statusText.setTextColor(
+                ContextCompat.getColor(
+                    requireContext(),
+                    if (result is ModelClient.TestResult.Success) R.color.status_running else R.color.status_failed,
+                ),
+            )
+            statusText.visibility = View.VISIBLE
             Toast.makeText(requireContext(), message, Toast.LENGTH_LONG).show()
         }
     }
@@ -788,7 +826,7 @@ class SettingsFragment : Fragment() {
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(title)
             .setView(dialogView)
-            .setPositiveButton(R.string.dialog_confirm) { _, _ ->
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val newPrompt = promptInput.text?.toString() ?: ""
                 if (newPrompt.isNotBlank()) {
                     promptManager.saveNewVersion(PromptManager.PromptType.PHONE_AGENT, language, newPrompt)
@@ -801,7 +839,7 @@ class SettingsFragment : Fragment() {
                     Toast.makeText(ctx, R.string.settings_system_prompt_saved, Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNeutralButton("历史版本") { _, _ ->
+            .setNeutralButton(R.string.settings_dialog_history) { _, _ ->
                 showPromptHistoryDialog(PromptManager.PromptType.PHONE_AGENT, language) { restored ->
                     promptInput.setText(restored)
                 }
@@ -814,12 +852,17 @@ class SettingsFragment : Fragment() {
                 .setTitle(R.string.settings_system_prompt_reset)
                 .setMessage(R.string.settings_system_prompt_reset_confirm)
                 .setPositiveButton(R.string.dialog_confirm) { _, _ ->
-                    promptManager.deleteCurrent(PromptManager.PromptType.PHONE_AGENT, language)
+                    val defaultPrompt = if (language == "en") {
+                        SystemPrompts.getEnglishPromptTemplate()
+                    } else {
+                        SystemPrompts.getChinesePromptTemplate()
+                    }
+                    promptManager.resetToDefault(PromptManager.PromptType.PHONE_AGENT, language, defaultPrompt)
                     settingsManager.clearCustomSystemPrompt(language)
                     if (language == "en") {
-                        com.flowmate.autoxiaoer.config.SystemPrompts.setCustomEnglishPrompt(null)
+                        SystemPrompts.setCustomEnglishPrompt(defaultPrompt)
                     } else {
-                        com.flowmate.autoxiaoer.config.SystemPrompts.setCustomChinesePrompt(null)
+                        SystemPrompts.setCustomChinesePrompt(defaultPrompt)
                     }
                     Toast.makeText(ctx, R.string.settings_system_prompt_reset_done, Toast.LENGTH_SHORT).show()
                     dialog.dismiss()
@@ -924,151 +967,42 @@ class SettingsFragment : Fragment() {
         Logger.d(TAG, "Showing Phone-agent settings dialog")
         val ctx = requireContext()
         val modelConfig = settingsManager.getModelConfig()
-        val PhoneAgentConfig = settingsManager.getPhoneAgentConfig()
+        val phoneAgentConfig = settingsManager.getPhoneAgentConfig()
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_phone_agent_settings, null)
 
-        val scrollView = androidx.core.widget.NestedScrollView(ctx)
-        val container = android.widget.LinearLayout(ctx).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            val paddingPx = (16 * resources.displayMetrics.density).toInt()
-            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-        }
-        scrollView.addView(container)
+        val baseUrlInput = dialogView.findViewById<TextInputEditText>(R.id.baseUrlInput)
+        val apiKeyInput = dialogView.findViewById<TextInputEditText>(R.id.apiKeyInput)
+        val modelNameInput = dialogView.findViewById<TextInputEditText>(R.id.modelNameInput)
+        val maxStepsInput = dialogView.findViewById<TextInputEditText>(R.id.maxStepsInput)
+        val screenshotDelayInput = dialogView.findViewById<TextInputEditText>(R.id.screenshotDelayInput)
+        val connectionStatusText = dialogView.findViewById<TextView>(R.id.connectionStatusText)
+        val btnTestConn = dialogView.findViewById<Button>(R.id.btnTestConnection)
+        val btnEditPromptDialog = dialogView.findViewById<Button>(R.id.btnEditPrompt)
+        val activePromptLanguage = settingsManager.getPromptLanguage().code
 
-        fun makeInputLayout(hint: String, helperText: String? = null): Pair<TextInputLayout, TextInputEditText> {
-            val layout = TextInputLayout(ctx).apply {
-                this.hint = hint
-                boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
-                if (helperText != null) {
-                    isHelperTextEnabled = true
-                    this.helperText = helperText
-                }
-                val lp = android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                )
-                lp.bottomMargin = (8 * resources.displayMetrics.density).toInt()
-                layoutParams = lp
-            }
-            val edit = TextInputEditText(ctx)
-            layout.addView(edit)
-            return layout to edit
-        }
-
-        val (baseUrlLayout, baseUrlEdit) = makeInputLayout("API Base URL")
-        baseUrlEdit.setText(modelConfig.baseUrl)
-        baseUrlEdit.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
-        container.addView(baseUrlLayout)
-
-        val (apiKeyLayout, apiKeyEdit) = makeInputLayout("API Key")
-        apiKeyEdit.setText(if (modelConfig.apiKey == "EMPTY") "" else modelConfig.apiKey)
-        apiKeyEdit.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-        container.addView(apiKeyLayout)
-
-        val (modelNameLayout, modelNameEdit) = makeInputLayout(getString(R.string.settings_model_name))
-        modelNameEdit.setText(modelConfig.modelName)
-        container.addView(modelNameLayout)
-
-        val (maxStepsLayout, maxStepsEdit) = makeInputLayout(
-            getString(R.string.settings_max_steps),
-            getString(R.string.settings_max_steps_hint),
-        )
-        maxStepsEdit.setText(PhoneAgentConfig.maxSteps.toString())
-        maxStepsEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
-        container.addView(maxStepsLayout)
-
-        val (screenshotDelayLayout, screenshotDelayEdit) = makeInputLayout(
-            getString(R.string.settings_screenshot_delay),
-            getString(R.string.settings_screenshot_delay_hint),
-        )
-        screenshotDelayEdit.setText((PhoneAgentConfig.screenshotDelayMs / 1000.0).toString())
-        screenshotDelayEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
-        container.addView(screenshotDelayLayout)
-
-        // Language selection
-        val dp4 = (4 * resources.displayMetrics.density).toInt()
-        val dp8 = (8 * resources.displayMetrics.density).toInt()
-        val langLabel = TextView(ctx).apply {
-            text = getString(R.string.settings_language)
-            setTextColor(android.graphics.Color.parseColor("#888888"))
-            textSize = 14f
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(langLabel)
-
-        val langGroup = RadioGroup(ctx).apply { orientation = RadioGroup.HORIZONTAL }
-        val langCn = RadioButton(ctx).apply { text = getString(R.string.settings_language_chinese) }
-        val langEn = RadioButton(ctx).apply { text = getString(R.string.settings_language_english) }
-        langGroup.addView(langCn)
-        langGroup.addView(langEn)
-        if (PhoneAgentConfig.language == "en") langEn.isChecked = true else langCn.isChecked = true
-        container.addView(langGroup)
-
-        // Test connection button
-        val btnTestConn = Button(ctx).apply {
-            text = getString(R.string.settings_test_connection)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp8
-            layoutParams = lp
-        }
-        container.addView(btnTestConn)
-
-        // System prompt section header
-        val promptSectionLabel = TextView(ctx).apply {
-            text = getString(R.string.settings_advanced)
-            setTextColor(android.graphics.Color.parseColor("#888888"))
-            textSize = 14f
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp8 * 2
-            layoutParams = lp
-        }
-        container.addView(promptSectionLabel)
-
-        val btnEditPromptCnDialog = Button(ctx).apply {
-            text = getString(R.string.settings_system_prompt_cn)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(btnEditPromptCnDialog)
-
-        val btnEditPromptEnDialog = Button(ctx).apply {
-            text = getString(R.string.settings_system_prompt_en)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(btnEditPromptEnDialog)
+        baseUrlInput.setText(modelConfig.baseUrl)
+        baseUrlInput.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_URI
+        apiKeyInput.setText(if (modelConfig.apiKey == "EMPTY") "" else modelConfig.apiKey)
+        apiKeyInput.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        modelNameInput.setText(modelConfig.modelName)
+        maxStepsInput.setText(phoneAgentConfig.maxSteps.toString())
+        maxStepsInput.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+        screenshotDelayInput.setText((phoneAgentConfig.screenshotDelayMs / 1000.0).toString())
+        screenshotDelayInput.inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
 
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(getString(R.string.settings_phone_agent_title))
-            .setView(scrollView)
+            .setView(dialogView)
             .setPositiveButton(getString(R.string.settings_save)) { _, _ ->
-                val baseUrl = baseUrlEdit.text?.toString()?.trim() ?: ""
-                val apiKey = apiKeyEdit.text?.toString()?.trim().let {
+                val baseUrl = baseUrlInput.text?.toString()?.trim() ?: ""
+                val apiKey = apiKeyInput.text?.toString()?.trim().let {
                     if (it.isNullOrEmpty()) "EMPTY" else it
                 }
-                val modelName = modelNameEdit.text?.toString()?.trim() ?: ""
-                val maxSteps = maxStepsEdit.text?.toString()?.trim()?.toIntOrNull() ?: PhoneAgentConfig.maxSteps
-                val screenshotDelaySeconds = screenshotDelayEdit.text?.toString()?.trim()?.toDoubleOrNull()
-                    ?: (PhoneAgentConfig.screenshotDelayMs / 1000.0)
-                val language = if (langEn.isChecked) "en" else "cn"
+                val modelName = modelNameInput.text?.toString()?.trim() ?: ""
+                val maxSteps = maxStepsInput.text?.toString()?.trim()?.toIntOrNull() ?: phoneAgentConfig.maxSteps
+                val screenshotDelaySeconds = screenshotDelayInput.text?.toString()?.trim()?.toDoubleOrNull()
+                    ?: (phoneAgentConfig.screenshotDelayMs / 1000.0)
+                val language = settingsManager.getPromptLanguage().code
 
                 if (baseUrl.isEmpty() || !isValidUrl(baseUrl)) {
                     Toast.makeText(ctx, getString(R.string.settings_validation_error_url), Toast.LENGTH_SHORT).show()
@@ -1096,7 +1030,7 @@ class SettingsFragment : Fragment() {
                     ),
                 )
 
-                com.flowmate.autoxiaoer.ComponentManager.getInstance(ctx).reinitializeAgents()
+                ComponentManager.getInstance(ctx).reinitializeAgents()
                 Toast.makeText(ctx, getString(R.string.settings_phone_agent_saved), Toast.LENGTH_SHORT).show()
             }
             .setNegativeButton(getString(R.string.dialog_cancel), null)
@@ -1104,15 +1038,15 @@ class SettingsFragment : Fragment() {
 
         btnTestConn.setOnClickListener {
             testConnectionInDialog(
-                baseUrl = baseUrlEdit.text?.toString()?.trim() ?: "",
-                apiKey = apiKeyEdit.text?.toString()?.trim() ?: "",
-                modelName = modelNameEdit.text?.toString()?.trim() ?: "",
+                baseUrl = baseUrlInput.text?.toString()?.trim() ?: "",
+                apiKey = apiKeyInput.text?.toString()?.trim() ?: "",
+                modelName = modelNameInput.text?.toString()?.trim() ?: "",
                 testButton = btnTestConn,
+                statusText = connectionStatusText,
             )
         }
 
-        btnEditPromptCnDialog.setOnClickListener { showPhoneAgentPromptDialog("cn") }
-        btnEditPromptEnDialog.setOnClickListener { showPhoneAgentPromptDialog("en") }
+        btnEditPromptDialog.setOnClickListener { showPhoneAgentPromptDialog(activePromptLanguage) }
 
         dialog.show()
         dialog.applyPrimaryButtonColors()
@@ -1129,96 +1063,37 @@ class SettingsFragment : Fragment() {
         Logger.d(TAG, "Showing BrainLLM settings dialog")
         val ctx = requireContext()
         val config = settingsManager.getBrainLLMConfig()
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_brain_llm_settings, null)
 
-        val scrollView = androidx.core.widget.NestedScrollView(ctx)
-        val container = android.widget.LinearLayout(ctx).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            val paddingPx = (16 * resources.displayMetrics.density).toInt()
-            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-        }
-        scrollView.addView(container)
+        val baseUrlInput = dialogView.findViewById<TextInputEditText>(R.id.baseUrlInput)
+        val apiKeyInput = dialogView.findViewById<TextInputEditText>(R.id.apiKeyInput)
+        val modelNameInput = dialogView.findViewById<TextInputEditText>(R.id.modelNameInput)
+        val maxTokensInput = dialogView.findViewById<TextInputEditText>(R.id.maxTokensInput)
+        val temperatureInput = dialogView.findViewById<TextInputEditText>(R.id.temperatureInput)
+        val btnTestConn = dialogView.findViewById<Button>(R.id.btnTestConnection)
+        val connectionStatusText = dialogView.findViewById<TextView>(R.id.connectionStatusText)
+        val btnCustomPrompt = dialogView.findViewById<Button>(R.id.btnCustomPrompt)
 
-        fun makeInputLayout(hint: String): Pair<TextInputLayout, TextInputEditText> {
-            val layout = TextInputLayout(ctx).apply {
-                this.hint = hint
-                boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
-                val lp = android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                )
-                lp.bottomMargin = (8 * resources.displayMetrics.density).toInt()
-                layoutParams = lp
-            }
-            val edit = TextInputEditText(ctx)
-            layout.addView(edit)
-            return layout to edit
-        }
-
-        val dp8 = (8 * resources.displayMetrics.density).toInt()
-        val dp4 = (4 * resources.displayMetrics.density).toInt()
-
-        val (baseUrlLayout, baseUrlEdit) = makeInputLayout("Base URL")
-        baseUrlEdit.setText(config.baseUrl)
-        container.addView(baseUrlLayout)
-
-        val (apiKeyLayout, apiKeyEdit) = makeInputLayout("API Key")
-        apiKeyEdit.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-        apiKeyLayout.endIconMode = TextInputLayout.END_ICON_PASSWORD_TOGGLE
-        apiKeyEdit.setText(if (config.apiKey == "EMPTY") "" else config.apiKey)
-        container.addView(apiKeyLayout)
-
-        val (modelNameLayout, modelNameEdit) = makeInputLayout("模型名称 (Model Name)")
-        modelNameEdit.setText(config.modelName)
-        container.addView(modelNameLayout)
-
-        // Test connection button
-        val btnTestConn = Button(ctx).apply {
-            text = getString(R.string.settings_test_connection)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.bottomMargin = dp8
-            layoutParams = lp
-        }
-        container.addView(btnTestConn)
-
-        val (maxTokensLayout, maxTokensEdit) = makeInputLayout("输出最大 Token 数 (Max Output Tokens)")
-        maxTokensEdit.setText(config.maxTokens.toString())
-        maxTokensEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
-        container.addView(maxTokensLayout)
-
-        val (temperatureLayout, temperatureEdit) = makeInputLayout("Temperature (0.0 - 2.0)")
-        temperatureEdit.setText(config.temperature.toString())
-        temperatureEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER or
-            android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
-        container.addView(temperatureLayout)
-
-        // Custom system prompt button
-        val btnCustomPrompt = Button(ctx).apply {
-            text = getString(R.string.settings_brain_llm_prompt_edit)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(btnCustomPrompt)
+        baseUrlInput.setText(config.baseUrl)
+        apiKeyInput.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        apiKeyInput.setText(if (config.apiKey == "EMPTY") "" else config.apiKey)
+        modelNameInput.setText(config.modelName)
+        maxTokensInput.setText(config.maxTokens.toString())
+        maxTokensInput.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+        temperatureInput.setText(config.temperature.toString())
+        temperatureInput.inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
 
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(getString(R.string.settings_brain_llm_dialog_title))
-            .setView(scrollView)
-            .setPositiveButton("保存") { _, _ ->
-                val baseUrl = baseUrlEdit.text?.toString()?.trim() ?: ""
-                val apiKey = apiKeyEdit.text?.toString()?.trim().let {
+            .setView(dialogView)
+            .setPositiveButton(R.string.settings_save) { _, _ ->
+                val baseUrl = baseUrlInput.text?.toString()?.trim() ?: ""
+                val apiKey = apiKeyInput.text?.toString()?.trim().let {
                     if (it.isNullOrEmpty()) "EMPTY" else it
                 }
-                val modelName = modelNameEdit.text?.toString()?.trim() ?: ""
-                val maxTokens = maxTokensEdit.text?.toString()?.trim()?.toIntOrNull()
-                    ?: config.maxTokens
-                val temperature = temperatureEdit.text?.toString()?.trim()?.toFloatOrNull()
-                    ?: config.temperature
+                val modelName = modelNameInput.text?.toString()?.trim() ?: ""
+                val maxTokens = maxTokensInput.text?.toString()?.trim()?.toIntOrNull() ?: config.maxTokens
+                val temperature = temperatureInput.text?.toString()?.trim()?.toFloatOrNull() ?: config.temperature
                 val enabled = config.enabled
 
                 if (baseUrl.isNotEmpty() && !isValidUrl(baseUrl)) {
@@ -1230,7 +1105,7 @@ class SettingsFragment : Fragment() {
                     return@setPositiveButton
                 }
 
-                val language = settingsManager.getLLMAgentConfig().language
+                val language = settingsManager.getPromptLanguage().code
                 val newConfig = com.flowmate.autoxiaoer.agent.BrainLLMConfig(
                     baseUrl = baseUrl,
                     apiKey = apiKey,
@@ -1241,23 +1116,24 @@ class SettingsFragment : Fragment() {
                     customSystemPrompt = settingsManager.getBrainLLMCustomPrompt(language) ?: "",
                 )
                 settingsManager.saveBrainLLMConfig(newConfig)
-                com.flowmate.autoxiaoer.ComponentManager.getInstance(ctx).reinitializeAgents()
+                ComponentManager.getInstance(ctx).reinitializeAgents()
                 Toast.makeText(ctx, getString(R.string.settings_brain_llm_saved), Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
 
         btnTestConn.setOnClickListener {
             testConnectionInDialog(
-                baseUrl = baseUrlEdit.text?.toString()?.trim() ?: "",
-                apiKey = apiKeyEdit.text?.toString()?.trim() ?: "",
-                modelName = modelNameEdit.text?.toString()?.trim() ?: "",
+                baseUrl = baseUrlInput.text?.toString()?.trim() ?: "",
+                apiKey = apiKeyInput.text?.toString()?.trim() ?: "",
+                modelName = modelNameInput.text?.toString()?.trim() ?: "",
                 testButton = btnTestConn,
+                statusText = connectionStatusText,
             )
         }
 
         btnCustomPrompt.setOnClickListener {
-            val language = settingsManager.getLLMAgentConfig().language
+            val language = settingsManager.getPromptLanguage().code
             showBrainLLMPromptDialog(language)
         }
 
@@ -1289,7 +1165,7 @@ class SettingsFragment : Fragment() {
         val brainDialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(getString(R.string.settings_brain_llm_prompt_title))
             .setView(dialogView)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val prompt = promptInput.text?.toString() ?: ""
                 if (prompt.isNotBlank()) {
                     promptManager.saveNewVersion(PromptManager.PromptType.BRAIN_LLM, language, prompt)
@@ -1300,30 +1176,35 @@ class SettingsFragment : Fragment() {
                     Toast.makeText(ctx, getString(R.string.settings_brain_llm_prompt_saved), Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNeutralButton("历史版本") { _, _ ->
+            .setNeutralButton(R.string.settings_dialog_history) { _, _ ->
                 showPromptHistoryDialog(PromptManager.PromptType.BRAIN_LLM, language) { restored ->
                     promptInput.setText(restored)
                 }
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
 
         btnReset.setOnClickListener {
             MaterialAlertDialogBuilder(ctx)
-                .setTitle("重置为默认")
+                .setTitle(R.string.settings_system_prompt_reset)
                 .setMessage(getString(R.string.settings_brain_llm_prompt_reset_confirm))
-                .setPositiveButton("确定") { _, _ ->
-                    promptManager.deleteCurrent(PromptManager.PromptType.BRAIN_LLM, language)
+                .setPositiveButton(R.string.dialog_confirm) { _, _ ->
+                    val defaultPrompt = if (language == "en") {
+                        BrainLLMPrompts.getDefaultEnglishPromptTemplate()
+                    } else {
+                        BrainLLMPrompts.getDefaultChinesePromptTemplate()
+                    }
+                    promptManager.resetToDefault(PromptManager.PromptType.BRAIN_LLM, language, defaultPrompt)
                     settingsManager.clearBrainLLMCustomPrompt(language)
                     if (language == "en") {
-                        BrainLLMPrompts.setCustomEnglishPrompt(null)
+                        BrainLLMPrompts.setCustomEnglishPrompt(defaultPrompt)
                     } else {
-                        BrainLLMPrompts.setCustomChinesePrompt(null)
+                        BrainLLMPrompts.setCustomChinesePrompt(defaultPrompt)
                     }
                     Toast.makeText(ctx, getString(R.string.settings_brain_llm_prompt_reset_done), Toast.LENGTH_SHORT).show()
                     brainDialog.dismiss()
                 }
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.dialog_cancel, null)
                 .showWithPrimaryButtons()
         }
 
@@ -1335,126 +1216,42 @@ class SettingsFragment : Fragment() {
         Logger.d(TAG, "Showing LLM-agent settings dialog")
         val ctx = requireContext()
         val config = settingsManager.getLLMAgentConfig()
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_llm_agent_settings, null)
 
-        val scrollView = androidx.core.widget.NestedScrollView(ctx)
-        val container = android.widget.LinearLayout(ctx).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            val paddingPx = (16 * resources.displayMetrics.density).toInt()
-            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-        }
-        scrollView.addView(container)
+        val baseUrlInput = dialogView.findViewById<TextInputEditText>(R.id.baseUrlInput)
+        val apiKeyInput = dialogView.findViewById<TextInputEditText>(R.id.apiKeyInput)
+        val modelNameInput = dialogView.findViewById<TextInputEditText>(R.id.modelNameInput)
+        val maxTokensInput = dialogView.findViewById<TextInputEditText>(R.id.maxTokensInput)
+        val temperatureInput = dialogView.findViewById<TextInputEditText>(R.id.temperatureInput)
+        val planningStepsInput = dialogView.findViewById<TextInputEditText>(R.id.planningStepsInput)
+        val btnTestConn = dialogView.findViewById<Button>(R.id.btnTestConnection)
+        val connectionStatusText = dialogView.findViewById<TextView>(R.id.connectionStatusText)
+        val btnCustomPrompt = dialogView.findViewById<Button>(R.id.btnCustomPrompt)
 
-        fun makeInputLayout(hint: String): Pair<TextInputLayout, TextInputEditText> {
-            val layout = TextInputLayout(ctx).apply {
-                this.hint = hint
-                boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
-                val lp = android.widget.LinearLayout.LayoutParams(
-                    android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                    android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-                )
-                lp.bottomMargin = (8 * resources.displayMetrics.density).toInt()
-                layoutParams = lp
-            }
-            val edit = TextInputEditText(ctx)
-            layout.addView(edit)
-            return layout to edit
-        }
-
-        val (baseUrlLayout2, baseUrlEdit) = makeInputLayout("Base URL")
-        baseUrlEdit.setText(config.baseUrl)
-        container.addView(baseUrlLayout2)
-
-        val (apiKeyLayout2, apiKeyEdit) = makeInputLayout("API Key")
-        apiKeyEdit.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
-        apiKeyLayout2.endIconMode = TextInputLayout.END_ICON_PASSWORD_TOGGLE
-        apiKeyEdit.setText(if (config.apiKey == "EMPTY") "" else config.apiKey)
-        container.addView(apiKeyLayout2)
-
-        val (modelNameLayout2, modelNameEdit) = makeInputLayout("模型名称 (Model Name)")
-        modelNameEdit.setText(config.modelName)
-        container.addView(modelNameLayout2)
-
-        val dp8 = (8 * resources.displayMetrics.density).toInt()
-
-        // Test connection button
-        val btnTestConn = Button(ctx).apply {
-            text = getString(R.string.settings_test_connection)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.bottomMargin = dp8
-            layoutParams = lp
-        }
-        container.addView(btnTestConn)
-
-        val (maxTokensLayout2, maxTokensEdit) = makeInputLayout("输出最大 Token 数 (Max Output Tokens)")
-        maxTokensEdit.setText(config.maxTokens.toString())
-        maxTokensEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
-        container.addView(maxTokensLayout2)
-
-        val (temperatureLayout2, temperatureEdit) = makeInputLayout("Temperature (0.0 - 2.0)")
-        temperatureEdit.setText(config.temperature.toString())
-        temperatureEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER or
-            android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
-        container.addView(temperatureLayout2)
-
-        val (planningStepsLayout2, planningStepsEdit) = makeInputLayout("最大规划步数 (Max Planning Steps)")
-        planningStepsEdit.setText(config.maxPlanningSteps.toString())
-        planningStepsEdit.inputType = android.text.InputType.TYPE_CLASS_NUMBER
-        container.addView(planningStepsLayout2)
-
-        // Language radio group
-        val dp4 = (4 * resources.displayMetrics.density).toInt()
-        val langLabel = TextView(ctx).apply {
-            text = "语言 / Language"
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(langLabel)
-
-        val langGroup = RadioGroup(ctx).apply {
-            orientation = RadioGroup.HORIZONTAL
-        }
-        val langCn = RadioButton(ctx).apply { text = "中文" }
-        val langEn = RadioButton(ctx).apply { text = "English" }
-        langGroup.addView(langCn)
-        langGroup.addView(langEn)
-        if (config.language.lowercase() == "en") langEn.isChecked = true else langCn.isChecked = true
-        container.addView(langGroup)
-
-        // Custom system prompt button
-        val btnCustomPrompt = Button(ctx).apply {
-            text = getString(R.string.settings_llm_agent_prompt_edit)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp8
-            layoutParams = lp
-        }
-        container.addView(btnCustomPrompt)
+        baseUrlInput.setText(config.baseUrl)
+        apiKeyInput.inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        apiKeyInput.setText(if (config.apiKey == "EMPTY") "" else config.apiKey)
+        modelNameInput.setText(config.modelName)
+        maxTokensInput.setText(config.maxTokens.toString())
+        maxTokensInput.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+        temperatureInput.setText(config.temperature.toString())
+        temperatureInput.inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL
+        planningStepsInput.setText(config.maxPlanningSteps.toString())
+        planningStepsInput.inputType = android.text.InputType.TYPE_CLASS_NUMBER
 
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(getString(R.string.settings_llm_agent_dialog_title))
-            .setView(scrollView)
-            .setPositiveButton("保存") { _, _ ->
-                val baseUrl = baseUrlEdit.text?.toString()?.trim() ?: ""
-                val apiKey = apiKeyEdit.text?.toString()?.trim().let {
+            .setView(dialogView)
+            .setPositiveButton(R.string.settings_save) { _, _ ->
+                val baseUrl = baseUrlInput.text?.toString()?.trim() ?: ""
+                val apiKey = apiKeyInput.text?.toString()?.trim().let {
                     if (it.isNullOrEmpty()) "EMPTY" else it
                 }
-                val modelName = modelNameEdit.text?.toString()?.trim() ?: ""
-                val maxTokens = maxTokensEdit.text?.toString()?.trim()?.toIntOrNull()
-                    ?: config.maxTokens
-                val temperature = temperatureEdit.text?.toString()?.trim()?.toFloatOrNull()
-                    ?: config.temperature
-                val maxPlanningSteps = planningStepsEdit.text?.toString()?.trim()?.toIntOrNull()
-                    ?: config.maxPlanningSteps
-                val language = if (langEn.isChecked) "en" else "cn"
+                val modelName = modelNameInput.text?.toString()?.trim() ?: ""
+                val maxTokens = maxTokensInput.text?.toString()?.trim()?.toIntOrNull() ?: config.maxTokens
+                val temperature = temperatureInput.text?.toString()?.trim()?.toFloatOrNull() ?: config.temperature
+                val maxPlanningSteps = planningStepsInput.text?.toString()?.trim()?.toIntOrNull() ?: config.maxPlanningSteps
+                val language = settingsManager.getPromptLanguage().code
 
                 if (baseUrl.isEmpty() || !isValidUrl(baseUrl)) {
                     Toast.makeText(ctx, "Base URL 格式不正确", Toast.LENGTH_SHORT).show()
@@ -1476,24 +1273,24 @@ class SettingsFragment : Fragment() {
                     customSystemPrompt = settingsManager.getLLMAgentCustomPrompt(language) ?: "",
                 )
                 settingsManager.saveLLMAgentConfig(newConfig)
-                // Reinitialize so the new config takes effect immediately without an app restart.
-                com.flowmate.autoxiaoer.ComponentManager.getInstance(ctx).reinitializeAgents()
+                ComponentManager.getInstance(ctx).reinitializeAgents()
                 Toast.makeText(ctx, getString(R.string.settings_llm_agent_saved), Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
 
         btnTestConn.setOnClickListener {
             testConnectionInDialog(
-                baseUrl = baseUrlEdit.text?.toString()?.trim() ?: "",
-                apiKey = apiKeyEdit.text?.toString()?.trim() ?: "",
-                modelName = modelNameEdit.text?.toString()?.trim() ?: "",
+                baseUrl = baseUrlInput.text?.toString()?.trim() ?: "",
+                apiKey = apiKeyInput.text?.toString()?.trim() ?: "",
+                modelName = modelNameInput.text?.toString()?.trim() ?: "",
                 testButton = btnTestConn,
+                statusText = connectionStatusText,
             )
         }
 
         btnCustomPrompt.setOnClickListener {
-            val language = if (langEn.isChecked) "en" else "cn"
+            val language = settingsManager.getPromptLanguage().code
             showLLMAgentPromptDialog(language)
         }
 
@@ -1530,7 +1327,7 @@ class SettingsFragment : Fragment() {
         val dialog = MaterialAlertDialogBuilder(ctx)
             .setTitle(title)
             .setView(dialogView)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val newPrompt = promptInput.text?.toString() ?: ""
                 if (newPrompt.isNotBlank()) {
                     promptManager.saveNewVersion(PromptManager.PromptType.LLM_AGENT, language, newPrompt)
@@ -1540,33 +1337,38 @@ class SettingsFragment : Fragment() {
                     } else {
                         LLMAgentPrompts.setCustomChinesePrompt(newPrompt)
                     }
-                    Toast.makeText(ctx, "LLM-agent System Prompt 已保存", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, R.string.settings_llm_agent_prompt_saved, Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNeutralButton("历史版本") { _, _ ->
+            .setNeutralButton(R.string.settings_dialog_history) { _, _ ->
                 showPromptHistoryDialog(PromptManager.PromptType.LLM_AGENT, language) { restored ->
                     promptInput.setText(restored)
                 }
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
 
         btnReset.setOnClickListener {
             MaterialAlertDialogBuilder(ctx)
-                .setTitle("重置为默认")
-                .setMessage("确定要恢复默认的 LLM-agent System Prompt 吗？")
-                .setPositiveButton("确定") { _, _ ->
-                    promptManager.deleteCurrent(PromptManager.PromptType.LLM_AGENT, language)
+                .setTitle(R.string.settings_system_prompt_reset)
+                .setMessage(R.string.settings_llm_agent_prompt_reset_confirm)
+                .setPositiveButton(R.string.dialog_confirm) { _, _ ->
+                    val defaultPrompt = if (language == "en") {
+                        LLMAgentPrompts.getDefaultEnglishPromptTemplate()
+                    } else {
+                        LLMAgentPrompts.getDefaultChinesePromptTemplate()
+                    }
+                    promptManager.resetToDefault(PromptManager.PromptType.LLM_AGENT, language, defaultPrompt)
                     settingsManager.clearLLMAgentCustomPrompt(language)
                     if (language == "en") {
-                        LLMAgentPrompts.setCustomEnglishPrompt(null)
+                        LLMAgentPrompts.setCustomEnglishPrompt(defaultPrompt)
                     } else {
-                        LLMAgentPrompts.setCustomChinesePrompt(null)
+                        LLMAgentPrompts.setCustomChinesePrompt(defaultPrompt)
                     }
-                    Toast.makeText(ctx, "已恢复默认 System Prompt", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, R.string.settings_llm_agent_prompt_reset_done, Toast.LENGTH_SHORT).show()
                     dialog.dismiss()
                 }
-                .setNegativeButton("取消", null)
+                .setNegativeButton(R.string.dialog_cancel, null)
                 .showWithPrimaryButtons()
         }
 
@@ -1588,123 +1390,20 @@ class SettingsFragment : Fragment() {
         Logger.d(TAG, "Showing persona settings dialog")
         val ctx = requireContext()
         val brainConfig = settingsManager.getBrainLLMConfig()
+        val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_persona_settings, null)
+        val nameEdit = dialogView.findViewById<TextInputEditText>(R.id.agentNameInput)
+        val brainSwitch = dialogView.findViewById<android.widget.Switch>(R.id.expressorSwitch)
+        val btnPersona = dialogView.findViewById<Button>(R.id.btnEditPersona)
+        val btnRelationships = dialogView.findViewById<Button>(R.id.btnEditRelationships)
+        val btnBehavior = dialogView.findViewById<Button>(R.id.btnEditBehavior)
 
-        val scrollView = androidx.core.widget.NestedScrollView(ctx)
-        val container = android.widget.LinearLayout(ctx).apply {
-            orientation = android.widget.LinearLayout.VERTICAL
-            val paddingPx = (16 * resources.displayMetrics.density).toInt()
-            setPadding(paddingPx, paddingPx, paddingPx, paddingPx)
-        }
-        scrollView.addView(container)
-
-        val dp4 = (4 * resources.displayMetrics.density).toInt()
-        val dp8 = (8 * resources.displayMetrics.density).toInt()
-
-        // ── Agent name ───────────────────────────────────────────────
-        val nameLabel = TextView(ctx).apply {
-            text = "智能体名称"
-            setTextColor(android.graphics.Color.parseColor("#888888"))
-            textSize = 14f
-        }
-        container.addView(nameLabel)
-
-        val nameLayout = TextInputLayout(ctx).apply {
-            boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
-            isHelperTextEnabled = true
-            helperText = getString(R.string.settings_persona_agent_name_helper)
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.bottomMargin = dp8
-            layoutParams = lp
-        }
-        val nameEdit = TextInputEditText(ctx)
         nameEdit.setText(settingsManager.getAgentName())
-        nameLayout.addView(nameEdit)
-        container.addView(nameLayout)
+        brainSwitch.isChecked = brainConfig.enabled
 
-        // ── Brain enable switch ──────────────────────────────────────
-        val brainSwitch = android.widget.Switch(ctx).apply {
-            text = getString(R.string.settings_persona_enable_expressor)
-            isChecked = brainConfig.enabled
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp8
-            lp.bottomMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(brainSwitch)
-
-        val brainDesc = android.widget.TextView(ctx).apply {
-            text = getString(R.string.settings_persona_enable_expressor_desc)
-            textSize = 12f
-            setTextColor(android.graphics.Color.parseColor("#888888"))
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.bottomMargin = dp8
-            layoutParams = lp
-        }
-        container.addView(brainDesc)
-
-        // ── Persona editor ───────────────────────────────────────────
-        val personaLabel = TextView(ctx).apply {
-            text = "人设"
-            setTextColor(android.graphics.Color.parseColor("#888888"))
-            textSize = 14f
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp8
-            layoutParams = lp
-        }
-        container.addView(personaLabel)
-
-        val btnPersona = Button(ctx).apply {
-            text = "编辑人设（你是谁 + 你的个性）"
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(btnPersona)
-
-        // ── Relationships editor ─────────────────────────────────────
-        val btnRelationships = Button(ctx).apply {
-            text = "人际关系档案"
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(btnRelationships)
-
-        // ── Behavior rules editor ────────────────────────────────────
-        val btnBehavior = Button(ctx).apply {
-            text = "行为准则"
-            val lp = android.widget.LinearLayout.LayoutParams(
-                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
-                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT,
-            )
-            lp.topMargin = dp4
-            layoutParams = lp
-        }
-        container.addView(btnBehavior)
-
-        // ── Dialog ───────────────────────────────────────────────────
         val dialog = MaterialAlertDialogBuilder(ctx)
-            .setTitle("小二人设")
-            .setView(scrollView)
-            .setPositiveButton("保存") { _, _ ->
+            .setTitle(getString(R.string.settings_persona_title_dialog))
+            .setView(dialogView)
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val newName = nameEdit.text?.toString()?.trim() ?: ""
                 if (newName.isNotBlank()) {
                     settingsManager.setAgentName(newName)
@@ -1714,12 +1413,12 @@ class SettingsFragment : Fragment() {
                 if (newEnabled != brainConfig.enabled) {
                     val updated = brainConfig.copy(enabled = newEnabled)
                     settingsManager.saveBrainLLMConfig(updated)
-                    com.flowmate.autoxiaoer.ComponentManager.getInstance(ctx).reinitializeAgents()
+                    ComponentManager.getInstance(ctx).reinitializeAgents()
                 }
 
-                Toast.makeText(ctx, "小二人设已保存", Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, R.string.settings_persona_saved, Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
 
         btnPersona.setOnClickListener { showPersonaDialog() }
@@ -1739,31 +1438,33 @@ class SettingsFragment : Fragment() {
         val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_system_prompt, null)
         val promptInput = dialogView.findViewById<TextInputEditText>(R.id.promptInput)
         val btnHistory = dialogView.findViewById<Button>(R.id.btnResetPrompt)
-        btnHistory.text = "历史版本"
+        btnHistory.text = getString(R.string.settings_dialog_history)
 
-        promptInput.setText(BehaviorContext.getContext())
+        promptInput.setText(BehaviorContext.getContext(settingsManager.getPromptLanguage().code))
 
+        val language = settingsManager.getPromptLanguage().code
+        val defaultContent = if (language == "en") BehaviorContext.DEFAULT_ENGLISH_CONTENT else BehaviorContext.DEFAULT_CONTENT
         MaterialAlertDialogBuilder(ctx)
-            .setTitle("行为准则")
+            .setTitle(R.string.settings_behavior_rules_title)
             .setView(dialogView)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val newContent = promptInput.text?.toString() ?: ""
                 if (newContent.isNotBlank()) {
-                    BehaviorContext.saveNewVersion(newContent)
-                    Toast.makeText(ctx, "行为准则已保存", Toast.LENGTH_SHORT).show()
+                    BehaviorContext.saveNewVersion(newContent, language)
+                    Toast.makeText(ctx, R.string.settings_behavior_rules_saved, Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNeutralButton("重置默认") { _, _ ->
-                promptInput.setText(BehaviorContext.DEFAULT_CONTENT)
-                Toast.makeText(ctx, "已恢复默认，点保存生效", Toast.LENGTH_SHORT).show()
+            .setNeutralButton(R.string.settings_dialog_reset_default) { _, _ ->
+                BehaviorContext.saveNewVersion(defaultContent, language)
+                Toast.makeText(ctx, R.string.settings_behavior_rules_default_restored_toast, Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
             .also { dialog ->
                 btnHistory.setOnClickListener {
-                    val history = BehaviorContext.getHistory()
+                    val history = BehaviorContext.getHistory(language)
                     if (history.isEmpty()) {
-                        Toast.makeText(ctx, "暂无历史版本", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(ctx, R.string.settings_dialog_no_history, Toast.LENGTH_SHORT).show()
                         return@setOnClickListener
                     }
                     val dateFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
@@ -1771,28 +1472,28 @@ class SettingsFragment : Fragment() {
                         "v${v.versionNumber}  ${dateFmt.format(Date(v.savedAt))}  (${v.sizeBytes} B)"
                     }.toTypedArray()
                     MaterialAlertDialogBuilder(ctx)
-                        .setTitle("行为准则历史版本")
+                        .setTitle(getString(R.string.settings_behavior_rules_history))
                         .setItems(labels) { _, idx ->
                             val selected = history[idx]
-                            val content = BehaviorContext.readHistoryVersion(selected)
+                            val content = BehaviorContext.readHistoryVersion(selected, language)
                             if (content == null) {
-                                Toast.makeText(ctx, "无法读取该版本", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(ctx, getString(R.string.settings_dialog_unable_to_read), Toast.LENGTH_SHORT).show()
                                 return@setItems
                             }
                             MaterialAlertDialogBuilder(ctx)
-                                .setTitle("v${selected.versionNumber} — 预览")
+                                .setTitle("v${selected.versionNumber} — ${getString(R.string.settings_dialog_preview)}")
                                 .setMessage(
                                     content.take(800) +
-                                        if (content.length > 800) "\n…（已截断）" else ""
+                                        if (content.length > 800) "\n…(truncated)" else ""
                                 )
-                                .setPositiveButton("恢复到编辑器") { _, _ ->
+                                .setPositiveButton(getString(R.string.settings_dialog_restore_to_editor)) { _, _ ->
                                     promptInput.setText(content)
-                                    Toast.makeText(ctx, "已恢复到编辑器，点保存生效", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(ctx, R.string.settings_behavior_rules_restored_to_editor, Toast.LENGTH_SHORT).show()
                                 }
-                                .setNegativeButton("取消", null)
+                                .setNegativeButton(R.string.dialog_cancel, null)
                                 .show()
                         }
-                        .setNegativeButton("取消", null)
+                        .setNegativeButton(R.string.dialog_cancel, null)
                         .show()
                 }
                 dialog.show()
@@ -1810,27 +1511,37 @@ class SettingsFragment : Fragment() {
         val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_system_prompt, null)
         val promptInput = dialogView.findViewById<TextInputEditText>(R.id.promptInput)
         val btnHistory = dialogView.findViewById<Button>(R.id.btnResetPrompt)
-        btnHistory.text = "历史版本"
+        btnHistory.text = getString(R.string.settings_dialog_history)
 
-        promptInput.setText(com.flowmate.autoxiaoer.config.RelationshipContext.getContext())
+        val language = settingsManager.getPromptLanguage().code
+        promptInput.setText(com.flowmate.autoxiaoer.config.RelationshipContext.getContext(language))
+        val defaultContent = if (language == "en") {
+            RelationshipContext.DEFAULT_ENGLISH_CONTENT
+        } else {
+            RelationshipContext.DEFAULT_CONTENT
+        }
 
         MaterialAlertDialogBuilder(ctx)
-            .setTitle("人际关系档案")
+            .setTitle(R.string.settings_relationships_title)
             .setView(dialogView)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val newContent = promptInput.text?.toString() ?: ""
                 if (newContent.isNotBlank()) {
-                    com.flowmate.autoxiaoer.config.RelationshipContext.saveNewVersion(newContent)
-                    Toast.makeText(ctx, "人际关系档案已保存", Toast.LENGTH_SHORT).show()
+                    com.flowmate.autoxiaoer.config.RelationshipContext.saveNewVersion(newContent, language)
+                    Toast.makeText(ctx, R.string.settings_relationships_saved, Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("取消", null)
+            .setNeutralButton(R.string.settings_dialog_reset_default) { _, _ ->
+                RelationshipContext.saveNewVersion(defaultContent, language)
+                Toast.makeText(ctx, R.string.settings_system_prompt_reset_done, Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
             .also { dialog ->
                 btnHistory.setOnClickListener {
-                    val history = com.flowmate.autoxiaoer.config.RelationshipContext.getHistory()
+                    val history = com.flowmate.autoxiaoer.config.RelationshipContext.getHistory(language)
                     if (history.isEmpty()) {
-                        Toast.makeText(ctx, "暂无历史版本", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(ctx, R.string.settings_dialog_no_history, Toast.LENGTH_SHORT).show()
                         return@setOnClickListener
                     }
                     val dateFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
@@ -1838,29 +1549,29 @@ class SettingsFragment : Fragment() {
                         "v${v.versionNumber}  ${dateFmt.format(Date(v.savedAt))}  (${v.sizeBytes} B)"
                     }.toTypedArray()
                     MaterialAlertDialogBuilder(ctx)
-                        .setTitle("关系档案历史版本")
+                        .setTitle(getString(R.string.settings_relationships_history))
                         .setItems(labels) { _, idx ->
                             val selected = history[idx]
                             val content = com.flowmate.autoxiaoer.config.RelationshipContext
-                                .readHistoryVersion(selected)
+                                .readHistoryVersion(selected, language)
                             if (content == null) {
-                                Toast.makeText(ctx, "无法读取该版本", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(ctx, getString(R.string.settings_dialog_unable_to_read), Toast.LENGTH_SHORT).show()
                                 return@setItems
                             }
                             MaterialAlertDialogBuilder(ctx)
-                                .setTitle("v${selected.versionNumber} — 预览")
+                                .setTitle("v${selected.versionNumber} — ${getString(R.string.settings_dialog_preview)}")
                                 .setMessage(
                                     content.take(800) +
-                                        if (content.length > 800) "\n…（已截断）" else ""
+                                        if (content.length > 800) "\n…(truncated)" else ""
                                 )
-                                .setPositiveButton("恢复到编辑器") { _, _ ->
+                                .setPositiveButton(getString(R.string.settings_dialog_restore_to_editor)) { _, _ ->
                                     promptInput.setText(content)
-                                    Toast.makeText(ctx, "已恢复到编辑器，点保存生效", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(ctx, "Restored to editor, click Save to apply", Toast.LENGTH_SHORT).show()
                                 }
-                                .setNegativeButton("取消", null)
+                                .setNegativeButton(R.string.dialog_cancel, null)
                                 .show()
                         }
-                        .setNegativeButton("取消", null)
+                        .setNegativeButton(R.string.dialog_cancel, null)
                         .show()
                 }
                 dialog.show()
@@ -1874,33 +1585,40 @@ class SettingsFragment : Fragment() {
      */
     private fun showPersonaDialog() {
         val ctx = requireContext()
-        val language = settingsManager.getPhoneAgentConfig().language.let {
-            if (it == "en") "en" else "zh"
-        }
+        val language = if (settingsManager.getPromptLanguage() == AppLanguage.ENGLISH) "en" else "zh"
         val dialogView = LayoutInflater.from(ctx).inflate(R.layout.dialog_system_prompt, null)
         val promptInput = dialogView.findViewById<TextInputEditText>(R.id.promptInput)
         val btnHistory = dialogView.findViewById<Button>(R.id.btnResetPrompt)
-        btnHistory.text = "历史版本"
+        btnHistory.text = getString(R.string.settings_dialog_history)
 
         promptInput.setText(com.flowmate.autoxiaoer.config.PersonaContext.getRawContent(language))
+        val defaultContent = if (language == "en") {
+            PersonaContext.DEFAULT_ENGLISH_CONTENT
+        } else {
+            PersonaContext.DEFAULT_CHINESE_CONTENT
+        }
 
         MaterialAlertDialogBuilder(ctx)
-            .setTitle("人设")
+            .setTitle(R.string.settings_persona_title)
             .setView(dialogView)
-            .setPositiveButton("保存") { _, _ ->
+            .setPositiveButton(R.string.settings_save) { _, _ ->
                 val newContent = promptInput.text?.toString() ?: ""
                 if (newContent.isNotBlank()) {
                     com.flowmate.autoxiaoer.config.PersonaContext.saveNewVersion(newContent, language)
-                    Toast.makeText(ctx, "人设已保存", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, R.string.settings_persona_saved, Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("取消", null)
+            .setNeutralButton(R.string.settings_dialog_reset_default) { _, _ ->
+                PersonaContext.saveNewVersion(defaultContent, language)
+                Toast.makeText(ctx, R.string.settings_system_prompt_reset_done, Toast.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(R.string.dialog_cancel, null)
             .create()
             .also { dialog ->
                 btnHistory.setOnClickListener {
                     val history = com.flowmate.autoxiaoer.config.PersonaContext.getHistory(language)
                     if (history.isEmpty()) {
-                        Toast.makeText(ctx, "暂无历史版本", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(ctx, R.string.settings_dialog_no_history, Toast.LENGTH_SHORT).show()
                         return@setOnClickListener
                     }
                     val dateFmt = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
@@ -1908,29 +1626,29 @@ class SettingsFragment : Fragment() {
                         "v${v.versionNumber}  ${dateFmt.format(Date(v.savedAt))}  (${v.sizeBytes} B)"
                     }.toTypedArray()
                     MaterialAlertDialogBuilder(ctx)
-                        .setTitle("人设历史版本")
+                        .setTitle(getString(R.string.settings_persona_title))
                         .setItems(labels) { _, idx ->
                             val selected = history[idx]
                             val content = com.flowmate.autoxiaoer.config.PersonaContext
                                 .readHistoryVersion(selected)
                             if (content == null) {
-                                Toast.makeText(ctx, "无法读取该版本", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(ctx, getString(R.string.settings_dialog_unable_to_read), Toast.LENGTH_SHORT).show()
                                 return@setItems
                             }
                             MaterialAlertDialogBuilder(ctx)
-                                .setTitle("v${selected.versionNumber} — 预览")
+                                .setTitle("v${selected.versionNumber} — ${getString(R.string.settings_dialog_preview)}")
                                 .setMessage(
                                     content.take(800) +
-                                        if (content.length > 800) "\n…（已截断）" else ""
+                                        if (content.length > 800) "\n…(truncated)" else ""
                                 )
-                                .setPositiveButton("恢复到编辑器") { _, _ ->
+                                .setPositiveButton(getString(R.string.settings_dialog_restore_to_editor)) { _, _ ->
                                     promptInput.setText(content)
-                                    Toast.makeText(ctx, "已恢复到编辑器，点保存生效", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(ctx, "Restored to editor, click Save to apply", Toast.LENGTH_SHORT).show()
                                 }
-                                .setNegativeButton("取消", null)
+                                .setNegativeButton(R.string.dialog_cancel, null)
                                 .show()
                         }
-                        .setNegativeButton("取消", null)
+                        .setNegativeButton(R.string.dialog_cancel, null)
                         .show()
                 }
                 dialog.show()
@@ -1954,7 +1672,7 @@ class SettingsFragment : Fragment() {
         val history = promptManager.getHistory(type, language)
 
         if (history.isEmpty()) {
-            Toast.makeText(ctx, "暂无历史版本", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, R.string.settings_dialog_no_history, Toast.LENGTH_SHORT).show()
             return
         }
 
@@ -1964,25 +1682,25 @@ class SettingsFragment : Fragment() {
         }.toTypedArray()
 
         MaterialAlertDialogBuilder(ctx)
-            .setTitle("历史版本")
+            .setTitle(getString(R.string.settings_dialog_history))
             .setItems(labels) { _, idx ->
                 val selected = history[idx]
                 val content = promptManager.readHistoryVersion(selected)
                 if (content == null) {
-                    Toast.makeText(ctx, "无法读取该版本", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(ctx, getString(R.string.settings_dialog_unable_to_read), Toast.LENGTH_SHORT).show()
                     return@setItems
                 }
                 MaterialAlertDialogBuilder(ctx)
-                    .setTitle("v${selected.versionNumber} — 预览")
-                    .setMessage(content.take(800) + if (content.length > 800) "\n…（已截断）" else "")
-                    .setPositiveButton("恢复到编辑器") { _, _ ->
+                    .setTitle("v${selected.versionNumber} — ${getString(R.string.settings_dialog_preview)}")
+                    .setMessage(content.take(800) + if (content.length > 800) "\n…(truncated)" else "")
+                    .setPositiveButton(getString(R.string.settings_dialog_restore_to_editor)) { _, _ ->
                         onRestore(content)
-                        Toast.makeText(ctx, "已恢复到编辑器，点保存生效", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(ctx, "Restored to editor, click Save to apply", Toast.LENGTH_SHORT).show()
                     }
-                    .setNegativeButton("取消", null)
+                    .setNegativeButton(R.string.dialog_cancel, null)
                     .show()
             }
-            .setNegativeButton("取消", null)
+            .setNegativeButton(R.string.dialog_cancel, null)
             .show()
     }
 

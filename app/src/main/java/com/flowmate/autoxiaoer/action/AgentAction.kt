@@ -1,5 +1,7 @@
 ﻿package com.flowmate.autoxiaoer.action
 
+import com.flowmate.autoxiaoer.config.I18n
+
 /**
  * Sealed class hierarchy representing all possible agent actions.
  *
@@ -160,27 +162,31 @@ sealed class AgentAction {
      *
      * @return Human-readable description of the action
      */
-    fun formatForDisplay(): String = when (this) {
-        is Tap -> "点击 ($x, $y)"
-        is Swipe -> "滑动 从($startX, $startY) 到($endX, $endY)"
-        is Type -> "输入: \"${text.take(30)}${if (text.length > 30) "..." else ""}\""
-        is TypeName -> "输入名称: \"$text\""
-        is Launch -> "启动: $app"
-        is ListApps -> "列出已安装应用"
-        is Back -> "返回"
-        is Home -> "主页"
-        is VolumeUp -> "音量+"
-        is VolumeDown -> "音量-"
-        is Power -> "电源键"
-        is LongPress -> "长按 ($x, $y)"
-        is DoubleTap -> "双击 ($x, $y)"
-        is Wait -> "等待 ${durationSeconds}秒"
-        is TakeOver -> "手动接管"
-        is Interact -> "用户交互"
-        is Note -> "备注: ${message.take(30)}${if (message.length > 30) "..." else ""}"
-        is CallApi -> "API调用"
-        is Finish -> "完成: ${message.take(30)}${if (message.length > 30) "..." else ""}"
-        is Batch -> "批量操作: ${steps.size}步 (间隔${delayMs}ms)"
+    fun formatForDisplay(language: String = I18n.Languages.CHINESE): String {
+        fun shorten(value: String): String = value.take(30) + if (value.length > 30) "..." else ""
+
+        return when (this) {
+            is Tap -> I18n.getFormattedMessage("action_tap", language, x, y)
+            is Swipe -> I18n.getFormattedMessage("action_swipe", language, startX, startY, endX, endY)
+            is Type -> I18n.getFormattedMessage("action_type", language, shorten(text))
+            is TypeName -> I18n.getFormattedMessage("action_type_name", language, text)
+            is Launch -> I18n.getFormattedMessage("action_launch", language, app)
+            is ListApps -> I18n.getMessage("action_list_apps", language)
+            is Back -> I18n.getMessage("action_back", language)
+            is Home -> I18n.getMessage("action_home", language)
+            is VolumeUp -> I18n.getMessage("action_volume_up", language)
+            is VolumeDown -> I18n.getMessage("action_volume_down", language)
+            is Power -> I18n.getMessage("action_power", language)
+            is LongPress -> I18n.getFormattedMessage("action_long_press", language, x, y)
+            is DoubleTap -> I18n.getFormattedMessage("action_double_tap", language, x, y)
+            is Wait -> I18n.getFormattedMessage("action_wait", language, durationSeconds)
+            is TakeOver -> I18n.getMessage("action_takeover", language)
+            is Interact -> I18n.getMessage("action_interact", language)
+            is Note -> I18n.getFormattedMessage("action_note", language, shorten(message))
+            is CallApi -> I18n.getMessage("action_call_api", language)
+            is Finish -> I18n.getFormattedMessage("action_finish", language, shorten(message))
+            is Batch -> I18n.getFormattedMessage("action_batch", language, steps.size, delayMs)
+        }
     }
 }
 

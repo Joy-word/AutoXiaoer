@@ -594,7 +594,7 @@ class HistoryManager private constructor(private val context: Context) {
         return LLMPlanningRound(
             round = roundJson.getInt("round"),
             timestamp = roundJson.getLong("timestamp"),
-            thinking = roundJson.getString("thinking"),
+            thinking = roundJson.optString("thinking", ""),
             actionDescription = roundJson.optString("actionDescription", ""),
             actionType = roundJson.getString("actionType"),
             subTaskDescription = roundJson.optString("subTaskDescription").takeIf { it.isNotEmpty() },
@@ -636,7 +636,7 @@ class HistoryManager private constructor(private val context: Context) {
             stepNumber = stepJson.getInt("stepNumber"),
             planningRound = stepJson.optInt("planningRound").takeIf { stepJson.has("planningRound") && !stepJson.isNull("planningRound") },
             timestamp = stepJson.getLong("timestamp"),
-            thinking = stepJson.getString("thinking"),
+            thinking = stepJson.optString("thinking", ""),
             action = null,
             actionDescription = stepJson.getString("actionDescription"),
             screenshotPath = stepJson.optString("screenshotPath").takeIf { it.isNotEmpty() },

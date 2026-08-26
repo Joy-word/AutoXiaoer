@@ -18,7 +18,7 @@ class ReadRelationshipsTool : AgentTool {
     override val parametersSchema = EmptyObjectSchema
 
     override suspend fun execute(args: JSONObject, ctx: ToolContext): ToolResult {
-        val summary = RelationshipContext.getContext()
+        val summary = RelationshipContext.getContext(if (ctx.isEnglish) "en" else "cn")
         val token = "rel_" + UUID.randomUUID().toString().take(8)
         ctx.readTokens[RESOURCE_KEY] = token
         Logger.i(TAG, "read_relationships (${summary.length} chars), token=$token")
@@ -81,7 +81,7 @@ class UpdateRelationshipsTool : AgentTool {
         }
         // 令牌用完即失效
         ctx.readTokens.remove(ReadRelationshipsTool.RESOURCE_KEY)
-        RelationshipContext.saveNewVersion(content)
+        RelationshipContext.saveNewVersion(content, if (ctx.isEnglish) "en" else "cn")
         Logger.i(TAG, "update_relationships (${content.length} chars)")
         val observation = if (ctx.isEnglish) {
             "[Relationships Updated] The archive has been saved. The expressor will use the new content on its next call."
@@ -109,7 +109,7 @@ class ReadBehaviorRulesTool : AgentTool {
     override val parametersSchema = EmptyObjectSchema
 
     override suspend fun execute(args: JSONObject, ctx: ToolContext): ToolResult {
-        val rules = BehaviorContext.getContext()
+        val rules = BehaviorContext.getContext(if (ctx.isEnglish) "en" else "cn")
         val token = "bhv_" + UUID.randomUUID().toString().take(8)
         ctx.readTokens[RESOURCE_KEY] = token
         Logger.i(TAG, "read_behavior_rules (${rules.length} chars), token=$token")
@@ -169,7 +169,7 @@ class UpdateBehaviorRulesTool : AgentTool {
         }
         // 令牌用完即失效
         ctx.readTokens.remove(ReadBehaviorRulesTool.RESOURCE_KEY)
-        BehaviorContext.saveNewVersion(content)
+        BehaviorContext.saveNewVersion(content, if (ctx.isEnglish) "en" else "cn")
         Logger.i(TAG, "update_behavior_rules (${content.length} chars)")
         val observation = if (ctx.isEnglish) {
             "[Behavior Rules Updated] The rules have been saved and will take effect on the next task."

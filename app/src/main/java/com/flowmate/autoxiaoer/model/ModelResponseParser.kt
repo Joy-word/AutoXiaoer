@@ -215,28 +215,6 @@ object ModelResponseParser {
     }
 
     /**
-     * Extracts LLMAgent reasoning from a response that uses
-     * `<think>...</think>` and `<action>...</action>`.
-     *
-     * Tries the thinking tag first, then falls back to any text before `<action>`.
-     */
-    fun parseLlmAgentThinking(content: String, reasoningSideChannel: String = ""): String {
-        val tagged = extractTaggedThinking(content)
-        if (tagged.isNotBlank()) return tagged
-
-        val actionStart = content.indexOf("<action>")
-        // Drop the <plan> block from the fallback text: the plan is surfaced separately, so a
-        // tool-call round whose only text is a <plan> block should fall through to reasoning.
-        val beforeAction =
-            if (actionStart > 0) {
-                content.substring(0, actionStart)
-            } else {
-                content.replace(Regex("""<plan>[\s\S]*?</plan>"""), "")
-            }.trim()
-        return beforeAction.ifBlank { reasoningSideChannel.trim() }
-    }
-
-    /**
      * Returns the inner text of the first `<action>...</action>` block for LLMAgent, or null if absent.
      */
     fun parseLlmAgentActionBlock(content: String): String? = extractTaggedBlock(content, "action")?.trim()
@@ -258,8 +236,7 @@ object ModelResponseParser {
      * Strips the `<plan>` block from an LLMAgent response before it is persisted to
      * [LLMAgentContext]. It is redundant in history: the plan is already re-injected fresh
      * every round via `addRoundContext`, so the stale copy in the assistant turn only wastes
-     * tokens. Thinking tags are intentionally left intact — some providers require the
-     * thinking block to be echoed back unchanged in later requests.
+    * tokens. Any provider-specific response content is otherwise left intact.
      */
     fun stripPersistedTags(content: String): String = removeTaggedBlock(content, "plan").trim()
 

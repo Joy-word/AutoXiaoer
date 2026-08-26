@@ -53,7 +53,8 @@ data class HistoryStep(
  *
  * @property round Sequential planning round number (1-based)
  * @property timestamp Unix timestamp when the round was recorded
- * @property thinking LLM's reasoning/thinking text for this round
+ * @property thinking Provider-side reasoning returned by the LLMAgent model API for this round,
+ *   or an empty string when the provider does not expose reasoning
  * @property actionDescription Raw JSON/text inside the model's `<action>...</action>` block
  * @property actionType One of "execute_subtask", "finish", "request_user", or "unknown"
  * @property subTaskDescription Description of the sub-task dispatched, or null if not applicable
@@ -64,9 +65,8 @@ data class HistoryStep(
  * @property tokenUsage Token consumption for the LLMAgent (controller) call in this round, or null if unavailable
  * @property brainTokenUsage Token consumption for the BrainLLM call in this round (only set for
  *   [actionType] == "request_brain"), or null if unavailable or not applicable
- * @property plan Raw text inside the model's `<plan>...</plan>` block for this round, or null if the
- *   model did not re-emit a plan this round (i.e. it judged the task overview / done / remaining
- *   items unchanged since the last round that did emit one).
+ * @property plan Raw text inside the model's `<plan>...</plan>` block for this round, or null when
+ *   no valid plan was emitted
  * @property steps PhoneAgent execution steps belonging to this round (e.g. sub-task steps)
  */
 data class LLMPlanningRound(

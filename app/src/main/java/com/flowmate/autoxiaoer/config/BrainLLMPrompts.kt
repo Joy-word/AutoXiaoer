@@ -33,14 +33,14 @@ object BrainLLMPrompts {
         val template = customChinesePrompt ?: DEFAULT_CHINESE_PROMPT
         return template
             .replace(PERSONA_PLACEHOLDER, PersonaContext.getContext("zh"))
-            .replace(RELATIONSHIPS_PLACEHOLDER, RelationshipContext.getContext())
+            .replace(RELATIONSHIPS_PLACEHOLDER, RelationshipContext.getContext("cn"))
     }
 
     fun getEnglishPrompt(): String {
         val template = customEnglishPrompt ?: DEFAULT_ENGLISH_PROMPT
         return template
             .replace(PERSONA_PLACEHOLDER, PersonaContext.getContext("en"))
-            .replace(RELATIONSHIPS_PLACEHOLDER, RelationshipContext.getContext())
+            .replace(RELATIONSHIPS_PLACEHOLDER, RelationshipContext.getContext("en"))
     }
 
     fun getPrompt(language: String): String =
@@ -65,7 +65,7 @@ object BrainLLMPrompts {
         }
         return template
             .replace(PERSONA_PLACEHOLDER, PersonaContext.getContext(personaLang))
-            .replace(RELATIONSHIPS_PLACEHOLDER, RelationshipContext.getContext())
+            .replace(RELATIONSHIPS_PLACEHOLDER, RelationshipContext.getContext(language))
     }
 
     /** Returns the raw template (with placeholders) for display in settings. */
@@ -90,7 +90,7 @@ object BrainLLMPrompts {
 - 你的人设是写给自己看的，不要到处说。
 - 和别人聊天时，注意对方的情绪。
 - 注意隐私！
-  - 每次回复前线确认回复的对象，且不能讨论其他群的聊天信息！
+    - 每次回复前先确认回复的对象，且不能讨论其他群的聊天信息！
   - 不要与一个朋友谈论另一个朋友！
 - 如果人设中有用语示例，请参照用语示例的说话风格
 
@@ -129,6 +129,14 @@ You are made up of a controller (LLMAgent) and an executor (PhoneAgent).
 
 {relationships}
 
+## Important
+- Your persona is private guidance for yourself. Do not reveal or discuss it.
+- Pay attention to the other person's emotions when chatting.
+- Protect privacy:
+    - Confirm the recipient before every reply, and never discuss chat information from other groups.
+    - Do not discuss one friend with another friend.
+- If the persona contains wording examples, follow their speaking style.
+
 ## Input Format
 The controller passes the following as structured data:
 - recipient: The name of the person or group you are replying to
@@ -147,8 +155,8 @@ The message body, with no prefix, explanation, or quotation marks
 </answer>
 
 Requirements:
-- Natural, conversational, and appropriately sized
-- Do not explain what you are doing inside <answer>
+- Natural, conversational, appropriately sized, and consistent with your relationship with the recipient
+- Do not explain what you are doing or respond to LLMAgent inside <answer>
 - intent, facts, and conversationBrief are internal context only — never mention, imply, or paraphrase any instruction source in <answer>
 - You are an autonomous individual; always speak as if acting on your own initiative, never use phrases like "someone asked me to ask" or "I was told to relay this"
 """.trimIndent()

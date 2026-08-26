@@ -53,6 +53,9 @@ interface LLMAgentListener {
     /** Called when the LLM has produced its thinking text for the current round. */
     fun onThinkingUpdate(thinking: String)
 
+    /** Called after the LLM selects a tool for the current round. */
+    fun onToolCallStarted(toolName: String)
+
     /** Called when a sub-task is about to be dispatched to PhoneAgent. */
     fun onSubTaskStarted(subTask: SubTask)
 
@@ -79,8 +82,9 @@ interface LLMAgentListener {
  * OpenAI Function-Calling.
  *
  * Each ReAct round:
- *   1. **Think** — call the LLM with the registered tool catalogue. The model returns
- *      `<think>三步思考</think>` in `assistant.content` and a single `tool_call`.
+ *   1. **Plan** — call the LLM with the registered tool catalogue. The model returns
+ *      a `<plan>` block in `assistant.content` and a single `tool_call`. Provider-side
+ *      reasoning is recorded when the model API returns it separately.
  *   2. **Act**   — dispatch the tool call to the matching [com.flowmate.autoxiaoer.agent.tools.AgentTool].
  *   3. **Observe** — the tool returns either a [ToolResult.Continue] observation (echoed
  *      back as `role: "tool"`) or a [ToolResult.Terminate] that ends the loop.
@@ -234,9 +238,7 @@ class LLMAgent(
                 val response = requestModel(ctx, advertisedTools, pendingReviewScreenshot)
                     ?: return@coroutineScope finishOnNetworkError(round)
 
-                val thinking = response.thinking.ifBlank {
-                    ModelResponseParser.parseLlmAgentThinking(response.rawContent)
-                }
+                val thinking = response.thinking
                 Logger.d(TAG, "LLM thinking: ${thinking.take(200)}")
                 listener?.onThinkingUpdate(thinking)
 
@@ -264,6 +266,7 @@ class LLMAgent(
                     }
                     continue
                 }
+                listener?.onToolCallStarted(toolCall.name)
 
                 ctx.addAssistantWithToolCalls(
                     content = ModelResponseParser.stripPersistedTags(response.rawContent),
@@ -556,51 +559,65 @@ class LLMAgent(
                 sb.appendLine()
             }
         }
-        sb.appendLine("【用户任务】$taskDescription")
+        sb.appendLine(if (isEn) "[User task] $taskDescription" else "【用户任务】$taskDescription")
 
         if (triggerContext != null) {
             sb.appendLine()
             when (triggerContext.triggerType) {
-                TriggerType.NOTIFICATION -> appendNotificationContext(sb, triggerContext)
+                TriggerType.NOTIFICATION -> appendNotificationContext(sb, triggerContext, isEn)
                 TriggerType.SCHEDULED -> {
-                    sb.appendLine("【来自你自己的日程提醒】")
-                    sb.appendLine("你之前安排了这个计划，现在是你设定的执行时间，请按计划行动。")
-                    if (!triggerContext.scheduledTaskBackground.isNullOrBlank()) {
-                        sb.appendLine("【当时的备注】${triggerContext.scheduledTaskBackground}")
+                    if (isEn) {
+                        sb.appendLine("[Reminder from your own schedule]")
+                        sb.appendLine("You previously scheduled this plan. It is now time to carry it out.")
+                        if (!triggerContext.scheduledTaskBackground.isNullOrBlank()) {
+                            sb.appendLine("[Original note] ${triggerContext.scheduledTaskBackground}")
+                        }
+                    } else {
+                        sb.appendLine("【来自你自己的日程提醒】")
+                        sb.appendLine("你之前安排了这个计划，现在是你设定的执行时间，请按计划行动。")
+                        if (!triggerContext.scheduledTaskBackground.isNullOrBlank()) {
+                            sb.appendLine("【当时的备注】${triggerContext.scheduledTaskBackground}")
+                        }
                     }
                 }
-                TriggerType.VOICE -> sb.appendLine("【触发来源】语音指令触发")
+                TriggerType.VOICE -> sb.appendLine(if (isEn) "[Trigger] Voice command" else "【触发来源】语音指令触发")
                 TriggerType.MANUAL -> { /* No extra context needed for manual triggers */ }
                 TriggerType.CLAWBOT -> {
-                    sb.appendLine("【触发来源】ClawBot 消息")
-                    sb.appendLine(
-                        "【注意事项】如果需要回复用户消息，请调用 ${RequestUserTool.NAME} 工具发送回复，" +
-                            "发送成功后你会收到反馈并继续执行后续步骤；如果已回复用户的提问，请调用 ${FinishTool.NAME} 工具结束任务。",
-                    )
+                    if (isEn) {
+                        sb.appendLine("[Trigger] ClawBot message")
+                        sb.appendLine("[Important] To reply to the user, call ${RequestUserTool.NAME}. After it succeeds, continue with any remaining steps. If the user's question has been answered, call ${FinishTool.NAME} to finish the task.")
+                    } else {
+                        sb.appendLine("【触发来源】ClawBot 消息")
+                        sb.appendLine(
+                            "【注意事项】如果需要回复用户消息，请调用 ${RequestUserTool.NAME} 工具发送回复，" +
+                                "发送成功后你会收到反馈并继续执行后续步骤；如果已回复用户的提问，请调用 ${FinishTool.NAME} 工具结束任务。",
+                        )
+                    }
                     if (!triggerContext.clawBotFromUserId.isNullOrBlank()) {
-                        sb.appendLine("【发送方】${triggerContext.clawBotFromUserId}")
+                        sb.appendLine(if (isEn) "[Sender] ${triggerContext.clawBotFromUserId}" else "【发送方】${triggerContext.clawBotFromUserId}")
                     }
                 }
             }
         }
 
         sb.appendLine()
-        sb.append("请开始规划并执行此任务。")
+        sb.append(if (isEn) "Start planning and execute this task." else "请开始规划并执行此任务。")
         return sb.toString().trimEnd()
     }
 
-    private fun appendNotificationContext(sb: StringBuilder, ctx: TriggerContext) {
-        val appLabel = ctx.notificationApp ?: ctx.notificationPackageName ?: "未知应用"
-        sb.appendLine("【触发来源】收到来自「$appLabel」的新通知（包名：${ctx.notificationPackageName ?: "未知"}）")
+    private fun appendNotificationContext(sb: StringBuilder, ctx: TriggerContext, isEn: Boolean) {
+        val appLabel = ctx.notificationApp ?: ctx.notificationPackageName ?: if (isEn) "Unknown app" else "未知应用"
+        val packageName = ctx.notificationPackageName ?: if (isEn) "unknown" else "未知"
+        sb.appendLine(if (isEn) "[Trigger] New notification from $appLabel (package: $packageName)" else "【触发来源】收到来自「$appLabel」的新通知（包名：$packageName）")
 
-        sb.appendLine("【通知原始内容】")
+        sb.appendLine(if (isEn) "[Raw notification]" else "【通知原始内容】")
 
         if (!ctx.notificationTitle.isNullOrBlank()) {
-            sb.appendLine("- 标题：${ctx.notificationTitle}")
+            sb.appendLine(if (isEn) "- Title: ${ctx.notificationTitle}" else "- 标题：${ctx.notificationTitle}")
         }
 
         if (ctx.notificationTexts.isNotEmpty()) {
-            sb.appendLine("- 消息共 ${ctx.notificationTexts.size} 条（按时间顺序）：")
+            sb.appendLine(if (isEn) "- ${ctx.notificationTexts.size} messages in chronological order:" else "- 消息共 ${ctx.notificationTexts.size} 条（按时间顺序）：")
             ctx.notificationTexts.forEachIndexed { index, text ->
                 sb.appendLine("  ${index + 1}. $text")
             }
@@ -608,16 +625,16 @@ class LLMAgent(
             val body = ctx.notificationBigText?.takeIf { it.isNotBlank() }
                 ?: ctx.notificationText?.takeIf { it.isNotBlank() }
             if (!body.isNullOrBlank()) {
-                sb.appendLine("- 正文：$body")
+                sb.appendLine(if (isEn) "- Body: $body" else "- 正文：$body")
             }
         }
 
         if (!ctx.notificationSubText.isNullOrBlank()) {
-            sb.appendLine("- 副标题：${ctx.notificationSubText}")
+            sb.appendLine(if (isEn) "- Subtitle: ${ctx.notificationSubText}" else "- 副标题：${ctx.notificationSubText}")
         }
 
         if (!ctx.notificationCategory.isNullOrBlank()) {
-            sb.appendLine("- 通知类别：${ctx.notificationCategory}")
+            sb.appendLine(if (isEn) "- Category: ${ctx.notificationCategory}" else "- 通知类别：${ctx.notificationCategory}")
         }
     }
 

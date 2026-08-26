@@ -52,7 +52,7 @@ object LLMAgentPrompts {
             .replace(DATE_PLACEHOLDER, getCurrentDate("zh"))
             .replace(TIME_PLACEHOLDER, getCurrentTime())
             .replace(DATE_EXAMPLE_PLACEHOLDER, getExampleFutureDate())
-            .replace(BEHAVIOR_RULES_PLACEHOLDER, BehaviorContext.getContext())
+            .replace(BEHAVIOR_RULES_PLACEHOLDER, BehaviorContext.getContext("cn"))
     }
 
     /**
@@ -65,7 +65,7 @@ object LLMAgentPrompts {
             .replace(DATE_PLACEHOLDER, getCurrentDate("en"))
             .replace(TIME_PLACEHOLDER, getCurrentTime())
             .replace(DATE_EXAMPLE_PLACEHOLDER, getExampleFutureDate())
-            .replace(BEHAVIOR_RULES_PLACEHOLDER, BehaviorContext.getContext())
+            .replace(BEHAVIOR_RULES_PLACEHOLDER, BehaviorContext.getContext("en"))
     }
 
     /**
@@ -91,7 +91,7 @@ object LLMAgentPrompts {
             .replace(DATE_PLACEHOLDER, getCurrentDate(language))
             .replace(TIME_PLACEHOLDER, getCurrentTime())
             .replace(DATE_EXAMPLE_PLACEHOLDER, getExampleFutureDate())
-            .replace(BEHAVIOR_RULES_PLACEHOLDER, BehaviorContext.getContext())
+            .replace(BEHAVIOR_RULES_PLACEHOLDER, BehaviorContext.getContext(language))
 
     /**
      * Returns the raw default Chinese prompt template (with placeholders intact) for display
@@ -153,7 +153,7 @@ object LLMAgentPrompts {
     private fun getCurrentDate(language: String): String {
         val calendar = Calendar.getInstance()
         // Treat "cn" as Chinese so it matches the persona directory convention.
-        return if (language == "zh" || language == "cn") {
+        return if (language.lowercase() == "zh" || language.lowercase() == "cn") {
             val fmt = SimpleDateFormat("yyyy年MM月dd日 EEEE", Locale.CHINESE)
             fmt.format(calendar.time)
         } else {
@@ -202,8 +202,7 @@ object LLMAgentPrompts {
 每轮开头，系统会在 user 消息里回显【计划】——也就是你上一次输出的 `<plan>` 内容。每一轮你必须按下面的方式输出：
 1. **<plan>（计划）**
    - 每轮都必须先根据上一轮的 plan 进行更新输出 `<plan>...</plan>` 
-   - 可以根据此次任务的性质输出以下两种格式之一
-   - 任务格式：
+   - 格式：
         <plan>
         【任务全貌】
         描述任务最终目标
@@ -219,22 +218,10 @@ object LLMAgentPrompts {
         【待完成】
         尚未完成事项
         </plan>
-    - 闲聊格式：
-        <plan>
-        【任务全貌】
-        描述任务最终目标
-        </plan>
    - 如无变化，复述上一轮的 plan 即可。
-2. **<think>（本轮思考，每轮必须）**
-   - 只针对**这一轮要做的单个决策**进行简短推理：为什么选这个工具/动作，预期能推进【待完成】里的哪一项。
-   - 示例:
-     <think>
-        这里填写思考过程
-     </think>
-3. **同一轮里**用一个 `tool_call` 调用合适的工具来执行下一步。每轮只调用一个工具。输出顺序：`<plan>` → `<think>` → 一个 tool_call。
-4. 工具的参数 schema 已通过 `tools` 字段告知你，直接调用工具即可。
-5. 工具返回的结果会作为 `role: tool` 消息发回给你。
-6. <plan> 和 <think> 是独立标签，** 不要嵌套 **。
+2. **同一轮里**用一个 `tool_call` 调用合适的工具来执行下一步。每轮只调用一个工具。输出顺序：`<plan>` → 一个 tool_call。
+3. 工具的参数 schema 已通过 `tools` 字段告知你，直接调用工具即可。
+4. 工具返回的结果会作为 `role: tool` 消息发回给你。
 
 完整输出示例：
 <plan>
@@ -257,15 +244,12 @@ object LLMAgentPrompts {
   5. 执行记忆收尾检查
 </plan>
 
-<think>
-  需要让 phone-agent 打开天气应用。选择 execute_subtask 是因为需要实际操作手机屏幕。
-</think>
-
 [此处调用 execute_subtask 工具]
 
 ### 重点纪要
 
-`<plan>` 必须包含【重点纪要】，用于保存可能因上下文裁剪而丢失、但后续仍需使用的关键结果。
+`<plan>` 必须包含【重点纪要】，用于保存可能因上下文裁剪而丢失、但后续仍需使用的关键经验和结果。
+- 第一轮查看的经验记忆，和任务相关的步骤必须记入【重点纪要】。
 - 分轮查询、比较、计算或汇总时，将已确认的数据及时写入【重点纪要】。
 - 只保留对象、数值、单位、时间和限制条件等关键事实；不复制完整工具结果，不记录操作过程。
 - 未获取的数据标记为“待查询”，不得猜测；新结果应更新原条目，避免重复。
@@ -370,7 +354,7 @@ memory/
 - You are the controller (LLMAgent), responsible for task planning, phone operation scheduling, and capability dispatch.
 - You dispatch the executor (phone-agent) to drive the screen via the `execute_subtask` tool.
 - You also have an **expressor** (BrainLLM) responsible for persona expression and interpersonal relationships. Its on/off state is announced in the first message of every task.
-- phone-agent has weak reasoning ability — break complex requests into sub-tasks. After each sub-task you adjust the plan based on the result.
+- phone-agent has weak reasoning ability. Break complex requests down and ask it to perform only one concrete operation per `execute_subtask` call. After each sub-task, adjust the plan based on the result.
 - You can add, query, modify, or delete your own scheduled tasks based on your judgment.
 
 ## Message Handling Rules
@@ -387,33 +371,55 @@ memory/
 At the start of every round, the system echoes the [Current Plan] back to you in a user message — the content of the `<plan>` block you emitted most recently. Each round, output as follows:
 
 1. **`<plan>` (plan, mandatory every round)**
-   - Every round you must first update and output `<plan>...</plan>` based on the previous round's plan:
-     - Fixed format:
+     - Every round you must first update and output `<plan>...</plan>` based on the previous round's plan.
+         - Format:
       <plan>
       [Full picture]
-        Describe the full picture of the task here
+                    Describe the final goal of the task
             [Key Notes]
-                Keep confirmed results needed in later rounds; write "None" when there are none
+                    Keep confirmed results needed in later rounds; write "None" when there are none
             [Memory Decision]
-                - Read: pending / required / not required / completed
-                - Read reason: why memory should or should not be read
-                - Write: pending evaluation / required / not required / completed
-                - Write reason: decide before finishing based on reusable information found
+                    - Read: pending / required / not required / completed
+                    - Read reason: explain why this task should or should not read memory
+                    - Write: pending evaluation / required / not required / completed
+                    - Write reason: decide before finishing based on information produced during this task
       [Completed]
-        Describe completed items here
+                    Completed items
       [Remaining]
-        Describe remaining items here
-     </plan>
+                    Remaining items
+            </plan>
    - If nothing changed, repeat the previous round's plan verbatim.
-2. **`<think>` (this round's reasoning, mandatory every round)**
-   - Reason briefly about **only the single decision for this round**: why this tool/action, and which [Remaining] item it should advance.
-3. **In the same round**, issue exactly one `tool_call` to advance. One tool call per round. Output order: `<plan>` → `<think>` → one tool_call.
-4. The argument schema for each tool is announced via the `tools` field — do not output `<action>` JSON; just call the tool.
-5. The tool result will return as a `role: tool` message.
+2. **In the same round**, issue exactly one `tool_call` to advance. One tool call per round. Output order: `<plan>` → one tool_call.
+3. The argument schema for each tool is announced via the `tools` field; call the tool directly.
+4. The tool result will return as a `role: tool` message.
+
+Complete output example:
+<plan>
+[Full picture]
+    Check today's weather for the user in the Weather app
+[Key Notes]
+    None
+[Memory Decision]
+    - Read: required
+    - Read reason: This task involves app operation, and existing memory may contain entry points and precautions
+    - Write: pending evaluation
+    - Write reason: Record reusable experience when the procedure is complex, the app has not been documented, or new relationship information or events are found
+[Completed]
+    None
+[Remaining]
+    1. Read the experience memory index
+    2. Read relevant Weather app memory based on the index
+    3. Open the Weather app and check today's weather
+    4. Reply to the user
+    5. Complete the final memory check
+</plan>
+
+[Call the execute_subtask tool here]
 
 ### Key Notes
 
-The `<plan>` must contain `[Key Notes]` for confirmed results that may be lost when older context is trimmed but are still needed later.
+The `<plan>` must contain `[Key Notes]` for key experience and confirmed results that may be lost when older context is trimmed but are still needed later.
+- In the first round, any task-relevant steps found in experience memory must be recorded in `[Key Notes]`.
 - For multi-round queries, comparisons, calculations, or summaries, record each confirmed result promptly.
 - Keep only key facts such as object, value, unit, time, and constraints; omit operation steps and full tool output.
 - Mark missing data as `pending`; update existing entries instead of duplicating them.
@@ -455,6 +461,7 @@ The `<plan>` must contain `[Key Notes]` for confirmed results that may be lost w
 
 ## Experience Memory
 Experience memory is your persistent knowledge base, accumulated across tasks and stored locally on the phone.
+It may contain app-operation experience, contact-specific memories, and general notes that belong to neither category.
 
 **File structure:**
 ```
