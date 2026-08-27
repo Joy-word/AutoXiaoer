@@ -53,7 +53,9 @@ class McpServerListDialog(
 
     private fun refreshList() {
         val servers = settingsManager.getMcpServers()
-        adapter.submitList(servers)
+        adapter.submitList(servers) {
+            adapter.notifyDataSetChanged()
+        }
         tvEmpty.visibility = if (servers.isEmpty()) View.VISIBLE else View.GONE
         rvServers.visibility = if (servers.isEmpty()) View.GONE else View.VISIBLE
     }
@@ -87,6 +89,7 @@ class McpServerListDialog(
         private val tvBadge: TextView = view.findViewById(R.id.tvMcpBuiltInBadge)
         private val tvStatus: TextView = view.findViewById(R.id.tvMcpServerStatus)
         private val switchEnabled: SwitchMaterial = view.findViewById(R.id.switchMcpEnabled)
+        private val btnDelete: android.widget.ImageButton = view.findViewById(R.id.btnDeleteMcpServer)
 
         fun bind(config: McpServerConfig) {
             tvName.text = config.displayName
@@ -113,6 +116,11 @@ class McpServerListDialog(
                 settingsManager.setMcpServerEnabled(config.id, checked)
                 mcpManager.reload()
                 refreshList()
+            }
+
+            btnDelete.visibility = if (config.isBuiltIn) View.GONE else View.VISIBLE
+            btnDelete.setOnClickListener {
+                if (!config.isBuiltIn) showDeleteConfirm(config)
             }
 
             itemView.setOnClickListener { onEditServer(config) }

@@ -575,6 +575,7 @@
     <string name="mcp_server_test_failed">连接失败：%s</string>
     <string name="mcp_server_delete_title">删除服务器</string>
     <string name="mcp_server_delete_message">确定删除"%s"？</string>
+    <string name="mcp_server_delete_action">删除 MCP 服务器</string>
     <string name="mcp_status_connected">已连接 \u00b7 %d 个工具</string>
     <string name="mcp_status_connecting">连接中\u2026</string>
     <string name="mcp_status_missing_key">未配置 API Key</string>

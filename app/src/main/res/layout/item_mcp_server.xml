@@ -72,6 +72,17 @@
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp" />
 
+        <ImageButton
+            android:id="@+id/btnDeleteMcpServer"
+            style="?attr/borderlessButtonStyle"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:contentDescription="@string/mcp_server_delete_action"
+            android:padding="8dp"
+            android:src="@drawable/ic_delete"
+            android:tint="@color/status_failed" />
+
     </LinearLayout>
 
 </com.google.android.material.card.MaterialCardView>

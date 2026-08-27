@@ -575,6 +575,7 @@
     <string name="mcp_server_test_failed">Failed: %s</string>
     <string name="mcp_server_delete_title">Delete Server</string>
     <string name="mcp_server_delete_message">Delete \"%s\"?</string>
+    <string name="mcp_server_delete_action">Delete MCP server</string>
     <string name="mcp_status_connected">Connected \u00b7 %d tools</string>
     <string name="mcp_status_connecting">Connecting\u2026</string>
     <string name="mcp_status_missing_key">API Key not configured</string>
