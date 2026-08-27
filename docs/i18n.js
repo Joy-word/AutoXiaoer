@@ -279,44 +279,44 @@
   var localizedImages = [
     {
       selector: ".hero-phone img",
-      "zh-CN": "../screenshots/zh/screenshot_1_cut.jpg",
-      en: "../screenshots/en/screenshot_1_cut.jpg"
+      "zh-CN": "https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/zh/screenshot_1_cut.jpg",
+      en: "https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/en/screenshot_1_cut.jpg"
     },
     {
       selector: ".shot-carousel-slide:nth-child(1) img",
       linkSelector: ".shot-carousel-slide:nth-child(1) a",
-      "zh-CN": "../screenshots/zh/screenshot_1.jpg",
-      en: "../screenshots/en/screenshot_1.jpg"
+      "zh-CN": "https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/zh/screenshot_1.jpg",
+      en: "https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/en/screenshot_1.jpg"
     },
     {
       selector: ".shot-carousel-slide:nth-child(2) img",
       linkSelector: ".shot-carousel-slide:nth-child(2) a",
-      "zh-CN": "../screenshots/zh/screenshot_2.jpg",
-      en: "../screenshots/en/screenshot_2.jpg"
+      "zh-CN": "https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/zh/screenshot_2.jpg",
+      en: "https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/en/screenshot_2.jpg"
     },
     {
       selector: ".shot-carousel-slide:nth-child(3) img",
       linkSelector: ".shot-carousel-slide:nth-child(3) a",
-      "zh-CN": "../screenshots/zh/screenshot_3.jpg",
-      en: "../screenshots/en/screenshot_3.jpg"
+      "zh-CN": "https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/zh/screenshot_3.jpg",
+      en: "https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/en/screenshot_3.jpg"
     },
     {
       selector: ".shot-carousel-slide:nth-child(4) img",
       linkSelector: ".shot-carousel-slide:nth-child(4) a",
-      "zh-CN": "../screenshots/zh/screenshot_4.jpg",
-      en: "../screenshots/en/screenshot_4.jpg"
+      "zh-CN": "https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/zh/screenshot_4.jpg",
+      en: "https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/en/screenshot_4.jpg"
     },
     {
       selector: ".shot-carousel-slide:nth-child(5) img",
       linkSelector: ".shot-carousel-slide:nth-child(5) a",
-      "zh-CN": "../screenshots/zh/screenshot_5.jpg",
-      en: "../screenshots/en/screenshot_5.jpg"
+      "zh-CN": "https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/zh/screenshot_5.jpg",
+      en: "https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/en/screenshot_5.jpg"
     },
     {
       selector: ".shot-carousel-slide:nth-child(6) img",
       linkSelector: ".shot-carousel-slide:nth-child(6) a",
-      "zh-CN": "../screenshots/zh/screenshot_6.jpg",
-      en: "../screenshots/en/screenshot_6.jpg"
+      "zh-CN": "https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/zh/screenshot_6.jpg",
+      en: "https://raw.githubusercontent.com/Joy-word/AutoXiaoer/main/screenshots/en/screenshot_6.jpg"
     }
   ];
 
@@ -408,8 +408,8 @@
     var guideLink = document.querySelector("#how .section-lead a");
     if (guideLink) {
       guideLink.href = language === "en"
-        ? "https://github.com/Joy-word/AutoXiaoer/blob/main/README_en.md"
-        : "https://github.com/Joy-word/AutoXiaoer/blob/main/README.md";
+        ? "https://github.com/Joy-word/AutoXiaoer/blob/main/README.md"
+        : "https://github.com/Joy-word/AutoXiaoer/blob/main/README_zh.md";
     }
 
     document.querySelectorAll("[data-language]").forEach(function (button) {
