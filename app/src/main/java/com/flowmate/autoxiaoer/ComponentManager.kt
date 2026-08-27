@@ -16,6 +16,7 @@ import com.flowmate.autoxiaoer.history.HistoryManager
 import com.flowmate.autoxiaoer.input.AccessibilityTextInputManager
 import com.flowmate.autoxiaoer.input.ITextInputManager
 import com.flowmate.autoxiaoer.input.TextInputManager
+import com.flowmate.autoxiaoer.mcp.McpServiceManager
 import com.flowmate.autoxiaoer.model.ModelClient
 import com.flowmate.autoxiaoer.model.ModelConfig
 import com.flowmate.autoxiaoer.screenshot.AccessibilityScreenshotService
@@ -74,6 +75,14 @@ class ComponentManager private constructor(private val context: Context) {
     // History manager - always available
     val historyManager: HistoryManager by lazy {
         HistoryManager.getInstance(context)
+    }
+
+    /** Application-level MCP manager; lifecycle is independent of device-control backends. */
+    val mcpServiceManager: McpServiceManager by lazy {
+        McpServiceManager.getInstance(
+            configProvider = { settingsManager.getMcpServers() },
+            secretProvider = { serverId -> settingsManager.getMcpSecret(serverId) },
+        ).also { it.start() }
     }
 
     // User service reference - set when Shizuku connects
@@ -356,7 +365,12 @@ class ComponentManager private constructor(private val context: Context) {
             historyManager = historyManager,
             context = context,
             brainLLM = brainLLMInternal,
-            toolRegistry = ToolRegistry.forBrainState(brainLLMInternal?.isEnabled == true),
+            toolRegistryProvider = {
+                ToolRegistry.forRuntime(
+                    brainEnabled = brainLLMInternal?.isEnabled == true,
+                    mcpTools = mcpServiceManager.currentToolSnapshot(),
+                )
+            },
         )
     }
 
@@ -409,32 +423,11 @@ class ComponentManager private constructor(private val context: Context) {
         // Cancel any running task (should be IDLE at this point, but just in case)
         phoneAgentInternal?.cancel()
 
-        // Recreate model client with new config
+        // Force PhoneAgent's model client to refresh on next access
         modelClientInternal = null
 
-        // Rebuild the entire agent stack (ActionHandler + PhoneAgent + LLMAgent + BrainLLM)
+        // Rebuild the entire agent stack once (ActionHandler + PhoneAgent + BrainLLM + LLMAgent)
         buildActionHandlerAndAgents()
-
-        // Recreate LLMAgent with potentially updated config
-        val llmAgentConfig = settingsManager.getLLMAgentConfig()
-        llmModelClientInternal = buildLLMModelClient(llmAgentConfig)
-        currentLLMAgentConfig = llmAgentConfig
-
-        // Recreate BrainLLM with potentially updated config
-        val brainLLMConfig = settingsManager.getBrainLLMConfig()
-        brainModelClientInternal = buildBrainModelClient(brainLLMConfig)
-        brainLLMInternal = BrainLLM(config = brainLLMConfig, modelClient = brainModelClientInternal!!)
-        currentBrainLLMConfig = brainLLMConfig
-
-        llmAgentInternal = LLMAgent(
-            config = llmAgentConfig,
-            modelClient = llmModelClientInternal!!,
-            phoneAgent = phoneAgentInternal!!,
-            historyManager = historyManager,
-            context = context,
-            brainLLM = brainLLMInternal,
-            toolRegistry = ToolRegistry.forBrainState(brainLLMInternal?.isEnabled == true),
-        )
 
         Logger.i(TAG, "PhoneAgent, LLMAgent and BrainLLM reinitialized with new configuration")
     }
@@ -475,6 +468,7 @@ class ComponentManager private constructor(private val context: Context) {
     fun cleanup() {
         Logger.i(TAG, "Cleaning up all components")
         cleanupServiceDependentComponents()
+        mcpServiceManager.close()
         modelClientInternal = null
         appResolverInternal = null
         swipeGeneratorInternal = null

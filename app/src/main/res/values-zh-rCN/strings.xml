@@ -521,6 +521,7 @@
     <string name="settings_export_section_scheduled_tasks">定时任务</string>
     <string name="settings_export_section_task_templates">任务模板</string>
     <string name="settings_export_section_memory">经验记忆</string>
+    <string name="settings_export_section_mcp_servers">MCP 配置（不含 API Key）</string>
     <string name="settings_export_nothing_selected">请至少选择一项导出内容</string>
     <string name="settings_export_success">数据已导出，请选择保存位置</string>
     <string name="settings_export_failed">导出失败</string>
@@ -552,4 +553,36 @@
     <string name="accessibility_status_enabled">已启用</string>
     <string name="accessibility_status_not_enabled">未启用</string>
     <string name="request_accessibility_permission">去启用</string>
+
+    <!-- MCP Servers -->
+    <string name="settings_mcp_title">MCP 服务器</string>
+    <string name="settings_mcp_description">通过 Model Context Protocol 接入外部工具</string>
+    <string name="settings_mcp_manage">管理</string>
+    <string name="mcp_server_list_title">MCP 服务器</string>
+    <string name="mcp_server_list_empty">暂无配置的服务器</string>
+    <string name="mcp_server_add">+ 新增服务器</string>
+    <string name="mcp_server_add_title">新增 MCP 服务器</string>
+    <string name="mcp_server_edit_title">编辑 MCP 服务器</string>
+    <string name="mcp_server_builtin_badge">内置</string>
+    <string name="mcp_server_field_name">服务器名称</string>
+    <string name="mcp_server_field_endpoint">HTTPS 地址</string>
+    <string name="mcp_server_field_secret">API Key</string>
+    <string name="mcp_server_field_secret_configured">API Key（已配置）</string>
+    <string name="mcp_server_field_connect_timeout">连接超时（秒）</string>
+    <string name="mcp_server_field_call_timeout">调用超时（秒）</string>
+    <string name="mcp_server_test_connection">测试连接</string>
+    <string name="mcp_server_test_connecting">连接中\u2026</string>
+    <string name="mcp_server_test_success">连接成功，发现 %d 个工具</string>
+    <string name="mcp_server_test_failed">连接失败：%s</string>
+    <string name="mcp_server_delete_title">删除服务器</string>
+    <string name="mcp_server_delete_message">确定删除"%s"？</string>
+    <string name="mcp_server_delete_action">删除 MCP 服务器</string>
+    <string name="mcp_status_connected">已连接 \u00b7 %d 个工具</string>
+    <string name="mcp_status_connecting">连接中\u2026</string>
+    <string name="mcp_status_missing_key">未配置 API Key</string>
+    <string name="mcp_status_error">错误：%s</string>
+    <string name="mcp_status_disabled">已禁用</string>
+    <string name="mcp_error_name_required">名称不能为空</string>
+    <string name="mcp_error_endpoint_https">地址必须以 https:// 开头</string>
+    <string name="delete">删除</string>
 </resources>

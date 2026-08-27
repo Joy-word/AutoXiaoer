@@ -1,6 +1,6 @@
 [versions]
 agp = "8.13.2"
-kotlin = "2.1.20"
+kotlin = "2.2.20"
 coreKtx = "1.15.0"
 junit = "4.13.2"
 junitVersion = "1.2.1"
@@ -13,9 +13,9 @@ cardview = "1.0.0"
 shizuku = "13.1.5"
 # New dependencies for AutoGLM Phone Agent
 coroutines = "1.10.1"
-okhttp = "4.12.0"
+okhttp = "5.2.1"
 retrofit = "3.0.0"
-kotlinxSerialization = "1.8.0"
+kotlinxSerialization = "1.9.0"
 kotest = "6.0.0"
 mockk = "1.14.7"
 lifecycle = "2.8.7"
@@ -25,6 +25,10 @@ navigation = "2.8.5"
 fragment = "1.8.5"
 # SwipeRefreshLayout
 swiperefreshlayout = "1.1.0"
+# 0.8.4 is the last version before the 0.9.0 Kotlin 2.3 bump; has StreamableHttpClientTransport
+mcpSdk = "0.8.4"
+# Ktor version aligned with mcp-kotlin-sdk 0.8.4
+ktor = "3.3.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -67,6 +71,13 @@ androidx-navigation-ui = { group = "androidx.navigation", name = "navigation-ui-
 androidx-fragment = { group = "androidx.fragment", name = "fragment-ktx", version.ref = "fragment" }
 # SwipeRefreshLayout
 androidx-swiperefreshlayout = { group = "androidx.swiperefreshlayout", name = "swiperefreshlayout", version.ref = "swiperefreshlayout" }
+# MCP Kotlin SDK
+mcp-kotlin-sdk = { group = "io.modelcontextprotocol", name = "kotlin-sdk", version.ref = "mcpSdk" }
+# Ktor OkHttp engine for Android (no bundled engine in SDK)
+ktor-client-okhttp = { group = "io.ktor", name = "ktor-client-okhttp", version.ref = "ktor" }
+# Ktor ContentNegotiation + kotlinx-json serialization (required by StreamableHttpClientTransport)
+ktor-client-content-negotiation = { group = "io.ktor", name = "ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-serialization-kotlinx-json = { group = "io.ktor", name = "ktor-serialization-kotlinx-json", version.ref = "ktor" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

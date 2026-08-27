@@ -57,8 +57,10 @@ android {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
-    kotlinOptions {
-        jvmTarget = "11"
+    kotlin {
+        compilerOptions {
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_11)
+        }
     }
 
     // Enable JUnit 5 for Kotest property-based testing
@@ -145,6 +147,14 @@ dependencies {
 
     // Kotlin Serialization for JSON parsing
     implementation(libs.kotlinx.serialization.json)
+
+    // MCP Kotlin SDK (Streamable HTTP client)
+    implementation(libs.mcp.kotlin.sdk)
+    // Ktor OkHttp engine required by StreamableHttpClientTransport on Android
+    implementation(libs.ktor.client.okhttp)
+    // ContentNegotiation + kotlinx-json required by StreamableHttpClientTransport
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
 
     // Sherpa-ONNX for offline speech recognition
     // Available via JitPack: https://jitpack.io/#k2-fsa/sherpa-onnx
