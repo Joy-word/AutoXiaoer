@@ -96,7 +96,7 @@ interface LLMAgentListener {
  * @param modelClient Pre-built [ModelClient] constructed from [config] by [ComponentManager]
  * @param phoneAgent The PhoneAgent used to execute sub-tasks
  * @param brainLLM Optional [BrainLLM] for persona-aware text generation
- * @param toolRegistry Tool catalogue advertised to the model. Defaults to [ToolRegistry.default].
+ * @param toolRegistryProvider Supplies the tool catalogue at task start.
  */
 class LLMAgent(
     private val config: LLMAgentConfig,
@@ -105,7 +105,7 @@ class LLMAgent(
     private val historyManager: HistoryManager? = null,
     private val context: Context? = null,
     private val brainLLM: BrainLLM? = null,
-    private val toolRegistry: ToolRegistry = ToolRegistry.default(),
+    private val toolRegistryProvider: () -> ToolRegistry = { ToolRegistry.default() },
 ) {
     private var listener: LLMAgentListener? = null
 
@@ -203,7 +203,9 @@ class LLMAgent(
             pauseRequested = pauseRequested,
         )
 
-        val advertisedTools = toolRegistry.openAIToolDtos()
+        val taskToolRegistry = toolRegistryProvider()
+        val advertisedTools = taskToolRegistry.openAIToolDtos()
+        Logger.i(TAG, "Task tool registry ready: total=${taskToolRegistry.tools.size}")
 
         // Framework-managed plan state: retains the last <plan> block emitted by the model
         // so it is echoed back each round instead of relying on the model to retype it.
@@ -274,7 +276,7 @@ class LLMAgent(
                 )
                 pendingReviewScreenshot = null
 
-                val tool = toolRegistry.find(toolCall.name)
+                val tool = taskToolRegistry.find(toolCall.name)
                 if (tool == null) {
                     val err = if (toolContext.isEnglish) {
                         "Unknown tool \"${toolCall.name}\". Pick a tool from the advertised catalogue."

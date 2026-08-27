@@ -131,6 +131,7 @@ class McpServiceManager(
             }
         }
         _mcpTools.value = tools
+        Logger.i(TAG, "MCP tool registry rebuilt: count=${tools.size}, names=${tools.joinToString { it.name }}")
     }
 
     /** Returns a stable snapshot of MCP tools for the current task. */

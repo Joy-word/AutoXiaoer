@@ -13,6 +13,7 @@ import io.modelcontextprotocol.kotlin.sdk.types.Tool as McpTool
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.sse.SSE
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
@@ -48,6 +49,7 @@ class McpConnection(
 
         val http = HttpClient(OkHttp) {
             install(ContentNegotiation) { json(McpJson) }
+            install(SSE)
             engine {
                 config {
                     connectTimeout(config.connectTimeoutMs, java.util.concurrent.TimeUnit.MILLISECONDS)

@@ -15,6 +15,7 @@ import com.flowmate.autoxiaoer.util.applyPrimaryButtonColors
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.sse.SSE
 import io.ktor.serialization.kotlinx.json.json
 import io.modelcontextprotocol.kotlin.sdk.shared.McpJson
 import io.modelcontextprotocol.kotlin.sdk.client.Client
@@ -65,10 +66,13 @@ class McpServerEditDialog(
             tilEndpoint.visibility = View.GONE
         }
 
-        // Show placeholder when secret already configured
+        // Pre-fill secret field with stored value so it's visible (masked) and editable
         val hasSecret = existingConfig?.let { settingsManager.hasMcpSecret(it.id) } == true
         if (hasSecret) {
-            tilSecret.hint = context.getString(R.string.mcp_server_field_secret_configured)
+            val stored = settingsManager.getMcpSecret(existingConfig!!.id)
+            if (!stored.isNullOrBlank()) {
+                etSecret.setText(stored)
+            }
         }
     }
 
@@ -106,7 +110,10 @@ class McpServerEditDialog(
                     } else {
                         config.endpointUrl
                     }
-                    val http = HttpClient(OkHttp) { install(ContentNegotiation) { json(McpJson) } }
+                    val http = HttpClient(OkHttp) {
+                        install(ContentNegotiation) { json(McpJson) }
+                        install(SSE)
+                    }
                     try {
                         val transport = StreamableHttpClientTransport(http, endpointUrl)
                         val client = Client(

@@ -365,11 +365,12 @@ class ComponentManager private constructor(private val context: Context) {
             historyManager = historyManager,
             context = context,
             brainLLM = brainLLMInternal,
-            // Snapshot of local + connected MCP tools taken at agent-build time
-            toolRegistry = ToolRegistry.forRuntime(
-                brainEnabled = brainLLMInternal?.isEnabled == true,
-                mcpTools = mcpServiceManager.currentToolSnapshot(),
-            ),
+            toolRegistryProvider = {
+                ToolRegistry.forRuntime(
+                    brainEnabled = brainLLMInternal?.isEnabled == true,
+                    mcpTools = mcpServiceManager.currentToolSnapshot(),
+                )
+            },
         )
     }
 
