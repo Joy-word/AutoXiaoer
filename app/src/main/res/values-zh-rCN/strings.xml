@@ -521,6 +521,7 @@
     <string name="settings_export_section_scheduled_tasks">定时任务</string>
     <string name="settings_export_section_task_templates">任务模板</string>
     <string name="settings_export_section_memory">经验记忆</string>
+    <string name="settings_export_section_mcp_servers">MCP 配置（不含 API Key）</string>
     <string name="settings_export_nothing_selected">请至少选择一项导出内容</string>
     <string name="settings_export_success">数据已导出，请选择保存位置</string>
     <string name="settings_export_failed">导出失败</string>

@@ -81,7 +81,7 @@
             android:contentDescription="@string/mcp_server_delete_action"
             android:padding="8dp"
             android:src="@drawable/ic_delete"
-            android:tint="@color/status_failed" />
+            android:tint="@color/icon_secondary" />
 
     </LinearLayout>
 

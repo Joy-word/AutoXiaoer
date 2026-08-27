@@ -1335,6 +1335,24 @@ class SettingsManager private constructor(private val context: Context) {
         saveMcpServers(current)
     }
 
+    /** Imports MCP configuration JSON without importing or changing any API keys. */
+    fun importMcpServers(json: String): Int {
+        val imported = mcpJson.decodeFromString<McpServerConfigList>(json).servers
+        val merged = getMcpServers().toMutableList()
+        var importedCount = 0
+        for (config in imported) {
+            val index = merged.indexOfFirst { it.id == config.id }
+            if (index >= 0) {
+                merged[index] = config
+            } else {
+                merged.add(config)
+            }
+            importedCount++
+        }
+        saveMcpServers(merged)
+        return importedCount
+    }
+
     /** Deletes a server and its secret. Built-in servers cannot be deleted. */
     fun deleteMcpServer(serverId: String) {
         val current = getMcpServers().toMutableList()

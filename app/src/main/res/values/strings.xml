@@ -521,6 +521,7 @@
     <string name="settings_export_section_scheduled_tasks">Scheduled Tasks</string>
     <string name="settings_export_section_task_templates">Task Templates</string>
     <string name="settings_export_section_memory">Experience Memory</string>
+    <string name="settings_export_section_mcp_servers">MCP Servers (without API keys)</string>
     <string name="settings_export_nothing_selected">Select at least one item to export</string>
     <string name="settings_export_success">Data exported. Select a save location</string>
     <string name="settings_export_failed">Export failed</string>

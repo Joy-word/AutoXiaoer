@@ -8,6 +8,10 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import com.flowmate.autoxiaoer.BuildConfig
+import com.flowmate.autoxiaoer.mcp.McpServerConfigList
+import com.flowmate.autoxiaoer.settings.SettingsManager
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -44,7 +48,8 @@ import java.util.zip.ZipOutputStream
  *     ├── prompts/...
  *     ├── task_history/...
  *     ├── scheduled_tasks/...
- *     └── task_templates/...
+ *     ├── task_templates/...
+ *     └── mcp_servers.json       ← (optional) MCP configs without API keys
  * ```
  */
 object DataMigrationManager {
@@ -55,6 +60,7 @@ object DataMigrationManager {
     private const val FILES_DIR = "files"
     private const val PREFS_PROMPTS_FILE = "prompts.json"
     private const val PREFS_SYSTEM_PROMPTS_FILE = "system_prompts.json"
+    private const val MCP_SERVERS_FILE = "mcp_servers.json"
     private const val FORMAT_VERSION = 2
     private const val LEGACY_FORMAT_VERSION = 1
     private const val EXPORT_TIMESTAMP_FORMAT = "yyyyMMdd_HHmmss"
@@ -68,8 +74,10 @@ object DataMigrationManager {
     const val SECTION_SCHEDULED_TASKS = "scheduled_tasks"
     const val SECTION_TASK_TEMPLATES = "task_templates"
     const val SECTION_MEMORY = "memory"
+    const val SECTION_MCP_SERVERS = "mcp_servers"
 
     private val exportTimestampFormat = SimpleDateFormat(EXPORT_TIMESTAMP_FORMAT, Locale.getDefault())
+    private val mcpJson = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     // SharedPreferences keys that hold user-authored prompts (no API keys).
     private val PROMPT_PREF_KEYS = listOf(
@@ -105,10 +113,12 @@ object DataMigrationManager {
         val taskTemplates: Boolean = false,
         /** Experience memory (memory/apps/, memory/contacts/, memory/notes/). */
         val memory: Boolean = false,
+        val mcpServers: Boolean = false,
     ) {
         fun hasAnySelected(): Boolean =
             persona || behaviorRules || relationships || systemPrompts ||
                 taskHistory || scheduledTasks || taskTemplates || memory
+                    || mcpServers
 
         fun selectedSections(): List<String> = buildList {
             if (persona) add(SECTION_PERSONA)
@@ -119,6 +129,7 @@ object DataMigrationManager {
             if (scheduledTasks) add(SECTION_SCHEDULED_TASKS)
             if (taskTemplates) add(SECTION_TASK_TEMPLATES)
             if (memory) add(SECTION_MEMORY)
+            if (mcpServers) add(SECTION_MCP_SERVERS)
         }
 
         fun isSectionSelected(section: String): Boolean = when (section) {
@@ -130,6 +141,7 @@ object DataMigrationManager {
             SECTION_SCHEDULED_TASKS -> scheduledTasks
             SECTION_TASK_TEMPLATES -> taskTemplates
             SECTION_MEMORY -> memory
+            SECTION_MCP_SERVERS -> mcpServers
             else -> false
         }
 
@@ -149,6 +161,7 @@ object DataMigrationManager {
                 scheduledTasks = SECTION_SCHEDULED_TASKS in sections,
                 taskTemplates = SECTION_TASK_TEMPLATES in sections,
                 memory = SECTION_MEMORY in sections,
+                mcpServers = SECTION_MCP_SERVERS in sections,
             )
         }
     }
@@ -192,6 +205,9 @@ object DataMigrationManager {
                 writeManifest(zip, options)
                 if (options.systemPrompts) {
                     writeSystemPromptPrefs(zip, context)
+                }
+                if (options.mcpServers) {
+                    writeMcpServers(zip, context)
                 }
                 writeSelectedFileDirs(zip, context, options)
             }
@@ -273,6 +289,14 @@ object DataMigrationManager {
         zip.closeEntry()
     }
 
+    private fun writeMcpServers(zip: ZipOutputStream, context: Context) {
+        val servers = SettingsManager.getInstance(context).getMcpServers()
+        val json = mcpJson.encodeToString(McpServerConfigList(servers = servers))
+        zip.putNextEntry(ZipEntry(MCP_SERVERS_FILE))
+        zip.write(json.toByteArray())
+        zip.closeEntry()
+    }
+
     private fun writeSelectedFileDirs(zip: ZipOutputStream, context: Context, options: ExportOptions) {
         for ((section, dirName) in SECTION_TO_DIR) {
             val include = when (section) {
@@ -330,6 +354,9 @@ object DataMigrationManager {
                         entry.name == "$PREFS_DIR/$PREFS_SYSTEM_PROMPTS_FILE" ||
                             entry.name == "$PREFS_DIR/$PREFS_PROMPTS_FILE" -> {
                             availableSections.add(SECTION_SYSTEM_PROMPTS)
+                        }
+                        entry.name == MCP_SERVERS_FILE -> {
+                            availableSections.add(SECTION_MCP_SERVERS)
                         }
                         entry.name.startsWith("$FILES_DIR/") && !entry.isDirectory -> {
                             val topDir = entry.name
@@ -412,6 +439,7 @@ object DataMigrationManager {
         try {
             var manifest: JSONObject? = null
             var systemPromptsJson: JSONObject? = null
+            var mcpServersJson: String? = null
             val fileEntries = mutableListOf<Pair<String, ByteArray>>()
 
             ZipInputStream(FileInputStream(zipFile)).use { zip ->
@@ -424,6 +452,9 @@ object DataMigrationManager {
                         entry.name == "$PREFS_DIR/$PREFS_SYSTEM_PROMPTS_FILE" ||
                             entry.name == "$PREFS_DIR/$PREFS_PROMPTS_FILE" -> {
                             systemPromptsJson = JSONObject(zip.readBytes().toString(Charsets.UTF_8))
+                        }
+                        entry.name == MCP_SERVERS_FILE -> {
+                            mcpServersJson = zip.readBytes().toString(Charsets.UTF_8)
                         }
                         entry.name.startsWith("$FILES_DIR/") && !entry.isDirectory -> {
                             fileEntries.add(entry.name to zip.readBytes())
@@ -448,6 +479,11 @@ object DataMigrationManager {
             if (systemPromptsJson != null && options.systemPrompts) {
                 restoreSystemPromptPrefs(context, systemPromptsJson!!)
                 importedSections.add(SECTION_SYSTEM_PROMPTS)
+            }
+
+            if (mcpServersJson != null && options.mcpServers) {
+                SettingsManager.getInstance(context).importMcpServers(mcpServersJson!!)
+                importedSections.add(SECTION_MCP_SERVERS)
             }
 
             val filesDir = context.filesDir
