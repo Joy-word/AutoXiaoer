@@ -45,7 +45,7 @@ object BuiltInMcpServers {
 
     fun amapTemplate(): McpServerConfig = McpServerConfig(
         id = AMAP_ID,
-        displayName = "高德地图",
+        displayName = "高德地图(AMap)",
         endpointUrl = "https://mcp.amap.com/mcp",
         enabled = false,
         authMode = McpAuthMode.QUERY_PARAMETER,
