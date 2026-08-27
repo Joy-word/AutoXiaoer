@@ -36,15 +36,15 @@
 ---
 
 ## 📖 项目简介
-Auto Xiao'er 是基于 [AutoGLM For Android](https://github.com/Luokavin/AutoGLM-For-Android) 深度修改开发的 Android 原生应用。借鉴一些 OpenClaw 思想，使它可以独立操作手机，成为你的赛博伙伴。
-
-> AutoGLM For Android 是基于 [Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM) 开源项目二次开发的 Android 原生应用。它将原本需要电脑 + ADB 连接的手机自动化方案，转变为一个独立运行在手机上的 App，让用户可以直接在手机上使用自然语言控制手机完成各种任务。
+Auto 小二 是一个运行在安卓系统上的纯端侧智能体原生应用，它可以像人一样基于视觉操作手机，无缝对接各种APP。支持多渠道触发任务：定时任务、通知触发、ClawBot 等。
+如果你正好有一台备用机，不妨装上小二，获取一个 24h 陪伴的好伙伴。
 
 
 **核心特点：**
 - 🚀 **纯端侧**：直接在手机上运行，无需与电脑连接
 - 🎯 **无缝对接各种社交软件**：基于视觉操作，手机上可以安装的社交软件都可以使用
-- 🤖 **双 Agent + 可选人设**：规划控制（LLM Agent / 控制者）+ 屏幕执行（Phone Agent / 执行者）协同；可选独立 **BrainLLM（表达者）** 专门负责面向好友/用户的人设话术与人际表达，与任务规划解耦
+- 🤖 **双 Agent**：规划控制（LLM Agent / 控制者）+ 屏幕执行（Phone Agent / 执行者）协同
+- 🎭 **可选人设**：支持单独为人设配置提示词和模型，解锁不同性格的小二
 - ⏰ **定时任务**：支持定时执行任务，可设置重复模式，自动亮屏执行
 - 🔔 **通知触发**：监听指定 App 的通知，收到通知时自动触发预设任务
 - 📶 **微信远程控制**：通过微信扫码连接 ClawBot，随时随地用微信与小二连接
@@ -338,8 +338,8 @@ Auto小二支持 Shizuku 与无障碍服务两种控制方式。请根据需要�
 本项目基于 [MIT License](LICENSE) 开源。
 
 ## 🙏 致谢
-
 - [AutoGLM-For-Android](https://github.com/Luokavin/AutoGLM-For-Android) Luokavin 大佬开源项目
+> AutoGLM For Android 是基于 [Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM) 开源项目二次开发的 Android 原生应用。它将原本需要电脑 + ADB 连接的手机自动化方案，转变为一个独立运行在手机上的 App，让用户可以直接在手机上使用自然语言控制手机完成各种任务。
 - [Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM) - 原始开源项目
 - [Shizuku](https://github.com/RikkaApps/Shizuku) - 系统权限框架
 - [智谱 AI](https://www.zhipuai.cn/) - AutoGLM 模型提供方

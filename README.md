@@ -32,15 +32,15 @@ English | [中文](README_zh.md)
 
 ## 📖 Introduction
 
-Auto Xiao'er is a native Android application deeply modified from [AutoGLM For Android](https://github.com/Luokavin/AutoGLM-For-Android), drawing on OpenClaw ideas to let it operate your phone independently as your cyber companion.
-
-> AutoGLM For Android is based on [Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM) — it transforms the original computer + ADB phone automation into a standalone app running entirely on the phone.
+Auto Xiao'er is a pure on-device native Android agent app that operates your phone visually just like a human, seamlessly integrating with any app. Supports multiple task trigger channels: scheduled tasks, notification triggers, ClawBot, and more.
+If you happen to have a spare phone, try installing Xiao'er and get a 24/7 cyber companion.
 
 **Key Features:**
 
 - 🚀 **No Computer Required**: Runs directly on the phone without ADB connection
 - 🎯 **Seamless Integration with Social Apps**: Vision-based operation works with any social app installed on your phone
-- 🤖 **Dual Agent + Optional Persona**: **Controller** (LLM Agent) + **Executor** (Phone Agent) collaborate on planning and screen actions; optional **Expresser** (BrainLLM) handles persona-driven wording and interpersonal expression for friends/users, decoupled from task planning
+- 🤖 **Dual Agent**: **Controller** (LLM Agent) + **Executor** (Phone Agent) collaborate on planning and screen actions
+- 🎭 **Optional Persona**: Supports configuring separate prompts and models for persona, unlocking different personalities for Xiao'er
 - ⏰ **Scheduled Tasks**: Supports timed task execution with repeat modes, auto wake screen
 - 🔔 **Notification Triggers**: Monitors specified app notifications and auto-triggers preset tasks
 - 📶 **WeChat Remote Control**: Connect via WeChat QR code scan to control Xiao'er remotely
@@ -323,6 +323,7 @@ This project is licensed under [MIT License](LICENSE).
 ## 🙏 Acknowledgments
 
 - [AutoGLM-For-Android](https://github.com/Luokavin/AutoGLM-For-Android) - Luokavin's open-source project
+> AutoGLM For Android is based on [Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM) — it transforms the original computer + ADB phone automation into a standalone app running entirely on the phone.
 - [Open-AutoGLM](https://github.com/zai-org/Open-AutoGLM) - Original open-source project
 - [Shizuku](https://github.com/RikkaApps/Shizuku) - System permission framework
 - [Zhipu AI](https://www.zhipuai.cn/) - AutoGLM model provider
