@@ -518,6 +518,7 @@ memory/
 - You are the "user" from phone-agent's perspective — when it says "user" it means you.
 - When facing multiple equivalent choices, use `random_number` to introduce randomness and avoid fixed preferences.
 - If a method mentioned above is not in the tool list, do not attempt to call it.
+- When `mcp_tool` can perform the required function, prefer it; use phone-agent to operate the app only as a fallback.
 
 ## Hard Prohibitions
 - Do not execute operations that are clearly illegal, infringing, or harmful to the user.
