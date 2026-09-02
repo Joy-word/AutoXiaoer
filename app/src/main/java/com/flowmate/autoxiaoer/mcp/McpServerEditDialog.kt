@@ -3,6 +3,7 @@ package com.flowmate.autoxiaoer.mcp
 import android.content.Context
 import android.view.LayoutInflater
 import android.view.View
+import android.view.inputmethod.InputMethodManager
 import android.widget.TextView
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
@@ -94,6 +95,9 @@ class McpServerEditDialog(
     }
 
     private fun testConnection(config: McpServerConfig, secret: String?) {
+        dialogView.clearFocus()
+        (context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)
+            ?.hideSoftInputFromWindow(dialogView.windowToken, 0)
         tvTestResult.visibility = View.VISIBLE
         tvTestResult.setTextColor(context.getColor(R.color.text_secondary))
         tvTestResult.text = context.getString(R.string.mcp_server_test_connecting)

@@ -102,20 +102,30 @@
         </com.google.android.material.textfield.TextInputLayout>
 
         <!-- Test connection button + result -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnMcpTestConnection"
-            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginBottom="8dp"
-            android:text="@string/mcp_server_test_connection" />
-
-        <TextView
-            android:id="@+id/tvMcpTestResult"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="13sp"
-            android:visibility="gone" />
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnMcpTestConnection"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/mcp_server_test_connection" />
+
+            <TextView
+                android:id="@+id/tvMcpTestResult"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="12dp"
+                android:layout_weight="1"
+                android:maxLines="3"
+                android:textSize="13sp"
+                android:visibility="gone" />
+
+        </LinearLayout>
 
     </LinearLayout>
 
