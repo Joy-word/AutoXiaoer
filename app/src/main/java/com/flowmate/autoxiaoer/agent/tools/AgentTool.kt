@@ -207,6 +207,14 @@ internal fun JsonObjectBuilder.booleanField(name: String, description: String) {
     }
 }
 
+internal fun JsonObjectBuilder.stringArrayField(name: String, description: String) {
+    putJsonObject(name) {
+        put("type", "array")
+        put("description", description)
+        putJsonObject("items") { put("type", "string") }
+    }
+}
+
 /**
  * Adds a nested object property with its own properties / required list.
  */
