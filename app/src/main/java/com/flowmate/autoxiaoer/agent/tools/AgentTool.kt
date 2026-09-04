@@ -1,11 +1,14 @@
 package com.flowmate.autoxiaoer.agent.tools
 
 import com.flowmate.autoxiaoer.model.TokenUsage
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonObjectBuilder
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
@@ -94,6 +97,54 @@ data class SubTaskMeta(
     val subTaskStepCount: Int,
     val planningRoundTimestamp: Long,
 )
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Argument validation against a tool's parametersSchema
+// ──────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Validates [args] against a tool's [AgentTool.parametersSchema] before execution.
+ *
+ * Checks only the top-level shape the model commonly gets wrong: presence of every
+ * `required` field and the JSON type of each present field. Nested-object and array
+ * item schemas are not recursed into — individual tools still guard their own deeper
+ * structure. Returns null when valid, or a single human-readable error line (localized
+ * via [isEnglish]) that is fed back to the model as the tool observation.
+ */
+fun validateArgsAgainstSchema(schema: JsonObject, args: JSONObject, isEnglish: Boolean): String? {
+    val properties = schema["properties"] as? JsonObject ?: return null
+    val required = schema["required"] as? JsonArray ?: JsonArray(emptyList())
+
+    for (fieldElement in required) {
+        val field = (fieldElement as? JsonPrimitive)?.contentOrNull ?: continue
+        if (!args.has(field) || args.isNull(field)) {
+            return if (isEnglish) "Missing required field \"$field\"."
+            else "缺少必填字段 \"$field\"。"
+        }
+    }
+
+    for (field in properties.keys) {
+        if (!args.has(field) || args.isNull(field)) continue
+        val expectedType = ((properties[field] as? JsonObject)?.get("type") as? JsonPrimitive)?.contentOrNull
+            ?: continue
+        val actual = args.get(field)
+        if (!jsonTypeMatches(expectedType, actual)) {
+            return if (isEnglish) "Field \"$field\" should be of type $expectedType."
+            else "字段 \"$field\" 类型应为 $expectedType。"
+        }
+    }
+    return null
+}
+
+private fun jsonTypeMatches(expectedType: String, value: Any): Boolean = when (expectedType) {
+    "string" -> value is String
+    "integer" -> value is Int || value is Long || (value is Number && value.toDouble() % 1.0 == 0.0)
+    "number" -> value is Number
+    "boolean" -> value is Boolean
+    "array" -> value is org.json.JSONArray
+    "object" -> value is JSONObject
+    else -> true
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Schema-building helpers used by tool implementations

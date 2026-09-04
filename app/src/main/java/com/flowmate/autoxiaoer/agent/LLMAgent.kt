@@ -11,6 +11,7 @@ import com.flowmate.autoxiaoer.agent.tools.SubTaskMeta
 import com.flowmate.autoxiaoer.agent.tools.ToolContext
 import com.flowmate.autoxiaoer.agent.tools.ToolRegistry
 import com.flowmate.autoxiaoer.agent.tools.ToolResult
+import com.flowmate.autoxiaoer.agent.tools.validateArgsAgainstSchema
 import com.flowmate.autoxiaoer.clawbot.ClawBotContextStore
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
 import com.flowmate.autoxiaoer.history.HistoryManager
@@ -244,8 +245,8 @@ class LLMAgent(
                 Logger.d(TAG, "LLM thinking: ${thinking.take(200)}")
                 listener?.onThinkingUpdate(thinking)
 
-                val newPlan = ModelResponseParser.parseLlmAgentPlan(response.rawContent)
-                if (newPlan == null) {
+                val newPlanRaw = ModelResponseParser.parseLlmAgentPlan(response.rawContent)
+                if (newPlanRaw == null) {
                     Logger.w(TAG, "LLM produced no <plan> block on round $round; discarding and nudging it")
                     pendingNudge = if (toolContext.isEnglish) {
                         "Your previous response was discarded because it did not include a <plan> block. " +
@@ -255,6 +256,8 @@ class LLMAgent(
                     }
                     continue
                 }
+                // Backfill any <same/> section placeholders from the previous round's plan.
+                val newPlan = ModelResponseParser.mergePlanPlaceholders(newPlanRaw, currentPlan)
                 currentPlan = newPlan
 
                 val toolCall = response.toolCalls.firstOrNull()
@@ -313,6 +316,23 @@ class LLMAgent(
                             actionDescription = formatActionDescription(toolCall),
                             actionType = toolCall.name,
                             message = err,
+                            tokenUsage = response.tokenUsage,
+                            plan = newPlan,
+                        ),
+                    )
+                    continue
+                }
+
+                val schemaError = validateArgsAgainstSchema(tool.parametersSchema, args, toolContext.isEnglish)
+                if (schemaError != null) {
+                    ctx.addToolMessage(toolCall.id, toolCall.name, schemaError)
+                    historyManager?.recordPlanningRound(
+                        LLMPlanningRound(
+                            round = round,
+                            thinking = thinking,
+                            actionDescription = formatActionDescription(toolCall),
+                            actionType = toolCall.name,
+                            message = schemaError,
                             tokenUsage = response.tokenUsage,
                             plan = newPlan,
                         ),
@@ -406,7 +426,10 @@ class LLMAgent(
         } else {
             ctx.getMessages()
         }
-        val first = modelClient.request(messages, currentScreenshot = screenshotBase64, tools = tools)
+        // Force a tool call every round: the ReAct loop is only meaningful when the model
+        // selects a tool, and "required" removes the "no tool_call" failure at the protocol level.
+        val toolChoice = if (tools.isNotEmpty()) "required" else null
+        val first = modelClient.request(messages, currentScreenshot = screenshotBase64, tools = tools, toolChoice = toolChoice)
         if (first is ModelResult.Success) {
             logModelResponse(first.response)
             return first.response
@@ -418,7 +441,7 @@ class LLMAgent(
         delay(NETWORK_RETRY_DELAY_MS)
         if (cancelRequested.get()) return null
 
-        val retry = modelClient.request(messages, currentScreenshot = screenshotBase64, tools = tools)
+        val retry = modelClient.request(messages, currentScreenshot = screenshotBase64, tools = tools, toolChoice = toolChoice)
         if (retry is ModelResult.Success) {
             Logger.i(TAG, "LLM network retry succeeded")
             logModelResponse(retry.response)
