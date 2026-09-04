@@ -68,7 +68,8 @@ interface LLMAgentListener {
      * before it is fed back into the LLM context for the next round.
      */
     fun onObservationReceived(subTask: SubTask, result: SubTaskResult, observation: String)
-
+    /** Called whenever LLMAgent parses a new `<plan>` block, before the tool call is dispatched. */
+    fun onPlanUpdated(plan: String) {}
     /** Called when the overall task is done (success or failure). */
     fun onTaskFinished(result: LLMTaskResult)
 
@@ -116,8 +117,37 @@ class LLMAgent(
     /** When true the ReAct loop will suspend at iteration boundaries until resumed. */
     private val pauseRequested = AtomicBoolean(false)
 
+    /**
+     * Operator instructions queued via [injectUserGuidance], consumed at the start of the
+     * next planning round. Thread-safe: callers may enqueue from any thread (e.g. ClawBot's
+     * polling thread) while the ReAct loop drains it on [managerScope]/the task coroutine.
+     */
+    private val pendingUserGuidance = java.util.concurrent.ConcurrentLinkedQueue<String>()
+
     fun setListener(listener: LLMAgentListener?) {
         this.listener = listener
+    }
+
+    /**
+     * Queues [text] to be folded into the model's next request as an operator instruction.
+     *
+     * If a task is paused, the text simply waits in the queue until the loop resumes and
+     * reaches the next round boundary. Multiple calls accumulate and are consumed together,
+     * in call order, the next time a round starts.
+     */
+    fun injectUserGuidance(text: String) {
+        pendingUserGuidance.add(text)
+        Logger.i(TAG, "User guidance queued: ${text.take(80)}")
+    }
+
+    /** Drains all queued operator instructions, joined in order, or null if none are pending. */
+    private fun drainPendingUserGuidance(): String? {
+        if (pendingUserGuidance.isEmpty()) return null
+        val parts = mutableListOf<String>()
+        while (true) {
+            parts.add(pendingUserGuidance.poll() ?: break)
+        }
+        return parts.joinToString("\n")
     }
 
     /** Requests cancellation of the current ReAct loop. */
@@ -235,7 +265,8 @@ class LLMAgent(
                 listener?.onPlanningRoundStarted(round)
                 toolContext.currentPlanningRound = round
 
-                ctx.addRoundContext(round, config.maxPlanningSteps, toolContext.isEnglish, currentPlan, pendingNudge)
+                val roundUserGuidance = drainPendingUserGuidance()
+                ctx.addRoundContext(round, config.maxPlanningSteps, toolContext.isEnglish, currentPlan, pendingNudge, roundUserGuidance)
                 pendingNudge = null
 
                 val response = requestModel(ctx, advertisedTools, pendingReviewScreenshot)
@@ -259,6 +290,7 @@ class LLMAgent(
                 // Backfill any <same/> section placeholders from the previous round's plan.
                 val newPlan = ModelResponseParser.mergePlanPlaceholders(newPlanRaw, currentPlan)
                 currentPlan = newPlan
+                listener?.onPlanUpdated(newPlan)
 
                 val toolCall = response.toolCalls.firstOrNull()
                 if (toolCall == null || toolCall.name.isBlank()) {
@@ -296,6 +328,7 @@ class LLMAgent(
                             message = err,
                             tokenUsage = response.tokenUsage,
                             plan = newPlan,
+                            userGuidance = roundUserGuidance,
                         ),
                     )
                     continue
@@ -318,6 +351,7 @@ class LLMAgent(
                             message = err,
                             tokenUsage = response.tokenUsage,
                             plan = newPlan,
+                            userGuidance = roundUserGuidance,
                         ),
                     )
                     continue
@@ -335,6 +369,7 @@ class LLMAgent(
                             message = schemaError,
                             tokenUsage = response.tokenUsage,
                             plan = newPlan,
+                            userGuidance = roundUserGuidance,
                         ),
                     )
                     continue
@@ -355,6 +390,7 @@ class LLMAgent(
                                 brainTokenUsage = result.brainTokenUsage,
                                 subTaskMeta = result.subTaskMeta,
                                 plan = newPlan,
+                                userGuidance = roundUserGuidance,
                             ),
                         )
                         if (cancelRequested.get() || !isActive) {
@@ -374,6 +410,7 @@ class LLMAgent(
                                 brainTokenUsage = null,
                                 subTaskMeta = null,
                                 plan = newPlan,
+                                userGuidance = roundUserGuidance,
                             ),
                         )
                         val taskResult = LLMTaskResult(result.success, result.message, round)
@@ -526,6 +563,7 @@ class LLMAgent(
         brainTokenUsage: TokenUsage?,
         subTaskMeta: SubTaskMeta?,
         plan: String? = null,
+        userGuidance: String? = null,
     ): LLMPlanningRound {
         val timestamp = subTaskMeta?.planningRoundTimestamp ?: System.currentTimeMillis()
         return LLMPlanningRound(
@@ -542,6 +580,7 @@ class LLMAgent(
             tokenUsage = roundTokenUsage,
             brainTokenUsage = brainTokenUsage,
             plan = plan,
+            userGuidance = userGuidance,
         )
     }
 

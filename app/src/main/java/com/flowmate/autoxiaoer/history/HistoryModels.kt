@@ -67,6 +67,8 @@ data class HistoryStep(
  *   [actionType] == "request_brain"), or null if unavailable or not applicable
  * @property plan Raw text inside the model's `<plan>...</plan>` block for this round, or null when
  *   no valid plan was emitted
+ * @property userGuidance Operator instruction(s) injected via ClawBot `#<text>` and folded into
+ *   this round's request, or null if none were queued
  * @property steps PhoneAgent execution steps belonging to this round (e.g. sub-task steps)
  */
 data class LLMPlanningRound(
@@ -83,6 +85,7 @@ data class LLMPlanningRound(
     val tokenUsage: TokenUsage? = null,
     val brainTokenUsage: TokenUsage? = null,
     val plan: String? = null,
+    val userGuidance: String? = null,
     val steps: MutableList<HistoryStep> = mutableListOf(),
 )
 

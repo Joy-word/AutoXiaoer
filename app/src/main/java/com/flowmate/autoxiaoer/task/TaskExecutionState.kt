@@ -14,6 +14,8 @@ import com.flowmate.autoxiaoer.ui.TaskStatus
  * @property currentAction Current action being executed
  * @property resultMessage Result or error message when task completes/fails
  * @property taskDescription The description of the task being executed
+ * @property currentPlan Latest `<plan>` block emitted by LLMAgent, updated every round
+ * @property currentToolName Name of the tool LLMAgent most recently invoked
  */
 data class TaskExecutionState(
     val status: TaskStatus = TaskStatus.IDLE,
@@ -22,4 +24,6 @@ data class TaskExecutionState(
     val currentAction: String = "",
     val resultMessage: String = "",
     val taskDescription: String = "",
+    val currentPlan: String = "",
+    val currentToolName: String = "",
 )

@@ -319,6 +319,7 @@
     <string name="history_thinking_label">思考过程</string>
     <string name="history_action_label">操作指令</string>
     <string name="history_plan_label">计划</string>
+    <string name="history_user_guidance_label">用户追加指令</string>
     <string name="history_original">原图</string>
     <string name="history_task_record_title">AutoGLM 任务记录</string>
     <string name="history_step_label">步骤 %1$s</string>

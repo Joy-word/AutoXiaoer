@@ -319,6 +319,7 @@
     <string name="history_thinking_label">Reasoning</string>
     <string name="history_action_label">Action Command</string>
     <string name="history_plan_label">Plan</string>
+    <string name="history_user_guidance_label">Operator Instruction</string>
     <string name="history_original">Original</string>
     <string name="history_task_record_title">AutoGLM Task Record</string>
     <string name="history_step_label">Step %1$s</string>

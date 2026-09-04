@@ -721,6 +721,23 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
     fun getPassiveQueueSize(): Int =
         synchronized(passiveTaskQueue) { passiveTaskQueue.size }
 
+    /**
+     * Queues an operator instruction (e.g. from ClawBot `#<text>`) to be folded into
+     * the running LLMAgent's next planning round.
+     *
+     * If the task is paused, the instruction simply waits until the task resumes and
+     * the loop reaches its next round boundary.
+     *
+     * @return true if a running/paused task's LLMAgent accepted the instruction, false
+     *   if there is no active task to inject into.
+     */
+    fun injectUserGuidance(text: String): Boolean {
+        if (!isTaskRunning()) return false
+        val llmAgent = getComponentManager()?.llmAgent ?: return false
+        llmAgent.injectUserGuidance(text)
+        return true
+    }
+
     // endregion
 
     // region PhoneAgentListener Implementation
@@ -919,6 +936,7 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
     /** Shows the selected native tool call on the current LLMAgent step. */
     override fun onToolCallStarted(toolName: String) {
         Logger.d(TAG, "LLM tool call started: $toolName")
+        _taskState.value = _taskState.value.copy(currentToolName = toolName)
         val toolLabel = "◉ $toolName"
         val currentSteps = _steps.value.toMutableList()
         val lastLLMIdx = currentSteps.indexOfLast { it.source == StepSource.LLM_AGENT }
@@ -972,6 +990,11 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
      */
     override fun onTaskFinished(result: LLMTaskResult) {
         Logger.d(TAG, "LLMAgent task finished: success=${result.success}, rounds=${result.planningRounds}")
+    }
+
+    /** Records the latest `<plan>` block so it can be surfaced via ClawBot `#0`. */
+    override fun onPlanUpdated(plan: String) {
+        _taskState.value = _taskState.value.copy(currentPlan = plan)
     }
 
     // endregion
