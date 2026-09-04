@@ -528,7 +528,7 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
      * Both [LLMAgent] (planning loop) and [PhoneAgent] (execution loop) are paused so
      * that neither issues new LLM/device calls while paused.
      *
-     * @return true if pause was initiated on PhoneAgent successfully, false otherwise
+    * @return true if the task was paused, including while LLMAgent is active and PhoneAgent is idle
      */
     fun pauseTask(): Boolean {
         val componentManager = getComponentManager() ?: return false
@@ -557,14 +557,15 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
      *
      * Both [LLMAgent] and [PhoneAgent] are resumed.
      *
-     * @return true if resume was initiated on PhoneAgent successfully, false otherwise
+    * @return true if the paused task was resumed, including an LLMAgent-only pause
      */
     fun resumeTask(): Boolean {
         val componentManager = getComponentManager() ?: return false
         val agent = componentManager.phoneAgent ?: return false
 
-        // Resume PhoneAgent first so it's ready before LLMAgent dispatches new sub-tasks
-        val resumed = agent.resume()
+        // PhoneAgent remains IDLE when LLMAgent is executing a tool such as wait.
+        val resumed = agent.resume() ||
+            (_taskState.value.status == TaskStatus.PAUSED && agent.getState() == PhoneAgentState.IDLE)
         if (resumed) {
             componentManager.llmAgent?.resume()
             Logger.i(TAG, "Task resumed (PhoneAgent + LLMAgent)")
