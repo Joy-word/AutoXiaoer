@@ -656,12 +656,8 @@ class LLMAgent(
                 sb.appendLine()
                 sb.appendLine("Last planning round before failure (round ${lastRound.round}):")
                 lastRound.plan?.takeIf { it.isNotBlank() }?.let { plan ->
-                    val brief = if (plan.length > 400) "${plan.take(400)}…" else plan
+                    val brief = if (plan.length > 1000) "${plan.take(1000)}…" else plan
                     sb.appendLine("  Plan: $brief")
-                }
-                if (lastRound.thinking.isNotBlank()) {
-                    val brief = if (lastRound.thinking.length > 200) "${lastRound.thinking.take(200)}…" else lastRound.thinking
-                    sb.appendLine("  Thinking: $brief")
                 }
                 sb.appendLine("  Action type: ${lastRound.actionType}")
                 if (!lastRound.subTaskDescription.isNullOrBlank()) {
@@ -681,12 +677,8 @@ class LLMAgent(
                 sb.appendLine()
                 sb.appendLine("失败前最后一轮（第 ${lastRound.round} 轮）：")
                 lastRound.plan?.takeIf { it.isNotBlank() }?.let { plan ->
-                    val brief = if (plan.length > 400) "${plan.take(400)}…" else plan
+                    val brief = if (plan.length > 1000) "${plan.take(1000)}…" else plan
                     sb.appendLine("  计划：$brief")
-                }
-                if (lastRound.thinking.isNotBlank()) {
-                    val brief = if (lastRound.thinking.length > 200) "${lastRound.thinking.take(200)}…" else lastRound.thinking
-                    sb.appendLine("  思考：$brief")
                 }
                 sb.appendLine("  动作类型：${lastRound.actionType}")
                 if (!lastRound.subTaskDescription.isNullOrBlank()) {
