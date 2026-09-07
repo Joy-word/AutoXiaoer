@@ -64,7 +64,7 @@ If you happen to have a spare phone, try installing Xiao'er and get a 24/7 cyber
 - ✅ **Experience Memory**: The Agent reads accumulated operation experience at the start of a task and writes new experience to the memory store upon completion; supports categorized storage by app, contact, and custom notes to continuously improve efficiency on repeated tasks
 - ✅ **Scheduled Tasks**: Preset tasks to execute automatically at designated times, supporting one-time and repetitive tasks
 - ✅ **Notification Triggers**: Monitor specific app notifications to automatically trigger corresponding tasks
-- ✅ **WeChat Remote Control (ClawBot)**: Connect via WeChat QR code scan, send commands remotely and receive task execution results
+- ✅ **WeChat Remote Control (ClawBot)**: Connect via WeChat QR code scan, send commands remotely, receive task execution results, and query details or send follow-up instructions
 - ✅ **Persona Separation**: The **Controller** (LLM Agent) focuses on task breakdown and tool dispatch; when **Expresser** (BrainLLM) is configured separately, it generates natural-language messages to friends or users, with persona and relationship context on the expresser side while the controller can stay in a neutral scheduling voice
 - ✅ **Expresser Wording (BrainLLM)**: When enabled, outgoing text can be polished via `request_brain` using persona and relationship archives; can use a different provider/model from the controller, e.g. a text model better at dialogue and role-play
 - ✅ **Data Migration**: Import and export personas, prompts, scheduled tasks, MCP configurations, and other data for easy migration between phones (API keys and other sensitive information are not exported)
