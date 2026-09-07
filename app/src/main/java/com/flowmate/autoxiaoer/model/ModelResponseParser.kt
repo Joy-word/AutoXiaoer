@@ -233,6 +233,66 @@ object ModelResponseParser {
     fun parseLlmAgentPlan(content: String): String? = extractTaggedBlock(content, "plan")?.trim()?.ifBlank { null }
 
     /**
+     * Resolves `<same/>` section placeholders in a freshly parsed `<plan>` block by backfilling
+     * each marked section with the matching section body from [previousPlan].
+     *
+     * The plan is expected to be organized into `【header】`/`[header]` sections (see
+     * `LLMAgentPrompts`). When the model finds a section unchanged from the previous round, it
+     * may write `<same/>` as that section's entire body instead of retyping it, cutting repeat
+     * output token cost. Sections that changed, and any section on the very first round (where
+     * there is no [previousPlan] to draw from), must still be written out in full — a `<same/>`
+     * with no matching previous section is left as-is.
+     */
+    fun mergePlanPlaceholders(newPlan: String, previousPlan: String): String {
+        if (previousPlan.isBlank() || !newPlan.contains(PLAN_SAME_MARKER)) return newPlan
+
+        val newSections = splitPlanSections(newPlan)
+        val previousByKey = splitPlanSections(previousPlan)
+            .mapNotNull { (header, body) -> canonicalPlanSectionKey(header)?.let { it to body } }
+            .toMap()
+
+        return newSections.joinToString("\n") { (header, body) ->
+            val resolvedBody = if (body.trim() == PLAN_SAME_MARKER) {
+                canonicalPlanSectionKey(header)?.let { previousByKey[it] } ?: body
+            } else {
+                body
+            }
+            "$header\n$resolvedBody"
+        }.trim()
+    }
+
+    /** Splits a plan block into `(header, body)` pairs using the `【...】`/`[...]` section headers. */
+    private fun splitPlanSections(plan: String): List<Pair<String, String>> {
+        val matches = PLAN_SECTION_HEADER_REGEX.findAll(plan).toList()
+        if (matches.isEmpty()) return emptyList()
+        return matches.mapIndexed { index, match ->
+            val bodyStart = match.range.last + 1
+            val bodyEnd = if (index + 1 < matches.size) matches[index + 1].range.first else plan.length
+            match.value to plan.substring(bodyStart, bodyEnd).trim('\n', ' ', '\t')
+        }
+    }
+
+    /** Maps a `【中文】` or `[English]` section header to a stable key shared by both languages. */
+    private fun canonicalPlanSectionKey(header: String): String? {
+        val cleaned = header.trim().removeSurrounding("【", "】").removeSurrounding("[", "]")
+        return PLAN_SECTION_NAMES.firstOrNull { (zh, en) -> cleaned == zh || cleaned == en }?.first
+    }
+
+    /** Zh/en section-name pairs, in the order they appear in the `<plan>` template. */
+    private val PLAN_SECTION_NAMES = listOf(
+        "任务全貌" to "Full picture",
+        "重点纪要" to "Key Notes",
+        "记忆决策" to "Memory Decision",
+        "已完成" to "Completed",
+        "待完成" to "Remaining",
+    )
+
+    private val PLAN_SECTION_HEADER_REGEX = Regex("""(【[^】]+】|\[[^\]]+\])""")
+
+    /** Marker the model may write as a section's full body to reuse it from the previous round. */
+    const val PLAN_SAME_MARKER = "<same/>"
+
+    /**
      * Strips the `<plan>` block from an LLMAgent response before it is persisted to
      * [LLMAgentContext]. It is redundant in history: the plan is already re-injected fresh
      * every round via `addRoundContext`, so the stale copy in the assistant turn only wastes

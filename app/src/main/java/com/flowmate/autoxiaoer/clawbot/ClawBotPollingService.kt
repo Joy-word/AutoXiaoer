@@ -141,6 +141,18 @@ class ClawBotPollingService : Service() {
             return
         }
 
+        ClawBotShortcutHandler.parseGuidance(text)?.let { guidance ->
+            Logger.i(TAG, "Handling ClawBot user guidance: ${guidance.take(50)}")
+            val injected = TaskExecutionManager.injectUserGuidance(guidance)
+            val reply = if (injected) {
+                "已收到追加指令，将在下一步执行前提供给模型：$guidance"
+            } else {
+                "当前没有正在执行的任务，追加指令未生效"
+            }
+            replyToMessage(msg, reply)
+            return
+        }
+
         ClawBotContextStore.getInstance(applicationContext).appendUser(text)
 
         if (TaskExecutionManager.isTaskRunning()) {

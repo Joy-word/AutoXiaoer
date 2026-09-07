@@ -58,6 +58,8 @@ import com.flowmate.autoxiaoer.ui.MainViewModel
 import com.flowmate.autoxiaoer.ui.PermissionStates
 import com.flowmate.autoxiaoer.schedule.ScheduledTaskManager
 import com.flowmate.autoxiaoer.util.DataMigrationManager
+import com.flowmate.autoxiaoer.mcp.McpServerEditDialog
+import com.flowmate.autoxiaoer.mcp.McpServerListDialog
 import com.flowmate.autoxiaoer.util.LogFileManager
 import com.flowmate.autoxiaoer.util.Logger
 import com.flowmate.autoxiaoer.clawbot.ClawBotManager
@@ -278,6 +280,10 @@ class SettingsFragment : Fragment() {
         // BrainLLM settings entry button
         view.findViewById<Button>(R.id.btnBrainLLMSettings)
             .setOnClickListener { showBrainLLMSettingsDialog() }
+
+        // MCP servers entry button
+        view.findViewById<Button>(R.id.btnMcpServers)
+            .setOnClickListener { showMcpServerListDialog() }
 
         // Persona settings entry button
         view.findViewById<Button>(R.id.btnPersonaSettings)
@@ -1141,6 +1147,26 @@ class SettingsFragment : Fragment() {
         dialog.applyPrimaryButtonColors()
     }
 
+    private fun showMcpServerListDialog() {
+        val ctx = requireContext()
+        McpServerListDialog(
+            context = ctx,
+            lifecycleOwner = viewLifecycleOwner,
+            onEditServer = { config -> showMcpServerEditDialog(config) },
+            onAddServer = { showMcpServerEditDialog(null) },
+        ).show()
+    }
+
+    private fun showMcpServerEditDialog(config: com.flowmate.autoxiaoer.mcp.McpServerConfig?) {
+        val ctx = requireContext()
+        McpServerEditDialog(
+            context = ctx,
+            lifecycleOwner = viewLifecycleOwner,
+            onSaved = {},
+            existingConfig = config,
+        ).show()
+    }
+
     /**
      * Shows an edit dialog for BrainLLM's custom system prompt.
      */
@@ -1725,6 +1751,7 @@ class SettingsFragment : Fragment() {
             dialogView.findViewById<CheckBox>(R.id.checkExportScheduledTasks),
             dialogView.findViewById<CheckBox>(R.id.checkExportTaskTemplates),
             dialogView.findViewById<CheckBox>(R.id.checkExportMemory),
+            dialogView.findViewById<CheckBox>(R.id.checkExportMcpServers),
         )
 
         lateinit var sectionListener: CompoundButton.OnCheckedChangeListener
@@ -1781,6 +1808,7 @@ class SettingsFragment : Fragment() {
             scheduledTasks = checkboxes[5].isChecked,
             taskTemplates = checkboxes[6].isChecked,
             memory = checkboxes[7].isChecked,
+            mcpServers = checkboxes[8].isChecked,
         )
     }
 
@@ -1931,6 +1959,7 @@ class SettingsFragment : Fragment() {
             DataMigrationManager.SECTION_TASK_HISTORY,
             DataMigrationManager.SECTION_SCHEDULED_TASKS,
             DataMigrationManager.SECTION_TASK_TEMPLATES,
+            DataMigrationManager.SECTION_MCP_SERVERS,
         )
         val sectionCheckboxes = sectionOrder
             .filter { it in available }
@@ -2001,6 +2030,7 @@ class SettingsFragment : Fragment() {
         DataMigrationManager.SECTION_SCHEDULED_TASKS -> getString(R.string.settings_export_section_scheduled_tasks)
         DataMigrationManager.SECTION_TASK_TEMPLATES -> getString(R.string.settings_export_section_task_templates)
         DataMigrationManager.SECTION_MEMORY -> getString(R.string.settings_export_section_memory)
+        DataMigrationManager.SECTION_MCP_SERVERS -> getString(R.string.settings_export_section_mcp_servers)
         else -> section
     }
 
@@ -2017,6 +2047,7 @@ class SettingsFragment : Fragment() {
             scheduledTasks = isChecked(DataMigrationManager.SECTION_SCHEDULED_TASKS),
             taskTemplates = isChecked(DataMigrationManager.SECTION_TASK_TEMPLATES),
             memory = isChecked(DataMigrationManager.SECTION_MEMORY),
+            mcpServers = isChecked(DataMigrationManager.SECTION_MCP_SERVERS),
         )
     }
 
@@ -2092,6 +2123,9 @@ class SettingsFragment : Fragment() {
             sectionSet.contains(DataMigrationManager.SECTION_SCHEDULED_TASKS)
         ) {
             ScheduledTaskManager.getInstance(ctx).reloadAfterImport()
+        }
+        if (sectionSet.contains(DataMigrationManager.SECTION_MCP_SERVERS)) {
+            ComponentManager.getInstance(ctx).mcpServiceManager.reload()
         }
         loadCurrentSettings()
         Logger.i(TAG, "Re-initialised contexts after import: sections=$importedSections")

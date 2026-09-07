@@ -5,6 +5,9 @@ import com.flowmate.autoxiaoer.util.Logger
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /** Who sent a ClawBot conversation entry. */
 enum class ClawBotSpeaker {
@@ -89,6 +92,9 @@ class ClawBotContextStore private constructor(context: Context) {
         val snapshot = synchronized(lock) { entries.toList() }
         if (snapshot.isEmpty()) return ""
 
+        // Local instance: SimpleDateFormat is not thread-safe and this may be called concurrently.
+        val timestampFormat = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
+
         val sb = StringBuilder()
         if (isEnglish) {
             sb.appendLine("【ClawBot conversation context】")
@@ -102,20 +108,22 @@ class ClawBotContextStore private constructor(context: Context) {
             )
         }
         for (entry in snapshot) {
+            // Timestamps let the model tell apart a stale message from a just-sent one.
+            val time = timestampFormat.format(Date(entry.timestamp))
             when (entry.speaker) {
                 ClawBotSpeaker.USER -> {
                     if (isEnglish) {
-                        sb.appendLine("- User: ${entry.content}")
+                        sb.appendLine("- [$time] User: ${entry.content}")
                     } else {
-                        sb.appendLine("- 用户: ${entry.content}")
+                        sb.appendLine("- [$time] 用户: ${entry.content}")
                     }
                 }
                 ClawBotSpeaker.AGENT -> {
                     val id = entry.taskId ?: continue
                     if (isEnglish) {
-                        sb.appendLine("- Agent [task $id]: ${entry.content}")
+                        sb.appendLine("- [$time] Agent [task $id]: ${entry.content}")
                     } else {
-                        sb.appendLine("- 助手 [任务 $id]: ${entry.content}")
+                        sb.appendLine("- [$time] 助手 [任务 $id]: ${entry.content}")
                     }
                 }
             }

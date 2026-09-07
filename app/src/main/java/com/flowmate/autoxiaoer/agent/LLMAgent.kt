@@ -11,6 +11,7 @@ import com.flowmate.autoxiaoer.agent.tools.SubTaskMeta
 import com.flowmate.autoxiaoer.agent.tools.ToolContext
 import com.flowmate.autoxiaoer.agent.tools.ToolRegistry
 import com.flowmate.autoxiaoer.agent.tools.ToolResult
+import com.flowmate.autoxiaoer.agent.tools.validateArgsAgainstSchema
 import com.flowmate.autoxiaoer.clawbot.ClawBotContextStore
 import com.flowmate.autoxiaoer.config.LLMAgentPrompts
 import com.flowmate.autoxiaoer.history.HistoryManager
@@ -67,7 +68,8 @@ interface LLMAgentListener {
      * before it is fed back into the LLM context for the next round.
      */
     fun onObservationReceived(subTask: SubTask, result: SubTaskResult, observation: String)
-
+    /** Called whenever LLMAgent parses a new `<plan>` block, before the tool call is dispatched. */
+    fun onPlanUpdated(plan: String) {}
     /** Called when the overall task is done (success or failure). */
     fun onTaskFinished(result: LLMTaskResult)
 
@@ -96,7 +98,7 @@ interface LLMAgentListener {
  * @param modelClient Pre-built [ModelClient] constructed from [config] by [ComponentManager]
  * @param phoneAgent The PhoneAgent used to execute sub-tasks
  * @param brainLLM Optional [BrainLLM] for persona-aware text generation
- * @param toolRegistry Tool catalogue advertised to the model. Defaults to [ToolRegistry.default].
+ * @param toolRegistryProvider Supplies the tool catalogue at task start.
  */
 class LLMAgent(
     private val config: LLMAgentConfig,
@@ -105,7 +107,7 @@ class LLMAgent(
     private val historyManager: HistoryManager? = null,
     private val context: Context? = null,
     private val brainLLM: BrainLLM? = null,
-    private val toolRegistry: ToolRegistry = ToolRegistry.default(),
+    private val toolRegistryProvider: () -> ToolRegistry = { ToolRegistry.default() },
 ) {
     private var listener: LLMAgentListener? = null
 
@@ -115,8 +117,37 @@ class LLMAgent(
     /** When true the ReAct loop will suspend at iteration boundaries until resumed. */
     private val pauseRequested = AtomicBoolean(false)
 
+    /**
+     * Operator instructions queued via [injectUserGuidance], consumed at the start of the
+     * next planning round. Thread-safe: callers may enqueue from any thread (e.g. ClawBot's
+     * polling thread) while the ReAct loop drains it on [managerScope]/the task coroutine.
+     */
+    private val pendingUserGuidance = java.util.concurrent.ConcurrentLinkedQueue<String>()
+
     fun setListener(listener: LLMAgentListener?) {
         this.listener = listener
+    }
+
+    /**
+     * Queues [text] to be folded into the model's next request as an operator instruction.
+     *
+     * If a task is paused, the text simply waits in the queue until the loop resumes and
+     * reaches the next round boundary. Multiple calls accumulate and are consumed together,
+     * in call order, the next time a round starts.
+     */
+    fun injectUserGuidance(text: String) {
+        pendingUserGuidance.add(text)
+        Logger.i(TAG, "User guidance queued: ${text.take(80)}")
+    }
+
+    /** Drains all queued operator instructions, joined in order, or null if none are pending. */
+    private fun drainPendingUserGuidance(): String? {
+        if (pendingUserGuidance.isEmpty()) return null
+        val parts = mutableListOf<String>()
+        while (true) {
+            parts.add(pendingUserGuidance.poll() ?: break)
+        }
+        return parts.joinToString("\n")
     }
 
     /** Requests cancellation of the current ReAct loop. */
@@ -203,7 +234,9 @@ class LLMAgent(
             pauseRequested = pauseRequested,
         )
 
-        val advertisedTools = toolRegistry.openAIToolDtos()
+        val taskToolRegistry = toolRegistryProvider()
+        val advertisedTools = taskToolRegistry.openAIToolDtos()
+        Logger.i(TAG, "Task tool registry ready: total=${taskToolRegistry.tools.size}")
 
         // Framework-managed plan state: retains the last <plan> block emitted by the model
         // so it is echoed back each round instead of relying on the model to retype it.
@@ -232,7 +265,8 @@ class LLMAgent(
                 listener?.onPlanningRoundStarted(round)
                 toolContext.currentPlanningRound = round
 
-                ctx.addRoundContext(round, config.maxPlanningSteps, toolContext.isEnglish, currentPlan, pendingNudge)
+                val roundUserGuidance = drainPendingUserGuidance()
+                ctx.addRoundContext(round, config.maxPlanningSteps, toolContext.isEnglish, currentPlan, pendingNudge, roundUserGuidance)
                 pendingNudge = null
 
                 val response = requestModel(ctx, advertisedTools, pendingReviewScreenshot)
@@ -242,8 +276,8 @@ class LLMAgent(
                 Logger.d(TAG, "LLM thinking: ${thinking.take(200)}")
                 listener?.onThinkingUpdate(thinking)
 
-                val newPlan = ModelResponseParser.parseLlmAgentPlan(response.rawContent)
-                if (newPlan == null) {
+                val newPlanRaw = ModelResponseParser.parseLlmAgentPlan(response.rawContent)
+                if (newPlanRaw == null) {
                     Logger.w(TAG, "LLM produced no <plan> block on round $round; discarding and nudging it")
                     pendingNudge = if (toolContext.isEnglish) {
                         "Your previous response was discarded because it did not include a <plan> block. " +
@@ -253,7 +287,10 @@ class LLMAgent(
                     }
                     continue
                 }
+                // Backfill any <same/> section placeholders from the previous round's plan.
+                val newPlan = ModelResponseParser.mergePlanPlaceholders(newPlanRaw, currentPlan)
                 currentPlan = newPlan
+                listener?.onPlanUpdated(newPlan)
 
                 val toolCall = response.toolCalls.firstOrNull()
                 if (toolCall == null || toolCall.name.isBlank()) {
@@ -274,7 +311,7 @@ class LLMAgent(
                 )
                 pendingReviewScreenshot = null
 
-                val tool = toolRegistry.find(toolCall.name)
+                val tool = taskToolRegistry.find(toolCall.name)
                 if (tool == null) {
                     val err = if (toolContext.isEnglish) {
                         "Unknown tool \"${toolCall.name}\". Pick a tool from the advertised catalogue."
@@ -291,6 +328,7 @@ class LLMAgent(
                             message = err,
                             tokenUsage = response.tokenUsage,
                             plan = newPlan,
+                            userGuidance = roundUserGuidance,
                         ),
                     )
                     continue
@@ -313,6 +351,25 @@ class LLMAgent(
                             message = err,
                             tokenUsage = response.tokenUsage,
                             plan = newPlan,
+                            userGuidance = roundUserGuidance,
+                        ),
+                    )
+                    continue
+                }
+
+                val schemaError = validateArgsAgainstSchema(tool.parametersSchema, args, toolContext.isEnglish)
+                if (schemaError != null) {
+                    ctx.addToolMessage(toolCall.id, toolCall.name, schemaError)
+                    historyManager?.recordPlanningRound(
+                        LLMPlanningRound(
+                            round = round,
+                            thinking = thinking,
+                            actionDescription = formatActionDescription(toolCall),
+                            actionType = toolCall.name,
+                            message = schemaError,
+                            tokenUsage = response.tokenUsage,
+                            plan = newPlan,
+                            userGuidance = roundUserGuidance,
                         ),
                     )
                     continue
@@ -333,6 +390,7 @@ class LLMAgent(
                                 brainTokenUsage = result.brainTokenUsage,
                                 subTaskMeta = result.subTaskMeta,
                                 plan = newPlan,
+                                userGuidance = roundUserGuidance,
                             ),
                         )
                         if (cancelRequested.get() || !isActive) {
@@ -352,6 +410,7 @@ class LLMAgent(
                                 brainTokenUsage = null,
                                 subTaskMeta = null,
                                 plan = newPlan,
+                                userGuidance = roundUserGuidance,
                             ),
                         )
                         val taskResult = LLMTaskResult(result.success, result.message, round)
@@ -404,7 +463,10 @@ class LLMAgent(
         } else {
             ctx.getMessages()
         }
-        val first = modelClient.request(messages, currentScreenshot = screenshotBase64, tools = tools)
+        // Force a tool call every round: the ReAct loop is only meaningful when the model
+        // selects a tool, and "required" removes the "no tool_call" failure at the protocol level.
+        val toolChoice = if (tools.isNotEmpty()) "required" else null
+        val first = modelClient.request(messages, currentScreenshot = screenshotBase64, tools = tools, toolChoice = toolChoice)
         if (first is ModelResult.Success) {
             logModelResponse(first.response)
             return first.response
@@ -416,7 +478,7 @@ class LLMAgent(
         delay(NETWORK_RETRY_DELAY_MS)
         if (cancelRequested.get()) return null
 
-        val retry = modelClient.request(messages, currentScreenshot = screenshotBase64, tools = tools)
+        val retry = modelClient.request(messages, currentScreenshot = screenshotBase64, tools = tools, toolChoice = toolChoice)
         if (retry is ModelResult.Success) {
             Logger.i(TAG, "LLM network retry succeeded")
             logModelResponse(retry.response)
@@ -501,6 +563,7 @@ class LLMAgent(
         brainTokenUsage: TokenUsage?,
         subTaskMeta: SubTaskMeta?,
         plan: String? = null,
+        userGuidance: String? = null,
     ): LLMPlanningRound {
         val timestamp = subTaskMeta?.planningRoundTimestamp ?: System.currentTimeMillis()
         return LLMPlanningRound(
@@ -517,6 +580,7 @@ class LLMAgent(
             tokenUsage = roundTokenUsage,
             brainTokenUsage = brainTokenUsage,
             plan = plan,
+            userGuidance = userGuidance,
         )
     }
 
@@ -654,12 +718,8 @@ class LLMAgent(
                 sb.appendLine()
                 sb.appendLine("Last planning round before failure (round ${lastRound.round}):")
                 lastRound.plan?.takeIf { it.isNotBlank() }?.let { plan ->
-                    val brief = if (plan.length > 400) "${plan.take(400)}…" else plan
+                    val brief = if (plan.length > 1000) "${plan.take(1000)}…" else plan
                     sb.appendLine("  Plan: $brief")
-                }
-                if (lastRound.thinking.isNotBlank()) {
-                    val brief = if (lastRound.thinking.length > 200) "${lastRound.thinking.take(200)}…" else lastRound.thinking
-                    sb.appendLine("  Thinking: $brief")
                 }
                 sb.appendLine("  Action type: ${lastRound.actionType}")
                 if (!lastRound.subTaskDescription.isNullOrBlank()) {
@@ -679,12 +739,8 @@ class LLMAgent(
                 sb.appendLine()
                 sb.appendLine("失败前最后一轮（第 ${lastRound.round} 轮）：")
                 lastRound.plan?.takeIf { it.isNotBlank() }?.let { plan ->
-                    val brief = if (plan.length > 400) "${plan.take(400)}…" else plan
+                    val brief = if (plan.length > 1000) "${plan.take(1000)}…" else plan
                     sb.appendLine("  计划：$brief")
-                }
-                if (lastRound.thinking.isNotBlank()) {
-                    val brief = if (lastRound.thinking.length > 200) "${lastRound.thinking.take(200)}…" else lastRound.thinking
-                    sb.appendLine("  思考：$brief")
                 }
                 sb.appendLine("  动作类型：${lastRound.actionType}")
                 if (!lastRound.subTaskDescription.isNullOrBlank()) {

@@ -165,6 +165,35 @@
 
         </LinearLayout>
 
+        <!-- Operator instruction section (only shown when ClawBot guidance was injected this round) -->
+        <LinearLayout
+            android:id="@+id/userGuidanceSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/history_user_guidance_label"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/userGuidanceText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:background="@drawable/thinking_background"
+                android:padding="10dp"
+                android:textColor="@color/step_llm_agent_user_guidance"
+                android:textSize="13sp"
+                android:lineSpacingMultiplier="1.2" />
+
+        </LinearLayout>
+
         <!-- Action block (<action> tag content) -->
         <LinearLayout
             android:id="@+id/actionSection"

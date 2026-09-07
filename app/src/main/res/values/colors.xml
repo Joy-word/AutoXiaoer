@@ -41,7 +41,8 @@
     <color name="step_llm_agent_thinking">#FFFFD54F</color>
     <color name="step_llm_agent_action">#FFFFB300</color>
     <color name="step_llm_agent_badge">#FFFFD54F</color>
-    <color name="step_llm_agent_plan">#FF7E57C2</color>
+    <color name="step_llm_agent_plan">#FFFFB300</color>
+    <color name="step_llm_agent_user_guidance">#FFFFB300</color>
     <!-- PhoneAgent execution steps: existing soft blue (primary) -->
     <color name="step_phone_agent_thinking">@color/text_primary</color>
     <color name="step_phone_agent_action">@color/primary</color>

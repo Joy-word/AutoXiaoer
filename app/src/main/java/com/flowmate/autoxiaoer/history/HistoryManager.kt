@@ -571,6 +571,7 @@ class HistoryManager private constructor(private val context: Context) {
             put("subTaskStepCount", planningRound.subTaskStepCount)
             put("message", planningRound.message)
             planningRound.plan?.let { put("plan", it) }
+            planningRound.userGuidance?.let { put("userGuidance", it) }
             planningRound.tokenUsage?.let { put("tokenUsage", tokenUsageToJson(it)) }
             planningRound.brainTokenUsage?.let { put("brainTokenUsage", tokenUsageToJson(it)) }
 
@@ -603,6 +604,7 @@ class HistoryManager private constructor(private val context: Context) {
             subTaskStepCount = roundJson.optInt("subTaskStepCount").takeIf { roundJson.has("subTaskStepCount") && !roundJson.isNull("subTaskStepCount") },
             message = message,
             plan = roundJson.optString("plan").takeIf { it.isNotEmpty() },
+            userGuidance = roundJson.optString("userGuidance").takeIf { it.isNotEmpty() },
             tokenUsage = roundJson.optJSONObject("tokenUsage")?.let { tokenUsageFromJson(it) },
             brainTokenUsage = roundJson.optJSONObject("brainTokenUsage")?.let { tokenUsageFromJson(it) },
             steps = steps,

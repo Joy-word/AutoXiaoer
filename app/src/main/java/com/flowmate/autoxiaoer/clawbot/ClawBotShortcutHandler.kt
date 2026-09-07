@@ -24,6 +24,17 @@ object ClawBotShortcutHandler {
     fun parse(text: String): Int? =
         COMMAND_PATTERN.matchEntire(text)?.groupValues?.get(1)?.toInt()
 
+    /**
+     * Parses [text] as an operator instruction to append to the running task's next
+     * request (`#<text>`, where `<text>` is anything other than a bare `0`–`5`).
+     *
+     * @return The instruction text (trimmed), or null if [text] is not this form.
+     */
+    fun parseGuidance(text: String): String? {
+        if (!text.startsWith("#") || parse(text) != null) return null
+        return text.substring(1).trim().takeIf { it.isNotEmpty() }
+    }
+
     /** Executes shortcut [command] and returns the reply text to send back via ClawBot. */
     fun execute(command: Int): String =
         when (command) {
@@ -41,10 +52,18 @@ object ClawBotShortcutHandler {
         val queueSize = TaskExecutionManager.getPassiveQueueSize()
         val queueInfo = if (queueSize > 0) "，队列中还有 $queueSize 个待执行任务" else ""
         return when (state.status) {
-            TaskStatus.RUNNING ->
-                "当前任务：${state.taskDescription}（运行中）$queueInfo"
-            TaskStatus.PAUSED ->
-                "当前任务：${state.taskDescription}（已暂停）$queueInfo"
+            TaskStatus.RUNNING, TaskStatus.PAUSED -> {
+                val statusLabel = if (state.status == TaskStatus.RUNNING) "运行中" else "已暂停"
+                buildString {
+                    append("当前任务：${state.taskDescription}（$statusLabel）$queueInfo")
+                    if (state.currentToolName.isNotBlank()) {
+                        append("\n当前工具：${state.currentToolName}")
+                    }
+                    if (state.currentPlan.isNotBlank()) {
+                        append("\n当前计划：\n${state.currentPlan}")
+                    }
+                }
+            }
             else ->
                 if (queueSize > 0) {
                     "当前没有正在执行的任务，队列中有 $queueSize 个待执行任务"

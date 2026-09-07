@@ -183,6 +183,8 @@ class LLMAgentContext(private val systemPrompt: String) {
      * @param nudge Optional one-off reminder folded in when the previous round's response was
      *   malformed (e.g. missing `<plan>` or tool_call). The malformed response itself is never
      *   persisted to context; this is the only trace of that failed attempt.
+     * @param userGuidance Optional operator-provided instruction (queued via ClawBot `#<text>`)
+     *   to fold into this round's context, echoed back in full.
      */
     fun addRoundContext(
         round: Int,
@@ -190,6 +192,7 @@ class LLMAgentContext(private val systemPrompt: String) {
         isEnglish: Boolean,
         currentPlan: String,
         nudge: String? = null,
+        userGuidance: String? = null,
     ) {
         val roundLine = if (isEnglish) {
             "[Current planning round: $round / $maxRounds]"
@@ -217,6 +220,18 @@ class LLMAgentContext(private val systemPrompt: String) {
             if (!nudge.isNullOrBlank()) {
                 append("\n\n")
                 append(nudge)
+            }
+            if (!userGuidance.isNullOrBlank()) {
+                append("\n\n")
+                append(
+                    if (isEnglish) {
+                        "[Operator instruction — take this into account for your next step]"
+                    } else {
+                        "【用户追加指令】- 请在下一步执行中纳入考虑"
+                    },
+                )
+                append("\n")
+                append(userGuidance)
             }
         }
         messages.add(ChatMessage.User(text))

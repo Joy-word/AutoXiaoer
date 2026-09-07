@@ -251,22 +251,31 @@ class UpdateScheduledTaskTool : AgentTool {
 }
 
 /**
- * Deletes an existing scheduled task by id.
+ * Deletes scheduled tasks by id.
  *
  * Mirrors the legacy `delete_scheduled_task` action.
  */
 class DeleteScheduledTaskTool : AgentTool {
     override val name: String = NAME
-    override val description: String = "Delete an existing scheduled task by id."
+    override val description: String = "Delete one or more scheduled tasks by id."
     override val parametersSchema =
-        objectSchema(required = listOf("taskId")) {
-            stringField("taskId", "The id of the scheduled task to delete.")
+        objectSchema(required = listOf("taskIds")) {
+            stringArrayField("taskIds", "The ids of the scheduled tasks to delete.")
         }
 
     override suspend fun execute(args: JSONObject, ctx: ToolContext): ToolResult {
-        val taskId = args.optString("taskId").ifBlank {
+        val taskIdsArray = args.optJSONArray("taskIds")
+        val taskIds = buildList {
+            if (taskIdsArray != null) {
+                for (index in 0 until taskIdsArray.length()) {
+                    taskIdsArray.optString(index).takeIf { it.isNotBlank() }?.let(::add)
+                }
+            }
+        }.distinct()
+        if (taskIds.isEmpty()) {
             return ToolResult.Continue(
-                if (ctx.isEnglish) "delete_scheduled_task requires `taskId`." else "delete_scheduled_task 缺少 taskId 字段。",
+                if (ctx.isEnglish) "delete_scheduled_task requires a non-empty `taskIds` array."
+                else "delete_scheduled_task 的 taskIds 数组不能为空。",
             )
         }
         val appCtx = ctx.appContext ?: return ToolResult.Continue(
@@ -276,18 +285,27 @@ class DeleteScheduledTaskTool : AgentTool {
 
         val resultMessage = try {
             val taskManager = ScheduledTaskManager.getInstance(appCtx)
-            val existing = taskManager.getTaskById(taskId)
-            if (existing == null) {
-                if (ctx.isEnglish) "Delete failed: no scheduled task with id \"$taskId\"." else "删除失败：找不到 id 为「$taskId」的日程"
+            val existingTasks = taskIds.mapNotNull(taskManager::getTaskById)
+            val existingIds = existingTasks.mapTo(mutableSetOf()) { it.id }
+            val missingIds = taskIds.filterNot(existingIds::contains)
+            taskManager.deleteTasks(existingIds)
+            Logger.i(TAG, "Scheduled tasks deleted: ids=${existingTasks.map { it.id }}")
+            if (ctx.isEnglish) {
+                buildString {
+                    append("Deleted ${existingTasks.size} scheduled task(s)")
+                    if (existingTasks.isNotEmpty()) append(": ${existingTasks.joinToString { it.id }}")
+                    if (missingIds.isNotEmpty()) append(". Not found: ${missingIds.joinToString()}")
+                }
             } else {
-                taskManager.deleteTask(taskId)
-                Logger.i(TAG, "Scheduled task deleted: id=$taskId")
-                if (ctx.isEnglish) "Scheduled task deleted (id: $taskId): \"${existing.taskDescription}\""
-                else "日程已删除（id: $taskId）：「${existing.taskDescription}」"
+                buildString {
+                    append("已删除 ${existingTasks.size} 个日程")
+                    if (existingTasks.isNotEmpty()) append("：${existingTasks.joinToString { it.id }}")
+                    if (missingIds.isNotEmpty()) append("。未找到：${missingIds.joinToString()}")
+                }
             }
         } catch (e: Exception) {
-            Logger.e(TAG, "Failed to delete scheduled task", e)
-            if (ctx.isEnglish) "Failed to delete scheduled task: ${e.message}" else "日程删除失败：${e.message}"
+            Logger.e(TAG, "Failed to delete scheduled tasks", e)
+            if (ctx.isEnglish) "Failed to delete scheduled tasks: ${e.message}" else "日程批量删除失败：${e.message}"
         }
 
         val observation = if (ctx.isEnglish) {

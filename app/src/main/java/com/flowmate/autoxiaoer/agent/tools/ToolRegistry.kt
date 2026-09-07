@@ -77,5 +77,17 @@ class ToolRegistry(val tools: List<AgentTool>) {
             }
             return ToolRegistry(tools)
         }
+
+        /**
+         * Combines local tools (filtered by brainEnabled) with a snapshot of MCP tools.
+         * MCP tools are appended after local tools so local ordering is preserved.
+         */
+        fun forRuntime(brainEnabled: Boolean, mcpTools: List<AgentTool>): ToolRegistry {
+            val local = forBrainState(brainEnabled).tools
+            // Deduplicate: drop any MCP tool whose namespaced name collides with a local name
+            val localNames = local.map { it.name }.toHashSet()
+            val filtered = mcpTools.filter { it.name !in localNames }
+            return ToolRegistry(local + filtered)
+        }
     }
 }

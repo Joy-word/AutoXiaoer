@@ -528,7 +528,7 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
      * Both [LLMAgent] (planning loop) and [PhoneAgent] (execution loop) are paused so
      * that neither issues new LLM/device calls while paused.
      *
-     * @return true if pause was initiated on PhoneAgent successfully, false otherwise
+    * @return true if the task was paused, including while LLMAgent is active and PhoneAgent is idle
      */
     fun pauseTask(): Boolean {
         val componentManager = getComponentManager() ?: return false
@@ -557,14 +557,15 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
      *
      * Both [LLMAgent] and [PhoneAgent] are resumed.
      *
-     * @return true if resume was initiated on PhoneAgent successfully, false otherwise
+    * @return true if the paused task was resumed, including an LLMAgent-only pause
      */
     fun resumeTask(): Boolean {
         val componentManager = getComponentManager() ?: return false
         val agent = componentManager.phoneAgent ?: return false
 
-        // Resume PhoneAgent first so it's ready before LLMAgent dispatches new sub-tasks
-        val resumed = agent.resume()
+        // PhoneAgent remains IDLE when LLMAgent is executing a tool such as wait.
+        val resumed = agent.resume() ||
+            (_taskState.value.status == TaskStatus.PAUSED && agent.getState() == PhoneAgentState.IDLE)
         if (resumed) {
             componentManager.llmAgent?.resume()
             Logger.i(TAG, "Task resumed (PhoneAgent + LLMAgent)")
@@ -720,6 +721,23 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
     /** @return Number of tasks waiting in the passive task queue. */
     fun getPassiveQueueSize(): Int =
         synchronized(passiveTaskQueue) { passiveTaskQueue.size }
+
+    /**
+     * Queues an operator instruction (e.g. from ClawBot `#<text>`) to be folded into
+     * the running LLMAgent's next planning round.
+     *
+     * If the task is paused, the instruction simply waits until the task resumes and
+     * the loop reaches its next round boundary.
+     *
+     * @return true if a running/paused task's LLMAgent accepted the instruction, false
+     *   if there is no active task to inject into.
+     */
+    fun injectUserGuidance(text: String): Boolean {
+        if (!isTaskRunning()) return false
+        val llmAgent = getComponentManager()?.llmAgent ?: return false
+        llmAgent.injectUserGuidance(text)
+        return true
+    }
 
     // endregion
 
@@ -919,6 +937,7 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
     /** Shows the selected native tool call on the current LLMAgent step. */
     override fun onToolCallStarted(toolName: String) {
         Logger.d(TAG, "LLM tool call started: $toolName")
+        _taskState.value = _taskState.value.copy(currentToolName = toolName)
         val toolLabel = "◉ $toolName"
         val currentSteps = _steps.value.toMutableList()
         val lastLLMIdx = currentSteps.indexOfLast { it.source == StepSource.LLM_AGENT }
@@ -972,6 +991,11 @@ object TaskExecutionManager : PhoneAgentListener, LLMAgentListener {
      */
     override fun onTaskFinished(result: LLMTaskResult) {
         Logger.d(TAG, "LLMAgent task finished: success=${result.success}, rounds=${result.planningRounds}")
+    }
+
+    /** Records the latest `<plan>` block so it can be surfaced via ClawBot `#0`. */
+    override fun onPlanUpdated(plan: String) {
+        _taskState.value = _taskState.value.copy(currentPlan = plan)
     }
 
     // endregion

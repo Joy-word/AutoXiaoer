@@ -170,6 +170,8 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
         private val planToggle: LinearLayout = itemView.findViewById(R.id.planToggle)
         private val planToggleIcon: ImageView = itemView.findViewById(R.id.planToggleIcon)
         private val planText: TextView = itemView.findViewById(R.id.planText)
+        private val userGuidanceSection: LinearLayout = itemView.findViewById(R.id.userGuidanceSection)
+        private val userGuidanceText: TextView = itemView.findViewById(R.id.userGuidanceText)
         private val actionSection: LinearLayout = itemView.findViewById(R.id.actionSection)
         private val actionDescriptionText: TextView = itemView.findViewById(R.id.actionDescriptionText)
         private val subTaskSection: LinearLayout = itemView.findViewById(R.id.subTaskSection)
@@ -225,6 +227,14 @@ class HistoryDetailAdapter(private val historyManager: HistoryManager, private v
                 }
             } else {
                 planSection.visibility = View.GONE
+            }
+
+            // Operator instruction — only present on rounds where ClawBot guidance was injected
+            if (!round.userGuidance.isNullOrBlank()) {
+                userGuidanceSection.visibility = View.VISIBLE
+                userGuidanceText.text = round.userGuidance
+            } else {
+                userGuidanceSection.visibility = View.GONE
             }
 
             if (round.actionDescription.isNotBlank()) {

@@ -101,6 +101,24 @@ class ScheduledTaskManager private constructor(private val context: Context) {
     }
 
     /**
+     * Deletes multiple scheduled tasks in one storage update.
+     *
+     * @param taskIds The IDs of the tasks to delete
+     */
+    fun deleteTasks(taskIds: Collection<String>) {
+        val idsToDelete = taskIds.toSet()
+        if (idsToDelete.isEmpty()) return
+
+        Logger.d(TAG, "Deleting scheduled tasks: ids=$idsToDelete")
+        idsToDelete.forEach(scheduler::cancelTask)
+
+        val currentTasks = _tasks.value.filterNot { it.id in idsToDelete }
+        saveTasksToStorage(currentTasks)
+        _tasks.value = currentTasks
+        updateScreenKeepAliveState()
+    }
+
+    /**
      * Updates the enabled state of a task.
      *
      * @param taskId The ID of the task to update

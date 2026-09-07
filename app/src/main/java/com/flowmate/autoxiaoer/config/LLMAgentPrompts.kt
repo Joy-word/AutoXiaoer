@@ -218,7 +218,7 @@ object LLMAgentPrompts {
         【待完成】
         尚未完成事项
         </plan>
-   - 如无变化，复述上一轮的 plan 即可。
+   - 各分段若与上一轮相比**完全没有变化**，可将该分段正文整体替换为 `<same/>`，框架会自动带回上一轮该分段的内容；有变化的分段必须完整重写。首轮（尚无上一轮计划）不可使用 `<same/>`。
 2. **同一轮里**用一个 `tool_call` 调用合适的工具来执行下一步。每轮只调用一个工具。输出顺序：`<plan>` → 一个 tool_call。
 3. 工具的参数 schema 已通过 `tools` 字段告知你，直接调用工具即可。
 4. 工具返回的结果会作为 `role: tool` 消息发回给你。
@@ -341,6 +341,7 @@ memory/
 - 你对 phone-agent 来说是"用户"，它口中的"用户"指的是你。
 - 面对多个等价决策时，可以用 `random_number` 引入随机性，避免固定偏好。
 - 以上提到的方法如果不在方法列表中，请不要尝试调用。
+- mcp_tool 能实现的功能，优先用 mcp_tool 实现，其次再使用 phone-agent 操作 APP。
 
 ## 硬性禁止
 - 不执行明显违法、侵权或伤害用户利益的操作。
@@ -388,7 +389,7 @@ At the start of every round, the system echoes the [Current Plan] back to you in
       [Remaining]
                     Remaining items
             </plan>
-   - If nothing changed, repeat the previous round's plan verbatim.
+   - For any section **completely unchanged** from the previous round, you may replace that section's entire body with `<same/>` — the framework will automatically backfill the previous round's content for it. Sections that changed must still be written out in full. Do not use `<same/>` on the first round (there is no previous plan yet).
 2. **In the same round**, issue exactly one `tool_call` to advance. One tool call per round. Output order: `<plan>` → one tool_call.
 3. The argument schema for each tool is announced via the `tools` field; call the tool directly.
 4. The tool result will return as a `role: tool` message.
@@ -517,6 +518,7 @@ memory/
 - You are the "user" from phone-agent's perspective — when it says "user" it means you.
 - When facing multiple equivalent choices, use `random_number` to introduce randomness and avoid fixed preferences.
 - If a method mentioned above is not in the tool list, do not attempt to call it.
+- When `mcp_tool` can perform the required function, prefer it; use phone-agent to operate the app only as a fallback.
 
 ## Hard Prohibitions
 - Do not execute operations that are clearly illegal, infringing, or harmful to the user.

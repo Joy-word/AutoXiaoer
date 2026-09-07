@@ -40,6 +40,7 @@ If you happen to have a spare phone, try installing Xiao'er and get a 24/7 cyber
 - 🚀 **No Computer Required**: Runs directly on the phone without ADB connection
 - 🎯 **Seamless Integration with Social Apps**: Vision-based operation works with any social app installed on your phone
 - 🤖 **Dual Agent**: **Controller** (LLM Agent) + **Executor** (Phone Agent) collaborate on planning and screen actions
+- 🔧 **MCP Support**: Includes a built-in Amap MCP and supports adding, testing, enabling, disabling, and managing custom MCP servers
 - 🎭 **Optional Persona**: Supports configuring separate prompts and models for persona, unlocking different personalities for Xiao'er
 - ⏰ **Scheduled Tasks**: Supports timed task execution with repeat modes, auto wake screen
 - 🔔 **Notification Triggers**: Monitors specified app notifications and auto-triggers preset tasks
@@ -66,6 +67,7 @@ If you happen to have a spare phone, try installing Xiao'er and get a 24/7 cyber
 - ✅ **WeChat Remote Control (ClawBot)**: Connect via WeChat QR code scan, send commands remotely and receive task execution results
 - ✅ **Persona Separation**: The **Controller** (LLM Agent) focuses on task breakdown and tool dispatch; when **Expresser** (BrainLLM) is configured separately, it generates natural-language messages to friends or users, with persona and relationship context on the expresser side while the controller can stay in a neutral scheduling voice
 - ✅ **Expresser Wording (BrainLLM)**: When enabled, outgoing text can be polished via `request_brain` using persona and relationship archives; can use a different provider/model from the controller, e.g. a text model better at dialogue and role-play
+- ✅ **Data Migration**: Import and export personas, prompts, scheduled tasks, MCP configurations, and other data for easy migration between phones (API keys and other sensitive information are not exported)
 
 ### User Interface
 
