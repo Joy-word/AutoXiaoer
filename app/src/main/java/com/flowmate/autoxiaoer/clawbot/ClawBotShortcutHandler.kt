@@ -13,12 +13,15 @@ object ClawBotShortcutHandler {
     private val COMMAND_PATTERN = Regex("^#([0-5])$")
 
     const val BUSY_REPLY = """正在忙。可使用快捷指令对当前任务进行操作。
-#0：显示正在执行的任务名
+#0：显示正在执行的任务详情
 #1：暂停当前任务
 #2：停止当前任务
 #3：清空任务队列
 #4：停止当前任务 + 清空队列
-#5：恢复任务"""
+#5：恢复任务
+
+输入 #<数字> 可执行快捷指令
+如果需要追加指令，请以 `#<指令内容>` 的形式发送"""
 
     /** Parses [text] as a shortcut command; returns 0–5 or null if not a shortcut. */
     fun parse(text: String): Int? =
