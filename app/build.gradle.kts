@@ -12,8 +12,8 @@ android {
         applicationId = "com.flowmate.autoxiaoer"
         minSdk = 24
         targetSdk = 34
-        versionCode = 7
-        versionName = "1.0.23"
+        versionCode = 8
+        versionName = "1.0.24"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
