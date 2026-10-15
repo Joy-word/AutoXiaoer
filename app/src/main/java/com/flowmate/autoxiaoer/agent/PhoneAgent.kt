@@ -121,9 +121,6 @@ class PhoneAgent(
         ) // Track if action has been executed in current step
     private var listener: PhoneAgentListener? = null
 
-    /** Base64 WebP of the screenshot taken in the most recent executeStep call. */
-    @Volatile
-    private var lastCapturedScreenshotBase64: String? = null
     private var currentStepNumber: Int = 0
 
     /**
@@ -275,7 +272,6 @@ class PhoneAgent(
         }
 
         currentStepNumber = 0
-        lastCapturedScreenshotBase64 = null
 
         // Initialize context with system prompt based on language setting
         val systemPrompt = SystemPrompts.getPrompt(config.language)
@@ -535,7 +531,6 @@ class PhoneAgent(
             val screenshot = screenshotService.capture()
             listener?.onScreenshotCompleted()
             Logger.logScreenshot(screenshot.width, screenshot.height, screenshot.isSensitive)
-            lastCapturedScreenshotBase64 = screenshot.base64Data
 
             // Check cancellation after screenshot
             if (_state.value == PhoneAgentState.CANCELLED) {
@@ -1326,6 +1321,27 @@ Please re-analyze the current screenshot and output correct coordinates (within 
         val enhancedTask = buildEnhancedTaskDescription(subTask)
         Logger.i("PhoneAgent", "Running SubTask ${subTask.id}: ${subTask.description.take(80)}")
         val taskResult = run(enhancedTask, initHistory = false)
+        val finalScreenshotBase64 = if (taskResult.stepCount > 0) {
+            try {
+                // Allow the final action's UI changes to settle before visual review.
+                if (config.screenshotDelayMs > 0) {
+                    kotlinx.coroutines.delay(config.screenshotDelayMs)
+                }
+                listener?.onScreenshotStarted()
+                try {
+                    screenshotService.capture().base64Data
+                } finally {
+                    listener?.onScreenshotCompleted()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Logger.w(TAG, "Failed to capture final screenshot: ${e.message}")
+                null
+            }
+        } else {
+            null
+        }
         val needsTakeOver = taskResult.message.startsWith(I18n.getMessage("action_takeover_result", config.language).substringBefore("%s"))
         val last = taskResult.lastStepResult
         return SubTaskResult(
@@ -1338,7 +1354,7 @@ Please re-analyze the current screenshot and output correct coordinates (within 
             lastStepThinking = last?.thinking?.ifBlank { null },
             lastStepAction = last?.action?.formatForDisplay(config.language),
             lastStepMessage = last?.message,
-            lastScreenshotBase64 = lastCapturedScreenshotBase64,
+            lastScreenshotBase64 = finalScreenshotBase64,
         )
     }
 
