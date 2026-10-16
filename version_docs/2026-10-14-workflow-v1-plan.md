@@ -8,7 +8,15 @@
 
 **Tech Stack：** Android、Kotlin、现有模型客户端与工具调用体系、协程、现有 JSON 能力、现有 JUnit／MockK 测试工具；优先复用，不为 V1 引入额外工作流框架。
 
-**范围：** 本文保存当前方案与后续实施顺序，不代表已实现；本次不修改业务代码、不提交 Git。决策模型的职责、输入和接入时机已纳入 V1；具体服务选型、接口与项目内评分校准仍待确定。
+**范围：** 本文保存整体方案与后续实施顺序，不代表全部已实现。2026-10-16 已完成独立决策客户端、流程相关性评分方法与单元测试，默认使用 OpenRouter 的 `microsoft/microsoft-decision-1`；尚未接入 LLMAgent 规划循环、配置界面或流程存储，项目内评分校准待完成。
+
+**决策方法使用：** 创建 `DecisionModelClient(DecisionModelConfig(apiKey = ...))`，再传入 `WorkflowRecommender(client)`；通过挂起方法 `recommend(context, candidates)` 获取推荐项、全部流程得分与状态。API Key 由调用方提供，不复用或持久化主模型凭据。
+
+- 使用 `POST https://openrouter.ai/api/alpha/decisions`，不是聊天接口。依据 OpenRouter OpenAPI 定义，每个候选独立使用 `type: noul` 问题，读取 `answers.<questionId>.noul`，不在候选间归一化。
+- 默认阈值严格 `score > 0.5`，最多 3 项，保留最近 6 条原始工具记录；未知状态保持未知。推荐结果不授权执行。
+- 默认请求预算 5 秒；输入预算 24000 字符，推荐描述预算 6000 字符（保守字符限制，不是精确 Token 计数）。输入过大跳过推荐，避免截断原始工具数据。配置可调整。
+- 空目录不请求；重复 ID、非法得分、缺失／额外响应、超时与服务异常返回空推荐及对应状态；调用方取消继续传播。当前不缓存，不记录请求正文或凭据，不无限重试。
+- 已验证请求结构、独立评分、多命中／零命中、严格阈值、排序稳定性、历史范围、预算、异常与取消；尚未使用真实 Key 做远端调用或评分校准。接口来源：`https://openrouter.ai/openapi.json`。
 
 ---
 
